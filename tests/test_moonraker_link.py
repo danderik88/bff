@@ -225,6 +225,21 @@ class MoonrakerLinkTest(unittest.TestCase):
             server.start_klipper(link, "x.3mf", buf.getvalue())
         self.assertEqual(FakeMoonraker.calls, [])  # nothing sent
 
+    def test_a_sliced_sv08_file_passes_the_start_checks(self):
+        data = (Path(__file__).parent / "fixtures" / "sv08-cube20.gcode.3mf").read_bytes()
+        facts = server.inspect_3mf(data)
+        self.assertEqual(facts["model"], "Sovol SV08")
+        profile = server.onboard.MODEL_PROFILES["KLIPPER-SV08"]
+        raw = ml.to_snapshot(STATUS)
+        self.assertIsNone(server.check_compatible(profile, facts, raw))  # no nozzle/AMS feed comparison
+        other = dict(facts, model="Bambu Lab A1 mini")
+        self.assertIn("Sovol SV08", server.check_compatible(profile, other, raw))
+
+    def test_klipper_filament_comes_from_the_ace_slot(self):
+        raw = ml.to_snapshot(STATUS)
+        self.assertEqual(server.klipper_filaments(raw, ["A3"]), [{"filament_id": None, "filament_type": "PETG"}])
+        self.assertEqual(server.klipper_filaments(raw, [None]), [{"filament_id": None, "filament_type": "PLA"}])
+
 
 if __name__ == "__main__":
     unittest.main()

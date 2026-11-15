@@ -40,6 +40,23 @@ A step-by-step guide comes with the public release; until then, ask in the repo 
 
 Tests: `python3 -m unittest discover -s tests`
 
+## Klipper printers (Moonraker)
+
+BFF also drives Klipper printers over Moonraker's HTTP API: status, pause / resume / cancel, temperatures, chamber light,
+webcam still, upload and start of G-code, and slicing with OrcaSlicer's own profile (`Sovol SV08`). An ACE Pro on the
+printer shows up as an AMS-style unit. Supported models: `KLIPPER-SV08` (plain SV08, not the Max) and `KLIPPER-IR3V2`.
+Add one to the store file (`printers.json`, see `deploy/user/install.sh`):
+
+    "sv08": {"host": "192.168.0.100", "port": 7125, "name": "SV08", "model": "KLIPPER-SV08", "api_key": ""}
+
+Klipper models are not in `TESTED_MODELS`, so Expert mode stays locked. The temperature limits of the IR3 V2 are
+conservative placeholders until read from its printer.cfg. A multi-colour ACE tool mapping is not done: one filament per print.
+
+## Rootless install
+
+`deploy/user/install.sh user@host` installs BFF and slicerd as `systemd --user` services (no root, no container), with
+OrcaSlicer from the flatpak. `SLICER_BIND=127.0.0.1` keeps slicerd on loopback.
+
 ## Not included
 
 MakerWorld links: downloading from MakerWorld needs a sign-in through a non-public account API, so this build leaves it out.

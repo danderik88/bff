@@ -70,7 +70,7 @@ MODEL_PROFILES = {
 
 def _klipper_profile(name, nozzle_max, bed_max, nozzle_confirm, bed_confirm, src="conservative placeholder: check printer.cfg max_temp"):
     # Anything above *_confirm_above_c asks for a confirmation. Prefer limits read from the printer's own printer.cfg.
-    return {"model": name, "slicer_model": name, "command_timeout_s": 15, "start_timeout_s": 150,
+    return {"model": name, "slicer_model": name, "kind": "moonraker", "command_timeout_s": 15, "start_timeout_s": 150,
             "supports": {"pause": True, "resume": True, "stop": True, "start": True},
             "limits": {"nozzle_max_c": {"value": nozzle_max, "source": src}, "bed_max_c": {"value": bed_max, "source": src},
                        "nozzle_confirm_above_c": {"value": nozzle_confirm, "source": src},

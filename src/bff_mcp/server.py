@@ -974,7 +974,7 @@ def load_upload(file_id):
 def plate_mismatch(alias, upload):
     """The file's plate against the one declared in the app. Files sliced before the check carry no plate."""
     wanted = upload.get("plate")
-    if wanted is None:
+    if wanted is None or isinstance(link_of(alias), MoonrakerLink):  # Klipper beds are not Bambu plates
         return None
     mounted = plate_type(alias)
     if mounted is None:
@@ -1077,6 +1077,8 @@ def check_compatible(profile, upload, raw, color=None, file_id=None):
     expected = profile.get("slicer_model")
     if not expected or upload["model"] != expected:
         return f"file affettato per il modello {upload['model']}, serve {expected}"
+    if profile.get("kind") == "moonraker":
+        return None  # Klipper: no AMS feed or MQTT nozzle to compare; the ACE tool mapping is the user's macro
     ams = onboard.ams_trays(raw.get("ams"))
     if not ams and raw.get("tray_now") == NO_FILAMENT_TRAY:
         return "nessun filamento caricato"
@@ -2249,7 +2251,7 @@ def tool_slice_request(args):
     if type(copies) is not int or not 1 <= copies <= 20:
         raise ToolError("Copies: from 1 to 20")
     raw = read_status(printer)
-    for slot in set(slots):  # the same spool may serve several colours
+    for slot in set(slots) if not isinstance(link_of(printer), MoonrakerLink) else ():  # one spool may serve several colours
         slot_filament(printer, raw, slot)
     if args.get("standard") is True:  # Standard drops the custom settings, not Re-orient or "fresh"
         choices = {k: True for k in ("reorient", "fresh") if choices.get(k) is True}
@@ -2328,15 +2330,26 @@ def _fetch_request(rid, source):
             store_model(rid, data)
 
 
+def klipper_filaments(raw, slots):
+    """Klipper has no filament ids: the material of the ACE slot picked (A1..A4), PLA when none says."""
+    trays = {t["slot"]: t for t in onboard.ams_trays(raw.get("ams"))}
+    return [{"filament_id": None, "filament_type": (trays.get(slot) or {}).get("material") or "PLA"} for slot in slots]
+
+
 def _slice_request(rid, printer, source, file_name, choices_json, slots, copies, stage=None):
     raw = read_status(printer)
+    klipper = isinstance(link_of(printer), MoonrakerLink)
     # No AMS (same test as printer_info's ams_present): every colour prints on the one loaded spool.
-    if raw.get("ams"):
-        spools = [slot_filament(printer, raw, slot) for slot in slots]
+    if klipper:
+        filaments = klipper_filaments(raw, slots)
+        feed = [254] * len(slots)
     else:
-        spools = [slot_filament(printer, raw, slots[0])] * len(slots)
-    filaments = [{"filament_id": s.get("profile_id"), "filament_type": s.get("material")} for s in spools]
-    feed = [slot_index(s) for s in slots] if raw.get("ams") else [254] * len(slots)
+        if raw.get("ams"):
+            spools = [slot_filament(printer, raw, slot) for slot in slots]
+        else:
+            spools = [slot_filament(printer, raw, slots[0])] * len(slots)
+        filaments = [{"filament_id": s.get("profile_id"), "filament_type": s.get("material")} for s in spools]
+        feed = [slot_index(s) for s in slots] if raw.get("ams") else [254] * len(slots)
     if source == "upload" or stage == "slice":  # a draft already holds its model
         m = DB.execute("SELECT data FROM models WHERE request_id=?", (rid,)).fetchone()
         if m is None:
@@ -2347,7 +2360,7 @@ def _slice_request(rid, printer, source, file_name, choices_json, slots, copies,
     profile = load_profile(printer)
     machine = slicer.machine_preset(profile.get("model"), _nozzle_diameter(raw))
     choices = json.loads(choices_json) if choices_json else {}
-    if "plate" not in choices and (mounted := plate_type(printer)):
+    if not klipper and "plate" not in choices and (mounted := plate_type(printer)):
         choices["plate"] = mounted  # Orca falls back to Cool Plate, which refuses PLA
     machines = _other_machines(printer)
     try:
