@@ -21,7 +21,7 @@ MODELS = {
     "BL-P001": {"name": "X1 Carbon", "supported": False, "enclosed": None, "camera": "rtsp", "chamber_sensor": True},
     "BL-P002": {"name": "X1", "supported": False, "enclosed": None, "camera": "rtsp", "chamber_sensor": True},
     "C13": {"name": "X1E", "supported": False, "enclosed": None, "camera": "rtsp", "chamber_sensor": True},
-    "O1D": {"name": "H2D", "supported": False, "enclosed": None, "camera": "rtsp", "chamber_sensor": True,
+    "O1D": {"name": "H2D", "supported": True, "enclosed": None, "camera": "rtsp", "chamber_sensor": True,
             "ams_drying": True},
 }
 
@@ -62,6 +62,9 @@ MODEL_PROFILES = {
     "C11": _profile("P1P", "p1p", 300, 100),
     "C12": _profile("P1S", "p1s", 300, 100),
     "N7": _profile("P2S", "p2s", 300, 110),
+    # H2D (dual nozzle): read-only plus pause/resume/stop. Print now stays OFF until the dual-extruder filament mapping
+    # (ams_mapping2 per extruder) is validated on a real print. Limits: https://bambulab.com/en/h2d/tech-specs
+    "O1D": {**_profile("H2D", "h2d", 350, 120), "supports": {"pause": True, "resume": True, "stop": True, "start": False}},
 }
 
 

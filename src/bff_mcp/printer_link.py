@@ -178,6 +178,18 @@ def to_snapshot(raw, firmware_version=None):
     nozzle = {"nozzle_type": mapped_nozzle, "nozzle_diameter": raw.get("nozzle_diameter")}
     if isinstance(nozzle_type, str) and re.fullmatch(r"[A-Z]{2}\d{2}", nozzle_type):
         nozzle["nozzle_code"] = nozzle_type
+    nozzles = [nozzle]
+    device = raw.get("device") if isinstance(raw.get("device"), dict) else {}
+    # H2D (dual nozzle) reports each extruder under device.nozzle / device.extruder and the chamber under device.ctc.
+    listed = (device.get("nozzle") or {}).get("info")
+    if isinstance(listed, list) and len(listed) > 1:
+        heads = {h.get("id"): h.get("temp") for h in (device.get("extruder") or {}).get("info") or [] if isinstance(h, dict)}
+        nozzles = [{"nozzle_type": map_nozzle_type(n.get("type")), "nozzle_diameter": str(n.get("diameter")),
+                    **({"nozzle_code": n["type"]} if re.fullmatch(r"[A-Z]{2}\d{2}", str(n.get("type"))) else {}),
+                    "temp": heads.get(n.get("id"))} for n in listed if isinstance(n, dict)]
+    chamber = raw.get("chamber_temper")
+    if chamber is None:
+        chamber = ((device.get("ctc") or {}).get("info") or {}).get("temp")
     return {
         "state": raw.get("gcode_state"),
         "subtask_name": raw.get("subtask_name"),
@@ -207,7 +219,7 @@ def to_snapshot(raw, firmware_version=None):
         "options": {} if raw.get("home_flag") is None else {
             "auto_recovery": bool(hf & 0x10), "sound_enable": bool(hf & 0x20000),
             "filament_tangle_detect": bool(hf & 0x100000)},
-        "nozzles": [nozzle],
+        "nozzles": nozzles,
         "speed_percent": as_int(raw.get("spd_mag")),
         "heatbreak_fan": fan_pct(raw.get("heatbreak_fan_speed")),
         "print_source": raw.get("print_type"),
@@ -222,7 +234,7 @@ def to_snapshot(raw, firmware_version=None):
         "timelapse": ipcam.get("timelapse") == "enable",
         "camera_recording": ipcam.get("ipcam_record") == "enable",
         "plate_detection": xcam.get("buildplate_marker_detector"),
-        "chamber_temp": raw.get("chamber_temper"),
+        "chamber_temp": chamber,
         "diagnostics": _diagnostics(raw),
         "firmware_version": firmware_version,
     }
