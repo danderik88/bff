@@ -64,7 +64,7 @@ cat > ~/.config/systemd/user/bff-slicer.service <<W
 Description=BFF slicer (Orca flatpak behind slicerd)
 [Service]
 EnvironmentFile=%h/bff/env/slicer.env
-Environment=SLICER_PROFILES=%h/bff/slicer/profiles ORCA_BIN=%h/bff/bin/orca SLICER_PORT=8775
+Environment=SLICER_PROFILES=%h/bff/slicer/profiles ORCA_BIN=%h/bff/bin/orca SLICER_PORT=8775 SLICER_BIND=127.0.0.1
 ExecStart=/usr/bin/python3 %h/bff/slicer/slicerd.py
 Restart=on-failure
 MemoryMax=3500M

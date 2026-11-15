@@ -28,6 +28,7 @@ ORCA_BIN = os.environ.get("ORCA_BIN", "/opt/orca/AppRun")
 PROFILES = Path(os.environ.get("SLICER_PROFILES", "/opt/slicer/profiles"))
 SECRET = os.environ.get("SLICER_SECRET", "")
 PORT = int(os.environ.get("SLICER_PORT", "8765"))
+BIND = os.environ.get("SLICER_BIND", "0.0.0.0")  # 127.0.0.1 when BFF runs on the same host
 MAX_UPLOAD = 100 * 1024 * 1024
 TIMEOUT = 300
 MODEL_EXT = (".stl", ".step", ".stp", ".3mf")
@@ -500,7 +501,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     if not SECRET:
         raise SystemExit("SLICER_SECRET mancante")
-    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    ThreadingHTTPServer((BIND, PORT), Handler).serve_forever()
 
 
 if __name__ == "__main__":
