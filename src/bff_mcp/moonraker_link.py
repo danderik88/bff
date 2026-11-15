@@ -22,7 +22,8 @@ TIMEOUT_S = 5
 # print_stats.state -> the gcode_state words the rest of BFF understands.
 STATES = {"standby": "IDLE", "printing": "RUNNING", "paused": "PAUSE", "complete": "FINISH",
           "cancelled": "FAILED", "error": "FAILED"}
-OBJECTS = "print_stats&display_status&virtual_sdcard&extruder&heater_bed&gcode_move&fan&idle_timeout&toolhead"
+OBJECTS = ("print_stats&display_status&virtual_sdcard&extruder&heater_bed&gcode_move&fan&idle_timeout&toolhead"
+           "&ace&ace_instance_0&ace_instance_1&ace_instance_2&ace_instance_3")  # unknown objects are just left out
 # Moonraker's own hostname-free defaults; a printer entry can override port and key.
 DEFAULT_PORT = 7125
 
@@ -55,6 +56,8 @@ def to_snapshot(raw, klippy="ready"):
     temps = {k: v for k, v in temps.items() if v is not None}
     temps["nozzle_heating"] = 0 < (temps.get("nozzle_target") or 0) and (nozzle or 0) < temps["nozzle_target"]
     speed = move.get("speed_factor")
+    current = (raw.get("ace") or {}).get("current_index")
+    tray_now = current if isinstance(current, int) and current >= 0 else None
     return {
         "state": state,
         "subtask_name": stats.get("filename") or None,
@@ -72,7 +75,7 @@ def to_snapshot(raw, klippy="ready"):
         "print_error": 1 if state == "FAILED" else 0,
         "stage": None,
         "prepare_percent": None,
-        "ams": [], "tray_now": None, "ams_exist_bits": None, "vt_tray": [],
+        "ams": ace_units(raw), "tray_now": tray_now, "ams_exist_bits": None, "vt_tray": [],
         "fans": {"part": pct(fan.get("speed")), "aux": None, "chamber": None},
         "xcam": {}, "options": {}, "nozzles": [],
         "speed_percent": round(speed * 100) if speed is not None else None,
@@ -82,6 +85,27 @@ def to_snapshot(raw, klippy="ready"):
         "timelapse": False, "camera_recording": False, "plate_detection": None, "chamber_temp": None,
         "diagnostics": {}, "firmware_version": None,
     }
+
+
+def ace_units(raw):
+    """ACE Pro filament changers (Klipper ACE driver) in the Bambu AMS shape, so the app draws them as spool units."""
+    units = []
+    for i in range(4):
+        inst = raw.get(f"ace_instance_{i}")
+        if not isinstance(inst, dict) or not inst.get("slots"):  # absent instances come back empty
+            continue
+        dryer = inst.get("dryer_status") or {}
+        trays = []
+        for slot in inst.get("slots") or []:
+            loaded = slot.get("status") != "empty"
+            r, g, b = (list(slot.get("color") or [0, 0, 0]) + [0, 0, 0])[:3]
+            trays.append({"id": slot.get("index", len(trays)), "tray_type": slot.get("material") if loaded else "",
+                          "tray_color": f"{r:02X}{g:02X}{b:02X}FF", "nozzle_temp_min": slot.get("temp") or None,
+                          "nozzle_temp_max": slot.get("temp") or None, "state": 3 if loaded else 0})
+        units.append({"id": i, "humidity": inst.get("humidity"), "temp": inst.get("temp"), "model": "ACE Pro",
+                      "tray": trays, "dry_time": (dryer.get("remain_time") or 0) if dryer.get("state_code") else 0,
+                      "drying": bool(dryer.get("state_code")), "dry_target": dryer.get("target_temp") or None})
+    return units
 
 
 def merge(known, update):

@@ -19,6 +19,12 @@ STATUS = {
     "heater_bed": {"temperature": 60.0, "target": 60.0},
     "gcode_move": {"speed_factor": 1.2},
     "fan": {"speed": 0.5},
+    "ace": {"current_index": 2},
+    "ace_instance_0": {"humidity": 43, "temp": 25, "dryer_status": {"state_code": 0, "remain_time": 0, "target_temp": 0},
+                       "slots": [{"index": 0, "status": "ready", "material": "PLA", "color": [235, 235, 235], "temp": 210},
+                                 {"index": 1, "status": "empty", "material": "Unknown", "color": [0, 0, 0]},
+                                 {"index": 2, "status": "ready", "material": "PETG", "color": [240, 140, 170], "temp": 240},
+                                 {"index": 3, "status": "ready", "material": "PLA", "color": [25, 25, 25], "temp": 210}]},
 }
 
 
@@ -81,7 +87,21 @@ class MoonrakerLinkTest(unittest.TestCase):
         self.assertEqual(s["speed_percent"], 120)
         self.assertEqual(s["fans"]["part"], 50)
         self.assertEqual(s["remaining_time"], 30)  # 600 s done at 25% -> 1800 s left
-        self.assertEqual(s["ams"], [])
+        self.assertEqual(len(s["ams"]), 1)  # the ACE Pro
+
+    def test_ace_pro_shows_up_as_an_ams_unit(self):
+        s = ml.to_snapshot(STATUS)
+        self.assertEqual(s["tray_now"], 2)
+        status = server.onboard.ams_units(s["ams"], s["tray_now"], None)[0]
+        self.assertEqual(status["model"], "ACE Pro")
+        slots = status["slots"]
+        self.assertEqual([x["empty"] for x in slots], [False, True, False, False])
+        self.assertEqual((slots[0]["material"], slots[0]["color"]), ("PLA", "EBEBEBFF"))
+        self.assertTrue(slots[2]["active"])
+        self.assertEqual(status["humidity"], 43)
+
+    def test_no_ace_means_no_units(self):
+        self.assertEqual(ml.to_snapshot({"print_stats": {"state": "standby"}})["ams"], [])
 
     def test_m73_progress_wins_over_file_position(self):
         raw = json.loads(json.dumps(STATUS))
