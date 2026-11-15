@@ -1,6 +1,6 @@
 {
-  "name": "BFF",
-  "short_name": "BFF",
+  "name": "Pygmy",
+  "short_name": "Pygmy",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",

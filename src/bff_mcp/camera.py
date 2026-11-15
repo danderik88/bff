@@ -120,3 +120,21 @@ class Go2rtcFeed:
         except Exception as err:  # go2rtc down or no frame: the same error the JPEG feed raises
             raise CameraError(str(err) or type(err).__name__) from None
         return self.frame
+
+
+class SnapshotFeed:
+    """A webcam that serves one JPEG per HTTP GET (Moonraker's mjpg-streamer snapshot_url)."""
+
+    def __init__(self, url_of):
+        self.url_of = url_of  # called on every read: the webcam list can change
+
+    def latest(self, max_age_s=2.0, wait_s=12.0):
+        import urllib.request
+        try:
+            with urllib.request.urlopen(self.url_of(), timeout=min(wait_s, 10)) as resp:
+                jpeg = resp.read(8_000_000)
+        except (OSError, ValueError) as err:
+            raise CameraError(str(err)) from None
+        if jpeg[:2] != b"\xff\xd8":
+            raise CameraError("not a JPEG")
+        return jpeg

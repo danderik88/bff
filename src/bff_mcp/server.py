@@ -30,6 +30,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))  # Sibling modules, on the CT and in tests.
 from printer_link import PUSHALL, PrinterLink, check_fingerprint, with_sequence  # noqa: E402
+from moonraker_link import MoonrakerLink  # noqa: E402
 import camera  # noqa: E402
 import spaghetti  # noqa: E402
 import devices  # noqa: E402
@@ -370,7 +371,9 @@ def feed_of(alias):
     """One camera reader per printer, shared by the app, the photos and the agent."""
     with FEEDS_LOCK:
         if alias not in FEEDS:
-            if onboard.camera_kind(model_code(alias)) == "rtsp":
+            if isinstance(LINKS.get(alias), MoonrakerLink):  # Klipper: the webcam Moonraker knows about
+                FEEDS[alias] = camera.SnapshotFeed(LINKS[alias].snapshot_url)
+            elif onboard.camera_kind(model_code(alias)) == "rtsp":
                 FEEDS[alias] = camera.Go2rtcFeed(alias)  # no JPEG feed on this firmware: ask go2rtc
             else:
                 link = link_of(alias)
@@ -685,6 +688,24 @@ def replay_of(key, alias, action, params):
     return {"printer": alias, "action": action, "outcome": row[3], "detail": row[4], "replayed": True}
 
 
+def start_klipper(link, name, data):
+    """Upload and start. A sliced 3MF is unpacked to its plate's G-code; a plain .gcode goes as it is."""
+    if data[:2] == b"PK":
+        plate = sliced_plate(data)
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as z:
+                data = z.read(f"Metadata/plate_{plate}.gcode")
+        except KeyError:
+            raise ftps.UploadError("il 3MF non contiene G-code: affettalo per questa stampante") from None
+        name = name.removesuffix(".3mf").removesuffix(".gcode") + ".gcode"
+    try:
+        link.upload(name, data)
+    except (OSError, ValueError) as err:
+        raise ftps.UploadError(f"upload a Moonraker fallito: {err}") from None  # nothing sent yet
+    if not link.start_print(name):  # not sent means not retried: the lock stays and recheck decides
+        raise ToolError("Comando non partito")
+
+
 def send_command(key, alias, action, params, raw):
     if action != "start":
         # Not sent means not retried: the lock stays and recheck decides.
@@ -699,6 +720,8 @@ def send_command(key, alias, action, params, raw):
     except FileNotFoundError:
         raise ftps.UploadError("file non più presente in BFF: ricaricalo") from None
     link = link_of(alias)
+    if isinstance(link, MoonrakerLink):  # Klipper: plain G-code over HTTP, no AMS, no FTPS
+        return start_klipper(link, row[0], data)
     feed = None  # None: the external spool, the A1's path unchanged
     try:
         picked = chosen_feed(params["file_id"], raw)
@@ -951,7 +974,7 @@ def load_upload(file_id):
 def plate_mismatch(alias, upload):
     """The file's plate against the one declared in the app. Files sliced before the check carry no plate."""
     wanted = upload.get("plate")
-    if wanted is None:
+    if wanted is None or isinstance(link_of(alias), MoonrakerLink):  # Klipper beds are not Bambu plates
         return None
     mounted = plate_type(alias)
     if mounted is None:
@@ -1054,6 +1077,8 @@ def check_compatible(profile, upload, raw, color=None, file_id=None):
     expected = profile.get("slicer_model")
     if not expected or upload["model"] != expected:
         return f"file affettato per il modello {upload['model']}, serve {expected}"
+    if profile.get("kind") == "moonraker":
+        return None  # Klipper: no AMS feed or MQTT nozzle to compare; the ACE tool mapping is the user's macro
     ams = onboard.ams_trays(raw.get("ams"))
     if not ams and raw.get("tray_now") == NO_FILAMENT_TRAY:
         return "nessun filamento caricato"
@@ -2226,7 +2251,7 @@ def tool_slice_request(args):
     if type(copies) is not int or not 1 <= copies <= 20:
         raise ToolError("Copies: from 1 to 20")
     raw = read_status(printer)
-    for slot in set(slots):  # the same spool may serve several colours
+    for slot in set(slots) if not isinstance(link_of(printer), MoonrakerLink) else ():  # one spool may serve several colours
         slot_filament(printer, raw, slot)
     if args.get("standard") is True:  # Standard drops the custom settings, not Re-orient or "fresh"
         choices = {k: True for k in ("reorient", "fresh") if choices.get(k) is True}
@@ -2305,15 +2330,26 @@ def _fetch_request(rid, source):
             store_model(rid, data)
 
 
+def klipper_filaments(raw, slots):
+    """Klipper has no filament ids: the material of the ACE slot picked (A1..A4), PLA when none says."""
+    trays = {t["slot"]: t for t in onboard.ams_trays(raw.get("ams"))}
+    return [{"filament_id": None, "filament_type": (trays.get(slot) or {}).get("material") or "PLA"} for slot in slots]
+
+
 def _slice_request(rid, printer, source, file_name, choices_json, slots, copies, stage=None):
     raw = read_status(printer)
+    klipper = isinstance(link_of(printer), MoonrakerLink)
     # No AMS (same test as printer_info's ams_present): every colour prints on the one loaded spool.
-    if raw.get("ams"):
-        spools = [slot_filament(printer, raw, slot) for slot in slots]
+    if klipper:
+        filaments = klipper_filaments(raw, slots)
+        feed = [254] * len(slots)
     else:
-        spools = [slot_filament(printer, raw, slots[0])] * len(slots)
-    filaments = [{"filament_id": s.get("profile_id"), "filament_type": s.get("material")} for s in spools]
-    feed = [slot_index(s) for s in slots] if raw.get("ams") else [254] * len(slots)
+        if raw.get("ams"):
+            spools = [slot_filament(printer, raw, slot) for slot in slots]
+        else:
+            spools = [slot_filament(printer, raw, slots[0])] * len(slots)
+        filaments = [{"filament_id": s.get("profile_id"), "filament_type": s.get("material")} for s in spools]
+        feed = [slot_index(s) for s in slots] if raw.get("ams") else [254] * len(slots)
     if source == "upload" or stage == "slice":  # a draft already holds its model
         m = DB.execute("SELECT data FROM models WHERE request_id=?", (rid,)).fetchone()
         if m is None:
@@ -2324,7 +2360,7 @@ def _slice_request(rid, printer, source, file_name, choices_json, slots, copies,
     profile = load_profile(printer)
     machine = slicer.machine_preset(profile.get("model"), _nozzle_diameter(raw))
     choices = json.loads(choices_json) if choices_json else {}
-    if "plate" not in choices and (mounted := plate_type(printer)):
+    if not klipper and "plate" not in choices and (mounted := plate_type(printer)):
         choices["plate"] = mounted  # Orca falls back to Cool Plate, which refuses PLA
     machines = _other_machines(printer)
     try:
@@ -3040,6 +3076,14 @@ def keep_streams():
 
 
 def add_link(alias, entry, der=None):
+    if onboard.is_klipper(entry.get("model")):  # Moonraker over HTTP: no certificate, no MQTT, no AMS.
+        LINKS[alias] = MoonrakerLink(alias, entry["host"], entry.get("api_key", ""), int(entry.get("port", 7125)),
+                                      light=entry.get("light"))
+        CFG.setdefault("printers", {}).setdefault(alias, f"app:{alias}")
+        LINKS[alias].start()
+        if HA is not None:
+            HA.add_alias(alias, entry.get("name"))
+        return
     if der is not None:  # Pin the certificate the probe just checked.
         check_fingerprint(str(fingerprint_dir()), alias, der)
     LINKS[alias] = PrinterLink(alias, entry["host"], entry["serial"], entry["access_code"], str(fingerprint_dir()),

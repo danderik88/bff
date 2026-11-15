@@ -173,7 +173,8 @@ def plate_info(root, files, colors):
 def machine_preset(model, nozzle_diameter=None):
     """"Bambu Lab <model> <d> nozzle", d formatted like 0.4 (default 0.4)."""
     d = nozzle_diameter if nozzle_diameter is not None else 0.4
-    return f"Bambu Lab {model} {float(d):g} nozzle"
+    vendor = "" if str(model).startswith("Sovol ") else "Bambu Lab "  # Klipper models carry their vendor
+    return f"{vendor}{model} {float(d):g} nozzle"
 
 
 class SliceError(Exception):

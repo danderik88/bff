@@ -219,10 +219,10 @@ def app_call(db, name, args):
         return public_view(db)
     if name == "notify_test":
         if args.get("channel") == "push":
-            n = send_push(db, "BFF", "Test notification: it works.", "/app")
+            n = send_push(db, "Pygmy", "Test notification: it works.", "/app")
             return {"ok": n > 0, "detail": f"Sent to {n} device(s)" if n else "No device got it: tap Enable on this device first"}
         if args.get("channel") == "telegram":
-            ok = send_telegram(db, "BFF: test notification, it works.")
+            ok = send_telegram(db, "Pygmy: test notification, it works.")
             return {"ok": ok, "detail": "Sent" if ok else "Telegram is not set up, or it refused the token or chat id"}
         raise ValueError("unknown channel")
     raise ValueError(f"unknown call {name}")

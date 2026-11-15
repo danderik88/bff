@@ -2,3 +2,6 @@ secrets/
 __pycache__/
 .venv/
 tools/sim/cam/
+
+# Docker settings with secrets
+.env

@@ -23,7 +23,9 @@ from functools import lru_cache
 from pathlib import Path
 
 KINDS = ("machine_model_list", "machine_list", "process_list", "filament_list")
-MACHINE = re.compile(r"^Bambu Lab (.+) 0\.4 nozzle$")
+# vendor index name -> machines kept (0.4 nozzle). Klipper printers: only the models BFF supports.
+VENDORS = {"BBL": re.compile(r"^Bambu Lab (.+) 0\.4 nozzle$"),
+           "Sovol": re.compile(r"^Sovol (SV08) 0\.4 nozzle$")}
 UNSAFE = re.compile(r"[^A-Za-z0-9 ._@()+-]")
 
 
@@ -34,32 +36,38 @@ def file_name(preset_name: str) -> str:
 
 
 @lru_cache(maxsize=None)
-def _index(root):
-    """name -> (kind, path) from the BBL.json index. Handles both layouts shipped over the years:
-    BBL.json at the profiles root, or inside BBL/ with sub_paths relative to either folder."""
+def _index(root, vendor="BBL"):
+    """name -> (kind, path) from the vendor's index (`<vendor>.json`, at the profiles root or inside
+    `<vendor>/`, sub_paths relative to either). Non-BBL vendors inherit generic presets
+    (`Generic PLA @System`, `fdm_machine_common`) from OrcaFilamentLibrary, merged in when present."""
     root = Path(root)
-    index_file = root / "BBL.json"
-    if not index_file.is_file():
-        index_file = root / "BBL" / "BBL.json"
-    vendor = index_file.parent
-    doc = json.loads(index_file.read_text())
     out = {}
-    for kind in KINDS:
-        for entry in doc.get(kind) or []:
-            name, sub = entry.get("name"), entry.get("sub_path")
-            if not (name and sub):
-                continue
-            # ponytail: try the three plausible roots instead of parsing Orca's path convention.
-            path = next((p for p in (vendor / sub, root / sub, root / "BBL" / sub) if p.is_file()), vendor / sub)
-            out.setdefault(name, (kind, path))
+    for lib in (vendor, "OrcaFilamentLibrary") if vendor != "BBL" else (vendor,):
+        index_file = root / f"{lib}.json"
+        if not index_file.is_file():
+            index_file = root / lib / f"{lib}.json"
+        if not index_file.is_file():
+            if lib == vendor:
+                raise FileNotFoundError(index_file)
+            continue
+        vendor_dir = index_file.parent
+        doc = json.loads(index_file.read_text())
+        for kind in KINDS:
+            for entry in doc.get(kind) or []:
+                name, sub = entry.get("name"), entry.get("sub_path")
+                if not (name and sub):
+                    continue
+                # ponytail: try the plausible roots instead of parsing Orca's path convention.
+                path = next((p for p in (vendor_dir / sub, root / sub, root / lib / sub) if p.is_file()), vendor_dir / sub)
+                out.setdefault(name, (kind, path))
     return out
 
 
-def flatten(root: Path, name: str, seen=()) -> dict:
+def flatten(root: Path, name: str, seen=(), vendor="BBL") -> dict:
     """One profile with its whole `inherits` chain applied: parent first, then the child's own keys."""
-    index = _index(Path(root))
+    index = _index(Path(root), vendor)
     if name not in index:
-        raise KeyError(f"preset {name!r} not in BBL.json under {root}")
+        raise KeyError(f"preset {name!r} not in {vendor}.json under {root}")
     data = json.loads(index[name][1].read_text())
     parent = data.pop("inherits", None)
     if isinstance(parent, str) and parent:
@@ -67,7 +75,7 @@ def flatten(root: Path, name: str, seen=()) -> dict:
             raise KeyError(f"preset {name!r} inherits unknown preset {parent!r}")
         if parent in seen:
             raise KeyError(f"inheritance loop: {parent!r} reaches itself")
-        profile = flatten(root, parent, seen + (name,))
+        profile = flatten(root, parent, seen + (name,), vendor)
     else:
         profile = {}
     # OrcaSlicer 2.5 keeps the start/end/filament-change G-code in "template" presets listed under
@@ -77,14 +85,14 @@ def flatten(root: Path, name: str, seen=()) -> dict:
             raise KeyError(f"preset {name!r} includes unknown preset {inc!r}")
         if inc in seen:
             raise KeyError(f"include loop: {inc!r} reaches itself")
-        part = flatten(root, inc, seen + (name,))
+        part = flatten(root, inc, seen + (name,), vendor)
         profile.update({k: v for k, v in part.items() if k not in ("name", "type", "instantiation", "from")})
     profile.update(data)
     profile["from"] = "User"
     return profile
 
 
-def presets(root):
+def presets(root, vendor="BBL"):
     """Kept machines plus the process / filament presets compatible with at least one of them.
 
     Returns `(machines, {preset name: (kind, flattened)})`. Compatibility comes from the flattened
@@ -92,15 +100,15 @@ def presets(root):
     `@BBL A1M` and a P1S one often ships as `@BBL X1C`. Base presets (`instantiation: "false"`)
     are not instantiable and are skipped.
     """
-    index = _index(Path(root))
+    index = _index(Path(root), vendor)
     machines = [name for name, (kind, _path) in index.items()
-                if kind == "machine_list" and MACHINE.match(name)]
+                if kind == "machine_list" and VENDORS[vendor].match(name)]
     machine_set = set(machines)
     kept = {}
     for name, (kind, _path) in index.items():
         if kind not in ("process_list", "filament_list"):
             continue
-        flat = flatten(root, name)
+        flat = flatten(root, name, vendor=vendor)
         if flat.get("instantiation") in ("false", False):
             continue
         if machine_set & set(flat.get("compatible_printers") or ()):
@@ -112,22 +120,30 @@ def main(argv):
     if len(argv) != 3:
         sys.exit("uso: flatten_profiles.py <profiles_root> <out_dir>")
     root, out = Path(argv[1]), Path(argv[2])
-    if not _index(root):
-        sys.exit(f"indice BBL.json non trovato o vuoto in {root}")
     out.mkdir(parents=True, exist_ok=True)
-    machines, kept = presets(root)
-    catalog = {name: {"file": file_name(name), "process": {}, "filament": {}} for name in machines}
-    for name in machines:
-        (out / file_name(name)).write_text(json.dumps(flatten(root, name), ensure_ascii=False, indent=1) + "\n")
-    for name, (kind, flat) in kept.items():
-        (out / file_name(name)).write_text(json.dumps(flat, ensure_ascii=False, indent=1) + "\n")
-        compatible = set(flat.get("compatible_printers") or ())
-        section = "process" if kind == "process_list" else "filament"
-        for machine in machines:
-            if machine in compatible:
-                catalog[machine][section][name] = file_name(name)
+    catalog, count = {}, 0
+    for vendor in VENDORS:
+        try:
+            if not _index(root, vendor):
+                continue
+        except FileNotFoundError:  # vendor not shipped in this checkout
+            continue
+        machines, kept = presets(root, vendor)
+        for name in machines:
+            catalog[name] = {"file": file_name(name), "process": {}, "filament": {}}
+            (out / file_name(name)).write_text(json.dumps(flatten(root, name, vendor=vendor), ensure_ascii=False, indent=1) + "\n")
+        for name, (kind, flat) in kept.items():
+            (out / file_name(name)).write_text(json.dumps(flat, ensure_ascii=False, indent=1) + "\n")
+            compatible = set(flat.get("compatible_printers") or ())
+            section = "process" if kind == "process_list" else "filament"
+            for machine in machines:
+                if machine in compatible:
+                    catalog[machine][section][name] = file_name(name)
+        count += len(machines) + len(kept)
+    if not catalog:
+        sys.exit(f"nessun indice vendor ({', '.join(VENDORS)}) trovato o vuoto in {root}")
     (out / "index.json").write_text(json.dumps(catalog, ensure_ascii=False, indent=1) + "\n")
-    print(f"{len(machines) + len(kept)} preset appiattiti da {root} -> {out}")
+    print(f"{count} preset appiattiti da {root} -> {out}")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,31 @@
+# BFF on any Linux x86_64 box with Docker. Settings live in .env (copy .env.example).
+# bff and go2rtc use the host network: printer discovery listens for UDP broadcasts on port 2021.
+services:
+  bff:
+    build: .
+    network_mode: host
+    env_file: .env
+    volumes:
+      - bff-data:/var/lib/bff-mcp
+    restart: unless-stopped
+
+  slicer:
+    build:
+      context: .
+      dockerfile: deploy/slicer/Dockerfile
+    environment:
+      SLICER_SECRET: ${BFF_SLICER_SECRET:?set BFF_SLICER_SECRET in .env}
+    ports:
+      - "127.0.0.1:8770:8765"  # only BFF on this machine can reach it
+    restart: unless-stopped
+
+  go2rtc:  # live camera, WebRTC and RTSP for Home Assistant
+    image: alexxit/go2rtc:1.9.9
+    network_mode: host
+    env_file: .env
+    volumes:
+      - ./deploy/go2rtc.yaml:/config/go2rtc.yaml:ro
+    restart: unless-stopped
+
+volumes:
+  bff-data:

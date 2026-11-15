@@ -294,7 +294,7 @@ class ReviewFixes(unittest.TestCase):
 class FirstRun(unittest.TestCase):
     def test_no_printer_picker_before_the_key(self):
         html = (APP / "app.html").read_text()
-        self.assertIn("Welcome to BFF", html)
+        self.assertIn("Welcome to Pygmy", html)
         self.assertIn("if (token) firstLoad();", html)
         self.assertIn("if (token && !PRINTERS.length) showPrinters();", html)
         self.assertNotIn("syncPrinters().finally(() => { if (!PRINTERS.length) showPrinters();", html)

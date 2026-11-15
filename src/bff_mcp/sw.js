@@ -1,9 +1,9 @@
-// BFF service worker: only shows push alerts and opens the app on tap. No caching.
+// Pygmy service worker: only shows push alerts and opens the app on tap. No caching.
 self.addEventListener("activate", e => e.waitUntil(clients.claim()));
 self.addEventListener("push", e => {
   let m = {};
-  try { m = e.data.json(); } catch (x) { m = { title: "BFF", body: e.data ? e.data.text() : "" }; }
-  e.waitUntil(self.registration.showNotification(m.title || "BFF", { body: m.body || "", data: { url: m.url || "/app" }, tag: m.tag }));
+  try { m = e.data.json(); } catch (x) { m = { title: "Pygmy", body: e.data ? e.data.text() : "" }; }
+  e.waitUntil(self.registration.showNotification(m.title || "Pygmy", { body: m.body || "", data: { url: m.url || "/app" }, tag: m.tag }));
 });
 self.addEventListener("notificationclick", e => {
   e.notification.close();

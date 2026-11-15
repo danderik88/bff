@@ -256,14 +256,14 @@ TEXT = {
     "en": {"print": "Print", "finished": "✅ {file} finished{dur}{facts}. Clear the plate.",
            "failed": "❌ {file} failed at {progress} %{layer}.", "layer": " (layer {n} of {t})",
            "error_paused": "⚠️ {alarm}. Print paused: it needs a hand.", "error": "⚠️ {alarm}. It needs a hand.",
-           "spaghetti": "🍝 Possible spaghetti on {file}{at}: check the camera. BFF does not pause.",
+           "spaghetti": "🍝 Possible spaghetti on {file}{at}: check the camera. Pygmy does not pause.",
            "at": " at layer {n}", "in": " in {d}", "layers": "{t} layers",
            "low_spool": "🧵 {slot} at {remain} %{name}. Have the next spool ready.",
            "offline": "📴 Offline for 2 min.", "online": "✅ Back online."},
     "it": {"print": "La stampa", "finished": "✅ {file} finita{dur}{facts}. Libera il piatto.",
            "failed": "❌ {file} fallita al {progress} %{layer}.", "layer": " (layer {n} di {t})",
            "error_paused": "⚠️ {alarm}. Stampa in pausa: serve una mano.", "error": "⚠️ {alarm}. Serve una mano.",
-           "spaghetti": "🍝 Possibili spaghetti su {file}{at}: guarda la camera. BFF non mette in pausa.",
+           "spaghetti": "🍝 Possibili spaghetti su {file}{at}: guarda la camera. Pygmy non mette in pausa.",
            "at": " al layer {n}", "in": " in {d}", "layers": "{t} layer",
            "low_spool": "🧵 {slot} al {remain} %{name}. Prepara la prossima bobina.",
            "offline": "📴 Offline da 2 min.", "online": "✅ Di nuovo online."},
@@ -374,7 +374,7 @@ def discovery(alias, name=None, slots=(), units=(), profile=None):
                                     "step": 10, "unit_of_measurement": "%", "mode": "slider"}))
     for key, name in (("auto_recovery", "Step loss recovery"), ("sound_enable", "Printer sounds"),
                       ("filament_tangle_detect", "Tangle detection"),
-                      ("bff_spaghetti", "Spaghetti alarm (BFF)")):
+                      ("bff_spaghetti", "Spaghetti alarm (Pygmy)")):
         if options is not None and key not in options and key != "bff_spaghetti":
             continue
         out.append(("switch", f"opt_{key}", {"name": name, "state_topic": state,
