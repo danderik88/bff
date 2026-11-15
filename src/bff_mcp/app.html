@@ -35,6 +35,9 @@ button { font: inherit; color: inherit; }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 [hidden] { display: none !important; }
 .head { display: flex; justify-content: space-between; align-items: flex-start; }
+.platecard { display: flex; gap: 12px; align-items: center; text-align: left; padding: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: inherit; font: inherit; cursor: pointer; }
+.platecard img { width: 96px; height: 96px; object-fit: contain; border-radius: 10px; background: #e9ecea; flex: none; }
+.platecard b { display: block; } .platecard .note { display: block; margin-top: 2px; }
 .gear { background: none; border: 0; padding: 4px; color: var(--muted); cursor: pointer; }
 .gear svg { width: 26px; height: 26px; display: block; }
 .head h1 { margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
@@ -275,9 +278,15 @@ select { font: 16px var(--sans); color: var(--fg); background: var(--panel2); bo
   </div></div>
 
 </main>
+<div class="sheet" id="platesheet" hidden><div style="max-height: 92vh; overflow: auto">
+  <h3>Which plate?</h3>
+  <p class="note">This project has several plates. Pick the one to print.</p>
+  <div id="platecards" style="display: flex; flex-direction: column; gap: 12px"></div>
+  <button class="btn" onclick="document.getElementById('platesheet').hidden = true">Cancel</button>
+</div></div>
 
 <section class="pane" id="tab-new" hidden>
-  <div class="row"><h2 style="margin:0">Print now</h2><button class="btn" id="filesbtn">Files</button></div>
+  <div class="row"><h2 style="margin:0">Print now</h2><span style="display:flex;gap:8px"><button class="btn" id="pnclear" hidden>Cancel</button><button class="btn" id="filesbtn">Files</button></span></div>
 
   <div class="step" id="step1">
     <div class="card">
@@ -1139,6 +1148,7 @@ function paintSteps() {
   $("s1sumtext").innerHTML = PN.facts ? esc(PN.name) + " " + colourSquares(PN.facts.colors) : "";
   $("s2sumtext").textContent = PN.info ? nameOf(PN.printer) + (PN.slots.length > 1 ? ` · ${PN.slots.length} spools` : "") : "";
   $("s3sumtext").textContent = $("pcustom").checked ? "Customize" : "Standard";
+  $("pnclear").hidden = !PN.id && !PN.fileId && !PN.name;  // a stuck project must always have a way out (the user)
   $("pnslice").disabled = !PN.id || !PN.facts || PN.sliced || !PN.info || !PN.slots.length || PN.slots.some(s => !s);
 }
 for (const a of document.querySelectorAll("[data-edit]"))
@@ -1329,21 +1339,23 @@ let mwEmail = null, mwStatus = null;
 async function showMwLogin() {
   const st = await rpc("mw_status", {}).catch(() => ({}));
   mwEmail = st.email || null;
-  $("mwemail").hidden = !!mwEmail;
+  $("mwemail").hidden = false;  // always editable: a wrong saved email must be fixable (2026-11-15)
   $("mwemail").value = mwEmail || "";
   $("mwcode").value = "";
+  $("mwsendcode").disabled = false;
   $("mwlogin").hidden = false;
 }
 $("mwsendcode").onclick = () => act(async () => {
-  const email = ($("mwemail").value || mwEmail || "").trim();
+  const email = ($("mwemail").value || "").trim();
   await rpc("mw_login_start", { email });
-  mwEmail = email; $("mwemail").hidden = true;
+  mwEmail = email;
+  $("mwsendcode").disabled = true;  // once sent, only Resend (the user): a second tap voids the first code
 }, "Code sent");
 $("mwsignin").onclick = () => act(async () => {
   await rpc("mw_login_code", { code: $("mwcode").value.trim() });
   $("mwlogin").hidden = true; mwStatus = null; loadNew();
 }, "Signed in");
-$("mwresend").onclick = () => act(() => rpc("mw_login_start", { email: mwEmail || $("mwemail").value.trim() }), "Code sent");
+$("mwresend").onclick = () => act(() => rpc("mw_login_start", { email: $("mwemail").value.trim() || mwEmail }), "Code sent");
 $("mwlater").onclick = () => $("mwlogin").hidden = true;
 
 // iOS ignores user-scalable=no in Safari: block the pinch gesture itself.
@@ -1449,15 +1461,36 @@ async function pnPoll() {
     if (r) await pnApply(r);
   } catch (e) {}
 }
+// Multi-plate project (the user 2026-11-15): a sheet with each plate's thumbnail and a short description.
+const pnPlate = () => PN.plateFor === PN.id ? PN.plateNo : null;
+function openPlatePicker() {
+  const info = PN.facts.plate_info || Array.from({ length: PN.facts.plates }, (_, i) => ({ n: i + 1, objects: [], colors: [] }));
+  $("platecards").innerHTML = info.map(p => `<button class="platecard" data-n="${p.n}"><img alt="" data-thumb="${p.n}">`
+    + `<span><b>Plate ${p.n}${p.name ? " · " + esc(p.name) : ""}</b>`
+    + `<span class="note">${esc((p.objects || []).join(", ") || "No objects listed")}</span>`
+    + `<span class="note">${(p.colors || []).map(c => `<i class="colsq" style="background:${esc(c)}"></i> ${esc(colourName(c))}`).join(" ")}</span>`
+    + `</span></button>`).join("");
+  for (const b of $("platecards").querySelectorAll(".platecard")) b.onclick = () => {
+    PN.plateNo = Number(b.dataset.n); PN.plateFor = PN.id;
+    $("platesheet").hidden = true; toast(`Plate ${PN.plateNo}`);
+    $("pnslice").onclick();
+  };
+  for (const img of $("platecards").querySelectorAll("img[data-thumb]"))
+    rpc("plate_preview", { id: PN.id, plate: Number(img.dataset.thumb) })
+      .then(r => { if (r.png) img.src = "data:image/png;base64," + r.png; }).catch(() => {});
+  $("platesheet").hidden = false;
+}
 $("pnslice").onclick = async () => {
   if (!PN.id || !PN.facts) return toast("Add a model first");
+  if ((PN.facts.plates || 1) > 1 && !pnPlate()) return openPlatePicker();
   if (!PN.info || PN.slots.some(s => !s)) return toast("Pick a spool for every colour");
   try {
     // One slot per model colour; a printer without AMS sends its one spool for every colour.
     const ncol = Math.max(1, ((PN.facts || {}).colors || []).length);
     const slots = Array.from({ length: ncol }, (_, i) => PN.slots[i] || PN.slots[0]);
     await rpc("slice_request", { id: PN.id, slots, choices: printChoices(/\.3mf$/i.test(PN.name)),
-      copies: copiesNow(), standard: !$("pcustom").checked, printer: PN.printer });
+      copies: copiesNow(), standard: !$("pcustom").checked, printer: PN.printer,
+      ...((PN.facts.plates || 1) > 1 ? { plate_no: pnPlate() } : {}) });
     PN.sliced = true; PN.reqPrinter = PN.printer; PN.fileId = null;
     pnEdit = 0;
     $("pnresult").hidden = true;
@@ -1485,6 +1518,12 @@ $("pnqueue").onclick = () => PN.fileId && act(async () => {
   await rpc("queue_add", { file_id: PN.fileId, own: true, printer: PN.printer || PRINTER });
   pnReset();
 }, "Added to queue");
+// Cancel: drop the project in Print now (the open request too), keep printer and spools list
+$("pnclear").onclick = () => {
+  if (!confirm("Cancel this project? It is removed from Print now.")) return;
+  if (PN.id && !PN.sliced) rpc("cancel_request", { request_id: PN.id }).catch(() => {});
+  pnReset();
+};
 function pnReset() {
   const printer = PN.printer || PRINTER;
   PN = { id: null, reqPrinter: null, facts: null, name: "", status: "", sliced: false, fileId: null, meta: null, slots: [], printer };
@@ -1922,9 +1961,11 @@ function mwOptions() {
     rpc("mw_status", {}).then(v => { mwStatus = v; paintOpts(); }).catch(() => {});
     return `<p class="note">loading…</p>`;
   }
-  return `<div class="row"><span>${mwStatus.logged_in ? "Signed in as " + esc(mwStatus.email || "") : "Not signed in"}</span>`
-    + `<button class="btn" data-mw="in">Sign in</button>`
-    + (mwStatus.logged_in ? `<button class="btn" data-mw="out">Sign out</button>` : "") + `</div>`;
+  // Sign out forgets the email too, so a wrong one can be replaced
+  return `<div class="row"><span>${mwStatus.logged_in ? "Signed in as " + esc(mwStatus.email || "")
+      : mwStatus.email ? "Not signed in · " + esc(mwStatus.email) : "Not signed in"}</span>`
+    + (mwStatus.logged_in ? "" : `<button class="btn" data-mw="in">Sign in</button>`)
+    + (mwStatus.logged_in || mwStatus.email ? `<button class="btn" data-mw="out">Sign out</button>` : "") + `</div>`;
 }
 function mwClick(b) {
   if (b.dataset.mw === "in") return showMwLogin();

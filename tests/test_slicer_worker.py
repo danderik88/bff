@@ -288,17 +288,22 @@ class SlicerBase(unittest.TestCase):
         self.assertEqual(json.loads(self.row(rid, "facts")[0]), {"plates": 1, "colors": []})
         self.assertEqual(self.state.requests, [])
 
-    def test_multi_plate_fails_with_message(self):
+    def test_multi_plate_waits_for_a_plate_pick(self):
+        # the user 2026-11-15: no refusal any more; the app's picker says which plate, the slice gets only that one
         data = model_3mf(plates=3)
         with mock.patch.object(server.fetch, "fetch_model", return_value=("big.3mf", data, [])):
             reply = server.tool_request_print({"printer": "a1", "url": "https://www.printables.com/model/1-cube",
                                                "draft": True})
             rid = json.loads(reply[0]["text"])["request_id"]
             self.assertTrue(server.slice_once())
-        self.assertEqual(self.row(rid, "status", "note"),
-                         ("failed", "This project has 3 plates. Open it on the desktop."))
-        with self.assertRaisesRegex(server.ToolError, "This project has 3 plates"):
-            server.upload_model("a1", "big.3mf", data, draft=True)
+        self.assertEqual(self.row(rid, "status")[0], "draft")
+        args = {"printer": "a1", "id": rid, "slots": ["external"], "choices": {}, "copies": 1, "standard": True}
+        with self.assertRaisesRegex(server.ToolError, "Pick a plate to print"):
+            server.tool_slice_request(args)
+        with self.assertRaisesRegex(server.ToolError, "Pick a plate to print"):
+            server.tool_slice_request({**args, "plate_no": 9})
+        server.tool_slice_request({**args, "plate_no": 2})
+        self.assertEqual(json.loads(self.row(rid, "choices")[0]).get("plate_no"), 2)
 
     def test_slice_request_only_from_draft(self):
         rid = server.upload_model("a1", "cube.stl", b"solid x", engine="server", slot="external")["request_id"]

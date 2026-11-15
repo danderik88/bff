@@ -718,7 +718,10 @@ def send_command(key, alias, action, params, raw):
     pin = lambda der: check_fingerprint(link.fingerprint_dir, f"{alias}-ftp", der)  # noqa: E731
     ftps.upload(link.host, link.access_code, row[0], data, check_cert=pin)
     # Not sent means not retried: the lock stays and recheck decides.
-    if not (link.start_print(row[0], feed) if feed else link.start_print(row[0])):
+    plate = sliced_plate(data)
+    started = (link.start_print(row[0], feed or (254,), plate) if plate != 1
+               else link.start_print(row[0], feed) if feed else link.start_print(row[0]))
+    if not started:
         raise ToolError("Comando non partito")
 
 
@@ -863,7 +866,7 @@ def inspect_3mf(data):
         model, nozzle = settings["printer_model"], settings["nozzle_diameter"][0]
     except (zipfile.BadZipFile, zlib.error, KeyError, IndexError, TypeError, ValueError, OSError, NotImplementedError, RuntimeError):
         raise ToolError("File non valido: serve un 3MF affettato") from None
-    if plates != ["Metadata/plate_1.gcode"]:
+    if len(plates) != 1:  # one sliced plate, any number: a picked plate of a project keeps its own (2026-11-15)
         raise ToolError("Serve un 3MF affettato con una sola piastra")
     filaments = sorted(set(re.findall(r'<filament\b[^>]*\stype="([^"]+)"', info)))
     if not filaments:
@@ -877,6 +880,37 @@ def inspect_3mf(data):
     plate = settings.get("curr_bed_type")
     return {"model": model, "nozzle": nozzle, "filament": "/".join(filaments), "time_s": int(prediction[1]), "weight_g": weight_g,
             "plate": plate if isinstance(plate, str) and plate else None}
+
+
+def sliced_plate(data):
+    """Number of the one sliced plate in a .gcode.3mf (1 when unreadable: upload_file already checked it)."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            for n in archive.namelist():
+                if m := re.fullmatch(r"Metadata/plate_(\d+)\.gcode", n):
+                    return int(m[1])
+    except (zipfile.BadZipFile, OSError):
+        pass
+    return 1
+
+
+def tool_plate_preview(args):
+    """Thumbnail of one plate of a draft project, for the plate picker."""
+    rid, n = args.get("id"), args.get("plate")
+    if type(rid) is not int or type(n) is not int:
+        raise ToolError("No such plate")
+    row = DB.execute("SELECT m.data, r.facts FROM models m JOIN print_requests r ON r.id=m.request_id WHERE m.request_id=?",
+                     (rid,)).fetchone()
+    if row is None:
+        raise ToolError("No such plate")
+    info = {p.get("n"): p for p in (json.loads(row[1]) if row[1] else {}).get("plate_info") or []}
+    path = (info.get(n) or {}).get("thumb") or f"Metadata/plate_{n}.png"
+    try:
+        with zipfile.ZipFile(io.BytesIO(row[0])) as archive:
+            png = archive.read(path)
+    except (KeyError, zipfile.BadZipFile, OSError):
+        return as_text({"png": None})
+    return as_text({"png": base64.b64encode(png).decode() if len(png) < 2_000_000 else None})
 
 
 def upload_file(name, data):
@@ -2111,9 +2145,7 @@ def upload_model(alias, name, data, engine=None, choices=None, slot=None, draft=
     if not MODEL_NAME.fullmatch(name):
         raise ToolError("Formato non ammesso: serve un file STL, 3MF o STEP")
     if draft:
-        facts = slicer.model_facts(name, data)
-        if plates_note(facts):
-            raise ToolError(plates_note(facts))
+        facts = slicer.model_facts(name, data)  # several plates: the app asks which one
         with DB:
             cur = DB.execute("INSERT INTO print_requests (printer, url, created, status, source, file_name, file_size, "
                              "engine, facts) VALUES (?,'',?,'draft','upload',?,?,'server',?)",
@@ -2180,7 +2212,13 @@ def tool_slice_request(args):
     row = DB.execute("SELECT facts FROM print_requests WHERE id=? AND status='draft'", (rid,)).fetchone()
     if row is None:
         raise ToolError("This job is not waiting for slicing")
-    colors = (json.loads(row[0]) if row[0] else {}).get("colors") or []
+    facts = json.loads(row[0]) if row[0] else {}
+    colors = facts.get("colors") or []
+    plate_no = args.get("plate_no")
+    if facts.get("plates", 1) > 1:  # multi-plate project: the app's plate picker says which one (the user 2026-11-15)
+        known = [p.get("n") for p in facts.get("plate_info") or []] or list(range(1, facts["plates"] + 1))
+        if type(plate_no) is not int or plate_no not in known:
+            raise ToolError("Pick a plate to print")
     if not (isinstance(slots, list) and len(slots) == max(1, len(colors)) and all(isinstance(s, str) for s in slots)):
         raise ToolError("Pick one spool per colour")
     if not isinstance(choices, dict):
@@ -2192,6 +2230,9 @@ def tool_slice_request(args):
         slot_filament(printer, raw, slot)
     if args.get("standard") is True:  # Standard drops the custom settings, not Re-orient
         choices = {"reorient": True} if choices.get("reorient") else {}
+    choices.pop("plate_no", None)
+    if facts.get("plates", 1) > 1:
+        choices["plate_no"] = plate_no
     with DB:
         n = DB.execute("UPDATE print_requests SET status='pending', stage='slice', printer=?, slots=?, choices=?, "
                        "copies=? WHERE id=? AND status='draft'",
@@ -2253,12 +2294,7 @@ def _fetch_link(rid, source):
 def _fetch_request(rid, source):
     """stage='fetch': download the model, keep it, stop at draft with its facts. Never slices."""
     name, data, others = _fetch_link(rid, source)
-    facts = slicer.model_facts(name, data)
-    note = plates_note(facts)
-    if note:
-        with DB:
-            DB.execute("UPDATE print_requests SET status='failed', note=? WHERE id=? AND status='working'", (note, rid))
-        return
+    facts = slicer.model_facts(name, data)  # several plates: the app asks which one
     note = ("Also on this page: " + ", ".join(others))[:300] if others else None
     with DB:
         if DB.execute("UPDATE print_requests SET status='draft', facts=?, file_name=?, file_size=?, note=? "
@@ -3228,6 +3264,9 @@ APP_TOOLS = {
                   {"type": "object", "properties": {}, "required": []}, True),
     "mw_logout": (tool_mw_logout, "Disconnette MakerWorld.",
                   {"type": "object", "properties": {}, "required": []}, True),
+    "plate_preview": (tool_plate_preview, "Miniatura di un piatto di un progetto multi-piatto.",
+                      {"type": "object", "properties": {"id": {"type": "integer"}, "plate": {"type": "integer"}},
+                       "required": ["id", "plate"]}, True),
     "add_printer": (tool_add_printer, "", {}, True),
     "set_access_code": (tool_set_access_code, "", {}, True),
     "remove_printer": (tool_remove_printer, "", {}, True),

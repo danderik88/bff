@@ -197,7 +197,7 @@ def _plates(outdir: Path):
 def slice_job(model: bytes, filename: str, machine: str, quality: str, filament: str = None,
               choices: dict = None, reorient: bool = False, copies: int = 1,
               filament_id: str = None, filament_type: str = None,
-              other_machines: list = None, filaments: list = None) -> dict:
+              other_machines: list = None, filaments: list = None, plate_no: int = 0) -> dict:
     if not model or len(model) > MAX_UPLOAD:
         raise ValueError("model empty or over 100 MB")
     name = Path(filename or "").name
@@ -208,6 +208,8 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
         raise ValueError("copies must be an integer 1-20")
     if not isinstance(choices, dict):
         raise ValueError("choices must be an object")
+    if isinstance(plate_no, bool) or not isinstance(plate_no, int) or not 0 <= plate_no <= 200:
+        raise ValueError("plate_no must be an integer 0-200 (0 = every plate)")
     if other_machines is not None and (not isinstance(other_machines, list)
                                        or not all(isinstance(m, str) for m in other_machines)):
         raise ValueError("other_machines must be a list of machine preset names")
@@ -241,7 +243,7 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
             cmd += ["--orient", "1", "--arrange", "1", "--allow-rotations"]
         elif copies > 1:
             cmd += ["--arrange", "1", "--allow-rotations"]
-        cmd += ["--slice", "0", "--export-statistics", "--outputdir", str(outdir),
+        cmd += ["--slice", str(plate_no), "--export-statistics", "--outputdir", str(outdir),
                 "--export-3mf", "out.gcode.3mf"] + [str(model_path)] * copies
         try:
             done = subprocess.run(cmd, cwd=tmp, capture_output=True, timeout=TIMEOUT)
@@ -325,7 +327,8 @@ class Handler(BaseHTTPRequestHandler):
             result = slice_job(model, req["filename"], req["machine"], req["quality"], req.get("filament"),
                                req.get("choices") or {}, bool(req.get("reorient")), req.get("copies", 1),
                                filament_id=req.get("filament_id"), filament_type=req.get("filament_type"),
-                               other_machines=req.get("other_machines"), filaments=req.get("filaments"))
+                               other_machines=req.get("other_machines"), filaments=req.get("filaments"),
+                               plate_no=req.get("plate_no", 0))
         except TooBig as exc:
             return self._send(422, {"error": "too_big", "size": list(exc.size) if exc.size else None,
                                     "bed": list(exc.bed), "fits_on": exc.fits_on})

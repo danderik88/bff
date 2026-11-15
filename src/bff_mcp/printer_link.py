@@ -368,9 +368,9 @@ class PrinterLink:
     def command(self, action, **params):
         return self.publish(build_command(action, **params))
 
-    def start_print(self, filename, ams_mapping=(254,)):
+    def start_print(self, filename, ams_mapping=(254,), plate=1):
         """project_file as Bambu Studio sends it for a file already in the FTP root."""
-        return self.publish(project_file(filename, ams_mapping))
+        return self.publish(project_file(filename, ams_mapping, plate))
 
     def gcode(self, text):
         """Send G-code lines once, through publish (QoS 0, never resent)."""

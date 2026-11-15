@@ -6,6 +6,7 @@ The secret never appears in exceptions or logs.
 import base64
 import io
 import json
+import sys
 import re
 import time
 import zipfile
@@ -54,20 +55,55 @@ def model_facts(name, data):
     """{"plates", "colors"} of a model. STL/STEP: one plate, no colours. A broken 3MF reads as one plate."""
     if not name.lower().endswith(".3mf"):
         return {"plates": 1, "colors": []}
-    plates, colors = 1, []
+    plates, colors, info = 1, [], []
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as z:
             files = set(z.namelist())
-            if "Metadata/model_settings.config" in files:
-                root = ET.fromstring(z.read("Metadata/model_settings.config"))
-                plates = max(1, len(root.findall(".//plate")))
             if "Metadata/project_settings.config" in files:
                 found = json.loads(z.read("Metadata/project_settings.config")).get("filament_colour")
                 if isinstance(found, list):
                     colors = [c for c in found if isinstance(c, str) and re.fullmatch(r"#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?", c)]
+            if "Metadata/model_settings.config" in files:
+                root = ET.fromstring(z.read("Metadata/model_settings.config"))
+                plates = max(1, len(root.findall(".//plate")))
+                if plates > 1:
+                    info = plate_info(root, files, [c[:7].upper() for c in colors])
     except (zipfile.BadZipFile, ET.ParseError, ValueError, KeyError, AttributeError):
         pass  # ponytail: the slicer reports a really broken file; facts only steer the app
-    return {"plates": plates, "colors": [c[:7].upper() for c in colors]}
+    out = {"plates": plates, "colors": [c[:7].upper() for c in colors]}
+    if plates > 1 and info:
+        out["plate_info"] = info
+    return out
+
+
+def _meta(el, key):
+    m = el.find(f"metadata[@key='{key}']")
+    return m.get("value", "") if m is not None else ""
+
+
+def plate_info(root, files, colors):
+    """Per plate of a multi-plate 3MF: number, author's name, objects (with counts), colours, thumbnail.
+    For the plate picker (the user 2026-11-15); never trusted for slicing."""
+    objects = {}
+    for obj in root.findall("object"):
+        extruders = {_meta(obj, "extruder")} | {_meta(part, "extruder") for part in obj.findall("part")}
+        objects[obj.get("id")] = (_meta(obj, "name") or "Object", {int(e) for e in extruders if e.isdigit()})
+    out = []
+    for plate in root.findall("plate"):
+        n = _meta(plate, "plater_id")
+        if not n.isdigit():
+            continue
+        names, used = {}, set()
+        for inst in plate.findall("model_instance"):
+            name, ext = objects.get(_meta(inst, "object_id"), ("Object", set()))
+            names[name] = names.get(name, 0) + 1
+            used |= ext
+        thumb = _meta(plate, "thumbnail_file") or f"Metadata/plate_{n}.png"
+        out.append({"n": int(n), "name": _meta(plate, "plater_name")[:60],
+                    "objects": [f"{k} ×{v}" if v > 1 else k for k, v in names.items()][:8],
+                    "colors": [colors[e - 1] for e in sorted(used) if 0 < e <= len(colors)],
+                    "thumb": thumb if thumb in files else None})
+    return sorted(out, key=lambda p: p["n"])
 
 
 def machine_preset(model, nozzle_diameter=None):
@@ -98,7 +134,8 @@ def slice(model, filename, machine, filaments, choices, reorient, copies,
         "machine": machine,
         "quality": choices.get("quality", "normal"),
         "filaments": filaments,
-        "choices": {k: v for k, v in choices.items() if k != "quality"},
+        "choices": {k: v for k, v in choices.items() if k not in ("quality", "plate_no")},
+        "plate_no": int(choices.get("plate_no") or 0),  # 0 = every plate; a multi-plate project picks one
         "reorient": reorient,
         "copies": copies,
         "other_machines": other_machines or [],
@@ -124,6 +161,8 @@ def slice(model, filename, machine, filaments, choices, reorient, copies,
                 exc = SliceError(_too_big_message(fail))
                 exc.fits_on = fail.get("fits_on") or []
                 raise exc from None
+            # Orca's own words go to the log: "could not slice" alone hid the cause (2026-11-15)
+            print(f"slicer 422: {str((fail or {}).get('error', ''))[-600:]}", file=sys.stderr, flush=True)
         if err.code in (400, 422):
             raise SliceError("Could not slice this model") from None
         raise SliceError("Slicer not reachable") from None
