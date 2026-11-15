@@ -371,7 +371,9 @@ def feed_of(alias):
     """One camera reader per printer, shared by the app, the photos and the agent."""
     with FEEDS_LOCK:
         if alias not in FEEDS:
-            if onboard.camera_kind(model_code(alias)) == "rtsp":
+            if isinstance(LINKS.get(alias), MoonrakerLink):  # Klipper: the webcam Moonraker knows about
+                FEEDS[alias] = camera.SnapshotFeed(LINKS[alias].snapshot_url)
+            elif onboard.camera_kind(model_code(alias)) == "rtsp":
                 FEEDS[alias] = camera.Go2rtcFeed(alias)  # no JPEG feed on this firmware: ask go2rtc
             else:
                 link = link_of(alias)

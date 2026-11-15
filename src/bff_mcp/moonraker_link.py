@@ -157,6 +157,14 @@ class MoonrakerLink:
         except (urllib.error.URLError, OSError, ValueError):
             return False
 
+    def snapshot_url(self):
+        """URL of the first enabled webcam's still image, from Moonraker's webcam list."""
+        for cam in self._request("GET", "/server/webcams/list").get("result", {}).get("webcams", []):
+            if cam.get("enabled") and cam.get("snapshot_url"):
+                url = cam["snapshot_url"]
+                return url if "://" in url else f"http://{self.host}{url if url.startswith('/') else '/' + url}"
+        raise OSError("no enabled webcam in Moonraker")
+
     # --- polling --------------------------------------------------------------------------------
     def poll(self):
         """One round trip; the result feeds snapshot(). Returns whether Moonraker answered."""

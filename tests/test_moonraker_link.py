@@ -46,6 +46,15 @@ class FakeMoonraker(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/printer/info"):
             return self._reply({"result": {"state": FakeMoonraker.klippy, "software_version": "v0.12.0"}})
+        if self.path.startswith("/server/webcams/list"):
+            return self._reply({"result": {"webcams": [{"enabled": False, "snapshot_url": "/off"},
+                                                       {"enabled": True, "snapshot_url": "/webcam/?action=snapshot"}]}})
+        if self.path.startswith("/webcam/"):
+            body = b"\xff\xd8fakejpeg\xff\xd9"
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            return self.wfile.write(body)
         if self.path.startswith("/printer/objects/query"):
             return self._reply({"result": {"status": STATUS}})
         self.send_response(404)
@@ -159,6 +168,13 @@ class MoonrakerLinkTest(unittest.TestCase):
             self.assertTrue(status["connected"])
         finally:
             server.drop_link("sv08test")
+
+    def test_camera_snapshot_from_the_first_enabled_webcam(self):
+        self.assertEqual(self.link.snapshot_url(), f"http://127.0.0.1/webcam/?action=snapshot")
+        feed = server.camera.SnapshotFeed(lambda: f"http://127.0.0.1:{self.port}/webcam/?action=snapshot")
+        self.assertTrue(feed.latest().startswith(b"\xff\xd8"))
+        with self.assertRaises(server.camera.CameraError):
+            server.camera.SnapshotFeed(lambda: f"http://127.0.0.1:{self.port}/printer/info").latest()
 
     def test_upload_sends_multipart_gcode(self):
         self.link.upload("a.gcode", b"G28\nG1 X1\n")
