@@ -23,6 +23,9 @@ MODELS = {
     "C13": {"name": "X1E", "supported": False, "enclosed": None, "camera": "rtsp", "chamber_sensor": True},
     "O1D": {"name": "H2D", "supported": False, "enclosed": None, "camera": "rtsp", "chamber_sensor": True,
             "ams_drying": True},
+    # Klipper printers (Moonraker, see moonraker_link.py). Not in TESTED_MODELS: Expert mode stays locked.
+    "KLIPPER-SV08MAX": {"name": "Sovol SV08 Max", "supported": True, "enclosed": None, "camera": "jpeg", "kind": "moonraker"},
+    "KLIPPER-IR3V2": {"name": "IdeaFormer IR3 V2", "supported": True, "enclosed": None, "camera": "jpeg", "kind": "moonraker"},
 }
 
 
@@ -63,6 +66,25 @@ MODEL_PROFILES = {
     "C12": _profile("P1S", "p1s", 300, 100),
     "N7": _profile("P2S", "p2s", 300, 110),
 }
+
+
+def _klipper_profile(name, nozzle_max, bed_max, nozzle_confirm, bed_confirm):
+    # ponytail: limits are conservative placeholders (anything above *_confirm_above_c asks for a confirmation),
+    # not vendor specs; check them against the printer's own printer.cfg max_temp before relying on them.
+    src = "conservative default: check printer.cfg max_temp"
+    return {"model": name, "slicer_model": name, "command_timeout_s": 15, "start_timeout_s": 150,
+            "supports": {"pause": True, "resume": True, "stop": True, "start": True},
+            "limits": {"nozzle_max_c": {"value": nozzle_max, "source": src}, "bed_max_c": {"value": bed_max, "source": src},
+                       "nozzle_confirm_above_c": {"value": nozzle_confirm, "source": src},
+                       "bed_confirm_above_c": {"value": bed_confirm, "source": src}}}
+
+
+MODEL_PROFILES["KLIPPER-SV08MAX"] = _klipper_profile("Sovol SV08 Max", 300, 120, 260, 100)
+MODEL_PROFILES["KLIPPER-IR3V2"] = _klipper_profile("IdeaFormer IR3 V2", 300, 110, 260, 90)
+
+
+def is_klipper(model_code):
+    return MODELS.get(model_code, {}).get("kind") == "moonraker"
 
 
 def model_profile(code, enclosure=False, profile=None):

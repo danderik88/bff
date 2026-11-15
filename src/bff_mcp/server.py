@@ -30,6 +30,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))  # Sibling modules, on the CT and in tests.
 from printer_link import PUSHALL, PrinterLink, check_fingerprint, with_sequence  # noqa: E402
+from moonraker_link import MoonrakerLink  # noqa: E402
 import camera  # noqa: E402
 import spaghetti  # noqa: E402
 import devices  # noqa: E402
@@ -685,6 +686,24 @@ def replay_of(key, alias, action, params):
     return {"printer": alias, "action": action, "outcome": row[3], "detail": row[4], "replayed": True}
 
 
+def start_klipper(link, name, data):
+    """Upload and start. A sliced 3MF is unpacked to its plate's G-code; a plain .gcode goes as it is."""
+    if data[:2] == b"PK":
+        plate = sliced_plate(data)
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as z:
+                data = z.read(f"Metadata/plate_{plate}.gcode")
+        except KeyError:
+            raise ftps.UploadError("il 3MF non contiene G-code: affettalo per questa stampante") from None
+        name = name.removesuffix(".3mf").removesuffix(".gcode") + ".gcode"
+    try:
+        link.upload(name, data)
+    except (OSError, ValueError) as err:
+        raise ftps.UploadError(f"upload a Moonraker fallito: {err}") from None  # nothing sent yet
+    if not link.start_print(name):  # not sent means not retried: the lock stays and recheck decides
+        raise ToolError("Comando non partito")
+
+
 def send_command(key, alias, action, params, raw):
     if action != "start":
         # Not sent means not retried: the lock stays and recheck decides.
@@ -699,6 +718,8 @@ def send_command(key, alias, action, params, raw):
     except FileNotFoundError:
         raise ftps.UploadError("file non più presente in BFF: ricaricalo") from None
     link = link_of(alias)
+    if isinstance(link, MoonrakerLink):  # Klipper: plain G-code over HTTP, no AMS, no FTPS
+        return start_klipper(link, row[0], data)
     feed = None  # None: the external spool, the A1's path unchanged
     try:
         picked = chosen_feed(params["file_id"], raw)
@@ -3040,6 +3061,13 @@ def keep_streams():
 
 
 def add_link(alias, entry, der=None):
+    if onboard.is_klipper(entry.get("model")):  # Moonraker over HTTP: no certificate, no MQTT, no AMS.
+        LINKS[alias] = MoonrakerLink(alias, entry["host"], entry.get("api_key", ""), int(entry.get("port", 7125)))
+        CFG.setdefault("printers", {}).setdefault(alias, f"app:{alias}")
+        LINKS[alias].start()
+        if HA is not None:
+            HA.add_alias(alias, entry.get("name"))
+        return
     if der is not None:  # Pin the certificate the probe just checked.
         check_fingerprint(str(fingerprint_dir()), alias, der)
     LINKS[alias] = PrinterLink(alias, entry["host"], entry["serial"], entry["access_code"], str(fingerprint_dir()),
