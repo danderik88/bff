@@ -196,6 +196,16 @@ def _plates(outdir: Path):
 
 
 INVALID_VALUE = re.compile(r'value "([^"]*)" for (\w+) is not valid, using "([^"]*)" instead')
+# 'raft_first_layer_expansion: -1 not in range [0, 3.40282e+38]' (the user 2026-11-15): clamp to the nearer bound
+OUT_OF_RANGE = re.compile(r'(\w+): (-?[\d.]+(?:e[+-]?\d+)?) not in range \[(-?[\d.]+(?:e[+-]?\d+)?), (-?[\d.]+(?:e[+-]?\d+)?)\]')
+
+
+def orca_fixes(log):
+    """(bad, key, good) for every value Orca rejects: its own suggestion, or the out-of-range value clamped."""
+    out = [tuple(f) for f in INVALID_VALUE.findall(log)]
+    for key, bad, lo, hi in OUT_OF_RANGE.findall(log):
+        out.append((bad, key, lo if float(bad) < float(lo) else hi))
+    return out
 
 
 def _apply_fixes(path, fixes):
@@ -378,7 +388,7 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
                 raise SliceError(f"slicer not runnable: {exc.strerror}")
             # A newer Bambu Studio writes values Orca does not know (-18); Orca names the fix itself:
             # 'value "enabled" for ensure_vertical_shell_thickness is not valid, using "ensure_all" instead'
-            fixes = INVALID_VALUE.findall((done.stdout + done.stderr).decode(errors="replace"))
+            fixes = orca_fixes((done.stdout + done.stderr).decode(errors="replace"))
             seen_fixes += fixes
             if done.returncode == 0 or ext != ".3mf":
                 break

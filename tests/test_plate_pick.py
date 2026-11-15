@@ -200,3 +200,12 @@ class OriginalOrStandard(unittest.TestCase):
                 self.assertNotIn("Metadata/project_settings.config", z.namelist())
         src = (ROOT / "tools/slicer/slicerd.py").read_text()
         self.assertIn('fresh = ext == ".3mf" and choices.get("fresh") is True', src)
+
+
+class OutOfRange(unittest.TestCase):
+    def test_out_of_range_values_are_clamped(self):
+        # the user 2026-11-15: one bad value used to drop every setting of the designer
+        log = ('raft_first_layer_expansion: -1 not in range [0, 3.40282e+38]\n'
+               'value "enabled" for ensure_vertical_shell_thickness is not valid, using "ensure_all" instead')
+        self.assertEqual(slicerd.orca_fixes(log), [("enabled", "ensure_vertical_shell_thickness", "ensure_all"),
+                                                   ("-1", "raft_first_layer_expansion", "0")])
