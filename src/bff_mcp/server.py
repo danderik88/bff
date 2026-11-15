@@ -2228,8 +2228,8 @@ def tool_slice_request(args):
     raw = read_status(printer)
     for slot in set(slots):  # the same spool may serve several colours
         slot_filament(printer, raw, slot)
-    if args.get("standard") is True:  # Standard drops the custom settings, not Re-orient
-        choices = {"reorient": True} if choices.get("reorient") else {}
+    if args.get("standard") is True:  # Standard drops the custom settings, not Re-orient or "fresh"
+        choices = {k: True for k in ("reorient", "fresh") if choices.get(k) is True}
     choices.pop("plate_no", None)
     if facts.get("plates", 1) > 1:
         choices["plate_no"] = plate_no
@@ -2285,16 +2285,18 @@ def _fetch_link(rid, source):
     """(name, data, others) of a link request; makerworld.LoginNeeded bubbles up (-> blocked)."""
     url = DB.execute("SELECT url FROM print_requests WHERE id=?", (rid,)).fetchone()[0]
     if source in ("printables", "thingiverse"):
-        return fetch.fetch_model(url)
+        return (*fetch.fetch_model(url), None)  # (name, data, others, profile)
     if source == "makerworld":
-        return makerworld.fetch(DB, url)
+        return (*makerworld.fetch(DB, url), None)[:4]
     raise ToolError("Links are not supported yet")
 
 
 def _fetch_request(rid, source):
     """stage='fetch': download the model, keep it, stop at draft with its facts. Never slices."""
-    name, data, others = _fetch_link(rid, source)
+    name, data, others, profile = _fetch_link(rid, source)
     facts = slicer.model_facts(name, data)  # several plates: the app asks which one
+    if profile:
+        facts["profile"] = profile  # the MakerWorld print profile, shown in step 1
     note = ("Also on this page: " + ", ".join(others))[:300] if others else None
     with DB:
         if DB.execute("UPDATE print_requests SET status='draft', facts=?, file_name=?, file_size=?, note=? "
@@ -2318,7 +2320,7 @@ def _slice_request(rid, printer, source, file_name, choices_json, slots, copies,
             raise ToolError("Could not slice this model")
         name, data, others = file_name, m[0], ()
     else:
-        name, data, others = _fetch_link(rid, source)
+        name, data, others, _ = _fetch_link(rid, source)
     profile = load_profile(printer)
     machine = slicer.machine_preset(profile.get("model"), _nozzle_diameter(raw))
     choices = json.loads(choices_json) if choices_json else {}

@@ -55,7 +55,7 @@ def model_facts(name, data):
     """{"plates", "colors"} of a model. STL/STEP: one plate, no colours. A broken 3MF reads as one plate."""
     if not name.lower().endswith(".3mf"):
         return {"plates": 1, "colors": []}
-    plates, colors, info = 1, [], []
+    plates, colors, info, used = 1, [], [], None
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as z:
             files = set(z.namelist())
@@ -68,12 +68,76 @@ def model_facts(name, data):
                 plates = max(1, len(root.findall(".//plate")))
                 if plates > 1:
                     info = plate_info(root, files, [c[:7].upper() for c in colors])
+                used = used_filaments(root, z, files)
     except (zipfile.BadZipFile, ET.ParseError, ValueError, KeyError, AttributeError):
         pass  # ponytail: the slicer reports a really broken file; facts only steer the app
     out = {"plates": plates, "colors": [c[:7].upper() for c in colors]}
     if plates > 1 and info:
         out["plate_info"] = info
+    if used and len(out["colors"]) > 1 and len(used) < len(out["colors"]):
+        out["used"] = [n for n in used if n <= len(out["colors"])] or None  # 1-based; the rest only fill the list
+        if not out["used"]:
+            del out["used"]
     return out
+
+
+def used_filaments(root, z, files):
+    """1-based filament numbers the objects use (the user 2026-11-15: a 2-colour Printables file listed 8).
+    Painted meshes add the filaments their paint names. None when unsure."""
+    used = set()
+    for name in files:
+        if name.startswith("3D/") and name.endswith(".model"):
+            states = painted_states(z, name)
+            if states is None:
+                return None
+            used |= states
+    for obj in root.findall("object"):
+        ext = _meta(obj, "extruder")
+        used.add(int(ext) if ext.isdigit() else 1)
+        for part in obj.findall("part"):
+            e = _meta(part, "extruder")
+            if e.isdigit():
+                used.add(int(e))
+    return sorted(n for n in used if n > 0) or None
+
+
+PAINT_RE = re.compile(rb'(?:paint_color|mmu_segmentation)="([0-9A-Fa-f]+)"')
+
+
+def paint_states(code):
+    """Filament states in one triangle's paint code (TriangleSelector serialisation: hex nibbles read
+    from the end; low 2 bits = split, else high 2 bits = state, 3 = next nibble + 3)."""
+    nibbles = [int(c, 16) for c in reversed(code.decode())]
+    out, i = set(), 0
+    while i < len(nibbles):
+        n = nibbles[i]
+        i += 1
+        if n & 3:
+            continue  # split: the children follow in the stream
+        state = n >> 2
+        if state == 3:
+            if i >= len(nibbles):
+                break
+            state = nibbles[i] + 3
+            i += 1
+        out.add(state)
+    return out
+
+
+def painted_states(z, name, cap=256_000_000):
+    """Painted filament numbers (> 0) in one mesh file; None past `cap` bytes."""
+    states, tail, seen = set(), b"", 0
+    with z.open(name) as f:
+        while chunk := f.read(4_000_000):
+            seen += len(chunk)
+            if seen > cap:
+                return None
+            buf = tail + chunk
+            for m in PAINT_RE.finditer(buf):
+                states |= paint_states(m.group(1))
+            tail = buf[-4096:]  # ponytail: a code split across chunks longer than 4 KB is missed
+    states.discard(0)  # 0 = unpainted, the object's own filament
+    return states
 
 
 def _meta(el, key):

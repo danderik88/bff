@@ -18,6 +18,7 @@ import re
 import subprocess
 import tempfile
 import threading
+import uuid
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -194,6 +195,121 @@ def _plates(outdir: Path):
     return sorted(found)
 
 
+INVALID_VALUE = re.compile(r'value "([^"]*)" for (\w+) is not valid, using "([^"]*)" instead')
+
+
+def _apply_fixes(path, fixes):
+    """Put Orca's suggested values into the project settings of the 3MF. True when something changed."""
+    try:
+        with zipfile.ZipFile(path) as z:
+            items = [(i, z.read(i.filename)) for i in z.infolist()]
+    except zipfile.BadZipFile:
+        return False
+    changed = False
+    out = []
+    for info, data in items:
+        if info.filename == "Metadata/project_settings.config":
+            try:
+                conf = json.loads(data)
+            except ValueError:
+                conf = None
+            if isinstance(conf, dict):
+                for bad, key, good in fixes:
+                    v = conf.get(key)
+                    if v == bad:
+                        conf[key], changed = good, True
+                    elif isinstance(v, list) and bad in v:
+                        conf[key], changed = [good if x == bad else x for x in v], True
+                if changed:
+                    data = json.dumps(conf, indent=4).encode()
+        elif info.filename == "Metadata/model_settings.config":  # per-object and per-part overrides
+            text = data.decode("utf-8", errors="surrogateescape")
+            new = text
+            for bad, key, good in fixes:
+                new = new.replace(f'key="{key}" value="{bad}"', f'key="{key}" value="{good}"')
+            if new != text:
+                data, changed = new.encode("utf-8", errors="surrogateescape"), True
+        out.append((info, data))
+    if changed:
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+            for info, data in out:
+                z.writestr(info, data)
+    return changed
+
+
+def _drop_project_settings(path):
+    with zipfile.ZipFile(path) as z:
+        items = [(i, z.read(i.filename)) for i in z.infolist() if i.filename != "Metadata/project_settings.config"]
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for info, data in items:
+            z.writestr(info, data)
+
+
+def _add_instances(path, copies):
+    """Copies of a 3MF project as extra instances inside it (the user 2026-11-15, 2 LazyCat covers):
+    Orca refuses the same 3MF twice (-4) and --clone-objects on a project (-2)."""
+    try:
+        with zipfile.ZipFile(path) as z:
+            items = [(i, z.read(i.filename)) for i in z.infolist()]
+    except zipfile.BadZipFile:
+        return  # Orca reports a broken file itself
+    out = []
+    for info, data in items:
+        if info.filename == "3D/3dmodel.model":
+            text = data.decode("utf-8", errors="surrogateescape")
+            build = re.search(r"<build\b[^>]*>(.*?)</build>", text, re.S)
+            if build:
+                found = re.findall(r"<item\b[^>]*/>", build.group(1))
+                extra = "".join("\n  " + re.sub(r'p:UUID="[^"]*"', f'p:UUID="{uuid.uuid4()}"', it)
+                                for _ in range(copies - 1) for it in found)
+                text = text[:build.end(1)] + extra + text[build.end(1):]
+            data = text.encode("utf-8", errors="surrogateescape")
+        elif info.filename == "Metadata/model_settings.config":
+            def plate(m):
+                insts = re.findall(r"<model_instance>.*?</model_instance>", m.group(0), re.S)
+                more = ""
+                for k in range(1, copies):
+                    for s in insts:
+                        s = re.sub(r'(key="instance_id" value=")(\d+)', lambda x: x[1] + str(int(x[2]) + k), s)
+                        more += "\n    " + re.sub(r'<metadata key="identify_id"[^>]*/>', "", s)
+                return m.group(0).replace("</plate>", more + "\n  </plate>")
+            text = data.decode("utf-8", errors="surrogateescape")
+            data = re.sub(r"<plate>.*?</plate>", plate, text, flags=re.S).encode("utf-8", errors="surrogateescape")
+        out.append((info, data))
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for info, data in out:
+            z.writestr(info, data)
+
+
+BBS_CAP = "02.00.00.00"  # newest Bambu Studio 3MF version our Orca opens (Orca exit -24 above it)
+
+
+def _cap_bbs_version(path):
+    """MakerWorld 3MFs saved by a newer Bambu Studio (02.07, 2026-11-15) make Orca 2.5 stop with
+    "Unsupported 3MF version" (-24). Rewrite only the version labels to BBS_CAP; geometry and settings stay."""
+    try:
+        with zipfile.ZipFile(path) as z:
+            items = [(i, z.read(i.filename)) for i in z.infolist()]
+    except zipfile.BadZipFile:
+        return
+    changed = False
+    out = []
+    for info, data in items:
+        if info.filename in ("3D/3dmodel.model", "Metadata/project_settings.config"):
+            text = data.decode("utf-8", errors="surrogateescape")
+            new = re.sub(r"(BambuStudio-)(\d\d\.\d\d\.\d\d\.\d\d)",
+                         lambda m: m[1] + min(m[2], BBS_CAP), text)
+            new = re.sub(r'("version":\s*")(\d\d\.\d\d\.\d\d\.\d\d)(")',
+                         lambda m: m[1] + min(m[2], BBS_CAP) + m[3], new)
+            if new != text:
+                data, changed = new.encode("utf-8", errors="surrogateescape"), True
+        out.append((info, data))
+    if changed:
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+            for info, data in out:
+                z.writestr(info, data)
+
+
 def slice_job(model: bytes, filename: str, machine: str, quality: str, filament: str = None,
               choices: dict = None, reorient: bool = False, copies: int = 1,
               filament_id: str = None, filament_type: str = None,
@@ -229,6 +345,7 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
     base = json.loads((PROFILES / entry["process"][process_name]).read_text())
     process = build_process(base, choices)
 
+    fresh = ext == ".3mf" and choices.get("fresh") is True
     with LOCK, tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         model_path = tmp / f"model{ext}"  # ponytail: user file name never reaches the shell or disk
@@ -237,20 +354,45 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
         process_path.write_text(json.dumps(process))
         outdir = tmp / "out"
         outdir.mkdir()
+        if ext == ".3mf":
+            _cap_bbs_version(model_path)
+            if fresh:  # Standard on a 3MF: BFF's profile, not the designer's settings (the user 2026-11-15)
+                _drop_project_settings(model_path)
+            if copies > 1:
+                _add_instances(model_path, copies)
         cmd = [ORCA_BIN, "--load-settings", f"{PROFILES / entry['file']};{process_path}",
                "--load-filaments", ";".join(str(PROFILES / entry["filament"][f]) for f in presets)]
         if ext != ".3mf" or reorient:
             cmd += ["--orient", "1", "--arrange", "1", "--allow-rotations"]
-        elif copies > 1:
+        elif copies > 1 or fresh:
             cmd += ["--arrange", "1", "--allow-rotations"]
         cmd += ["--slice", str(plate_no), "--export-statistics", "--outputdir", str(outdir),
-                "--export-3mf", "out.gcode.3mf"] + [str(model_path)] * copies
-        try:
-            done = subprocess.run(cmd, cwd=tmp, capture_output=True, timeout=TIMEOUT)
-        except subprocess.TimeoutExpired:
-            raise SliceError(f"slice timed out after {TIMEOUT} s")
-        except OSError as exc:  # binary missing or not executable: a clean 422, not a dropped connection
-            raise SliceError(f"slicer not runnable: {exc.strerror}")
+                "--export-3mf", "out.gcode.3mf"] + [str(model_path)] * (1 if ext == ".3mf" else copies)
+        seen_fixes, stripped = [], fresh
+        for attempt in range(3):
+            try:
+                done = subprocess.run(cmd, cwd=tmp, capture_output=True, timeout=TIMEOUT)
+            except subprocess.TimeoutExpired:
+                raise SliceError(f"slice timed out after {TIMEOUT} s")
+            except OSError as exc:  # binary missing or not executable: a clean 422, not a dropped connection
+                raise SliceError(f"slicer not runnable: {exc.strerror}")
+            # A newer Bambu Studio writes values Orca does not know (-18); Orca names the fix itself:
+            # 'value "enabled" for ensure_vertical_shell_thickness is not valid, using "ensure_all" instead'
+            fixes = INVALID_VALUE.findall((done.stdout + done.stderr).decode(errors="replace"))
+            seen_fixes += fixes
+            if done.returncode == 0 or ext != ".3mf":
+                break
+            if not stripped and fixes and _apply_fixes(model_path, seen_fixes):
+                continue
+            code = str((_json_file(outdir / "result.json") or {}).get("return_code"))
+            if stripped or code not in ("-18", "-24"):
+                break
+            # Last resort (caliper from Bambu Studio 02.07, 2026-11-15): settings our Orca cannot read.
+            # Keep the objects and their colour assignment, drop the author's settings, place them anew.
+            _drop_project_settings(model_path)
+            stripped = True
+            if "--arrange" not in cmd:
+                cmd[cmd.index("--slice"):cmd.index("--slice")] = ["--arrange", "1", "--allow-rotations"]
         if done.returncode != 0:
             result = _json_file(outdir / "result.json")
             if isinstance(result, dict) and (
@@ -264,7 +406,10 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
                            if other in index and size and fits(
                                size, bed_size(json.loads((PROFILES / index[other]["file"]).read_text())))]
                 raise TooBig(size, bed, fits_on)
-            raise SliceError(f"orca exit {done.returncode}: {done.stderr.decode(errors='replace')[-500:]}")
+            # Orca puts its reason in result.json, not on stderr (exit 232 had an empty stderr, 2026-11-15)
+            why = (result or {}).get("error_string") if isinstance(result, dict) else ""
+            raise SliceError(f"orca exit {done.returncode} (code {(result or {}).get('return_code') if isinstance(result, dict) else '?'}): "
+                             f"{why or done.stderr.decode(errors='replace')[-300:] or done.stdout.decode(errors='replace')[-300:]}"[:600])
         numbers = _plates(outdir)
         if not numbers:
             raise SliceError("orca produced no plate")

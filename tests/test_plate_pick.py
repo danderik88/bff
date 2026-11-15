@@ -113,3 +113,90 @@ class PlatePickerInTheApp(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UsedColours(unittest.TestCase):
+    def three_mf(self, settings, colours, mesh=b"<mesh/>"):
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("Metadata/model_settings.config", settings)
+            z.writestr("Metadata/project_settings.config", json.dumps({"filament_colour": colours}))
+            z.writestr("3D/3dmodel.model", mesh)
+        return buf.getvalue()
+
+    def test_only_the_colours_the_objects_use(self):
+        # the user 2026-11-15: a 2-colour Printables model whose project lists 8 filaments
+        cfg = ('<config><object id="1"><metadata key="extruder" value="2"/></object>'
+               '<object id="2"><metadata key="extruder" value="5"/></object></config>')
+        facts = slicer.model_facts("cat.3mf", self.three_mf(cfg, ["#FFFFFF", "#E05080", "#5040B0", "#F0C040",
+                                                                  "#40A0A0", "#80FFFF", "#FFFF40", "#000000"]))
+        self.assertEqual(len(facts["colors"]), 8)  # the full list stays: one filament per entry for Orca
+        self.assertEqual(facts["used"], [2, 5])
+
+    def test_object_without_extruder_uses_the_first(self):
+        cfg = '<config><object id="1"/><object id="2"><part><metadata key="extruder" value="3"/></part></object></config>'
+        facts = slicer.model_facts("a.3mf", self.three_mf(cfg, ["#FF0000", "#00FF00", "#0000FF", "#000000"]))
+        self.assertEqual(facts["used"], [1, 3])
+
+    def test_painted_model_adds_the_painted_filaments(self):
+        # the user 2026-11-15: LazyCat cover, white body (extruder 1) painted black with filament 8 ("5C")
+        cfg = '<config><object id="1"><metadata key="extruder" value="1"/></object></config>'
+        mesh = b'<triangle v1="0" paint_color="5C"/><triangle v1="1"/><triangle paint_color="8"/>'
+        facts = slicer.model_facts("p.3mf", self.three_mf(cfg, ["#FFFFFF"] + ["#123456"] * 6 + ["#000000"], mesh))
+        self.assertEqual(facts["used"], [1, 2, 8])
+
+    def test_paint_code_decoding(self):
+        self.assertEqual(slicer.paint_states(b"4"), {1})
+        self.assertEqual(slicer.paint_states(b"0C"), {3})
+        self.assertEqual(slicer.paint_states(b"5C"), {8})
+        self.assertEqual(slicer.paint_states(b"84" + b"0" + b"1"), {0, 2, 1})  # split nibble then leaves
+
+    def test_app_shows_only_used_spools(self):
+        app = (ROOT / "src/bff_mcp/app.html").read_text()
+        self.assertIn("if (!one && usedIdx() && !usedIdx().includes(i)) return \"\";", app)
+        self.assertIn("fillUnused();", app)
+
+
+class CopiesOfAProject(unittest.TestCase):
+    def test_copies_become_instances_in_the_3mf(self):
+        # the user 2026-11-15: Orca refuses the same 3MF twice (-4), so copies go inside the project
+        import tempfile
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("3D/3dmodel.model", '<model><build p:UUID="b"><item objectid="2" p:UUID="x" transform="1"/></build></model>')
+            z.writestr("Metadata/model_settings.config", '<config><plate><model_instance><metadata key="object_id" value="2"/>'
+                       '<metadata key="instance_id" value="0"/><metadata key="identify_id" value="147"/></model_instance></plate></config>')
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "m.3mf"
+            path.write_bytes(buf.getvalue())
+            slicerd._add_instances(path, 3)
+            with zipfile.ZipFile(path) as z:
+                model = z.read("3D/3dmodel.model").decode()
+                settings = z.read("Metadata/model_settings.config").decode()
+        self.assertEqual(model.count('objectid="2"'), 3)
+        self.assertEqual(len(set(__import__("re").findall(r'item[^>]*p:UUID="([^"]*)"', model))), 3)
+        for n in "012":
+            self.assertIn(f'key="instance_id" value="{n}"', settings)
+        self.assertEqual(settings.count("identify_id"), 1)
+
+
+class OriginalOrStandard(unittest.TestCase):
+    def test_app_offers_original_for_3mf(self):
+        app = (ROOT / "src/bff_mcp/app.html").read_text()
+        self.assertIn('id="pnorig"', app)
+        self.assertIn('return isThreeMf ? { fresh: true } : { supports: "auto" };', app)
+
+    def test_fresh_drops_the_designer_settings(self):
+        import tempfile
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("3D/3dmodel.model", "<model/>")
+            z.writestr("Metadata/project_settings.config", "{}")
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "m.3mf"
+            path.write_bytes(buf.getvalue())
+            slicerd._drop_project_settings(path)
+            with zipfile.ZipFile(path) as z:
+                self.assertNotIn("Metadata/project_settings.config", z.namelist())
+        src = (ROOT / "tools/slicer/slicerd.py").read_text()
+        self.assertIn('fresh = ext == ".3mf" and choices.get("fresh") is True', src)

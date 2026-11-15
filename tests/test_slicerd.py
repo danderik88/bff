@@ -153,7 +153,7 @@ class SliceJob(Base):
         self.slice("cube.3mf", copies=3)
         argv = self.argv()
         self.assertIn("--arrange", argv)
-        self.assertEqual(3, sum(a.endswith("model.3mf") for a in argv))
+        self.assertEqual(1, sum(a.endswith("model.3mf") for a in argv))  # copies live inside the 3MF (Orca -4 on repeats)
 
     def test_slice_job_filament_id(self):
         result = slicerd.slice_job(b"solid x", "cube.stl", MACHINE, "normal", None, {}, False, 1,
@@ -336,3 +336,65 @@ class ResolveFilament(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CapBambuStudioVersion(unittest.TestCase):
+    def test_newer_bambu_studio_label_is_capped_rest_untouched(self):
+        import tempfile
+        import zipfile
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "m.3mf"
+            with zipfile.ZipFile(path, "w") as z:
+                z.writestr("3D/3dmodel.model", '<metadata name="Application">BambuStudio-02.07.01.57</metadata><v>1</v>')
+                z.writestr("Metadata/project_settings.config", '{"version": "02.07.01.57", "layer_height": "0.2"}')
+                z.writestr("Metadata/plate_1.png", b"\x89PNG")
+            slicerd._cap_bbs_version(path)
+            with zipfile.ZipFile(path) as z:
+                self.assertIn("BambuStudio-02.00.00.00</metadata><v>1</v>", z.read("3D/3dmodel.model").decode())
+                self.assertEqual(z.read("Metadata/project_settings.config").decode(),
+                                 '{"version": "02.00.00.00", "layer_height": "0.2"}')
+                self.assertEqual(z.read("Metadata/plate_1.png"), b"\x89PNG")
+
+    def test_older_label_is_left_alone(self):
+        import tempfile
+        import zipfile
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "m.3mf"
+            with zipfile.ZipFile(path, "w") as z:
+                z.writestr("3D/3dmodel.model", '<metadata name="Application">BambuStudio-01.09.00.00</metadata>')
+            before = path.read_bytes()
+            slicerd._cap_bbs_version(path)
+            self.assertEqual(path.read_bytes(), before)
+
+
+class OrcaSuggestedValues(unittest.TestCase):
+    def test_orca_warning_value_is_written_into_the_project(self):
+        import tempfile
+        import zipfile
+        line = 'warning: x.3mf: value "enabled" for ensure_vertical_shell_thickness is not valid, using "ensure_all" instead'
+        fixes = slicerd.INVALID_VALUE.findall(line)
+        self.assertEqual(fixes, [("enabled", "ensure_vertical_shell_thickness", "ensure_all")])
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "m.3mf"
+            with zipfile.ZipFile(path, "w") as z:
+                z.writestr("Metadata/project_settings.config",
+                           '{"ensure_vertical_shell_thickness": "enabled", "wall_loops": "2"}')
+            self.assertTrue(slicerd._apply_fixes(path, fixes))
+            with zipfile.ZipFile(path) as z:
+                conf = __import__("json").loads(z.read("Metadata/project_settings.config"))
+            self.assertEqual(conf, {"ensure_vertical_shell_thickness": "ensure_all", "wall_loops": "2"})
+            self.assertFalse(slicerd._apply_fixes(path, fixes))  # nothing left to fix: no endless retry
+
+    def test_object_overrides_get_the_same_fix(self):
+        import tempfile
+        import zipfile
+        fixes = [("enabled", "ensure_vertical_shell_thickness", "ensure_all")]
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "m.3mf"
+            with zipfile.ZipFile(path, "w") as z:
+                z.writestr("Metadata/model_settings.config",
+                           '<object><metadata key="ensure_vertical_shell_thickness" value="enabled"/></object>')
+            self.assertTrue(slicerd._apply_fixes(path, fixes))
+            with zipfile.ZipFile(path) as z:
+                self.assertIn('value="ensure_all"', z.read("Metadata/model_settings.config").decode())
+

@@ -324,7 +324,8 @@ select { font: 16px var(--sans); color: var(--fg); background: var(--panel2); bo
       <div class="stephead"><span class="stepnum">3</span><b>Print settings</b></div>
       <p class="stepsum" id="s3sum" hidden><span id="s3sumtext"></span><a href="#" data-edit="3">Edit</a></p>
       <div class="stepbody">
-        <div class="opts"><button class="opt on" id="pnstd">Standard</button><button class="opt" id="pncustom">Customize</button></div>
+        <div class="opts"><button class="opt on" id="pnorig">Original</button><button class="opt" id="pnstd">Standard</button><button class="opt" id="pncustom">Customize</button></div>
+        <p class="note" id="pnmodenote"></p>
         <input type="checkbox" id="pcustom" hidden>
         <div id="pcustomrows" style="display:flex;flex-direction:column;gap:10px" hidden>
           <label class="fld">Supports<select id="psup"><option value="off">Off</option><option value="auto" selected>Auto</option><option value="everywhere">Everywhere</option></select></label>
@@ -1145,9 +1146,11 @@ function paintSteps() {
     st.querySelector(".stepsum").hidden = n >= cur;
     st.querySelector(".stepbody").hidden = n < cur;
   }
-  $("s1sumtext").innerHTML = PN.facts ? esc(PN.name) + " " + colourSquares(PN.facts.colors) : "";
+  $("s1sumtext").innerHTML = PN.facts ? esc(PN.name) + " " + colourSquares(usedColors())
+    + (PN.facts.profile ? ` <span class="note">· ${esc(PN.facts.profile)}</span>` : "") : "";
   $("s2sumtext").textContent = PN.info ? nameOf(PN.printer) + (PN.slots.length > 1 ? ` · ${PN.slots.length} spools` : "") : "";
-  $("s3sumtext").textContent = $("pcustom").checked ? "Customize" : "Standard";
+  paintMode();
+  $("s3sumtext").textContent = { original: "Original", standard: "Standard", custom: "Customize" }[pnMode()];
   $("pnclear").hidden = !PN.id && !PN.fileId && !PN.name;  // a stuck project must always have a way out (the user)
   $("pnslice").disabled = !PN.id || !PN.facts || PN.sliced || !PN.info || !PN.slots.length || PN.slots.some(s => !s);
 }
@@ -1183,6 +1186,14 @@ function paintP2() {
   paintSpools();
   paintSteps();
 }
+// Only the colours the objects use get a spool (a Printables file listed 8 for a 2-colour model, the user);
+// the unused ones ride on the first used spool so Orca still gets one filament per entry.
+const usedIdx = () => { const u = (PN.facts || {}).used; return u && u.length ? u.map(n => n - 1) : null; };
+const usedColors = () => { const c = (PN.facts || {}).colors || [], u = usedIdx(); return u ? u.map(i => c[i]).filter(Boolean) : c; };
+function fillUnused() {
+  const u = usedIdx(); if (!u) return;
+  for (let i = 0; i < PN.slots.length; i++) if (!u.includes(i)) PN.slots[i] = PN.slots[u[0]] || PN.slots[i];
+}
 function paintSpools() {
   const fl = (PN.info && PN.info.filaments) || [];
   const colors = (PN.facts && PN.facts.colors) || [];
@@ -1197,7 +1208,9 @@ function paintSpools() {
     if (one && i > 0) return PN.slots[0] || "";
     return (fl.some(f => f.slot === PN.slots[i] && f.profile_id) ? PN.slots[i] : pick(i)) || "";
   });
+  if (!one) fillUnused();
   $("pnspools").innerHTML = Array.from({ length: n }, (_, i) => {
+    if (!one && usedIdx() && !usedIdx().includes(i)) return "";
     const sel = PN.slots[i] || "";
     const options = fl.map(f => `<option value="${esc(f.slot)}"${f.profile_id ? "" : " disabled"}${f.slot === sel ? " selected" : ""}>`
       + `${esc(spoolLabel(f))}${f.profile_id ? "" : " (not set)"}</option>`).join("");
@@ -1211,6 +1224,7 @@ $("pnspools").onchange = e => {
   const s = e.target.closest("select[data-slot]"); if (!s) return;
   const i = Number(s.dataset.slot);
   PN.slots[i] = s.value;
+  fillUnused();
   const f = ((PN.info || {}).filaments || []).find(x => x.slot === s.value) || {};
   const sq = $("pnspools").querySelector(`[data-scol="${i}"]`);
   if (sq) sq.style.background = f.color ? MODELCOL(f.color) : "var(--panel2)";
@@ -1231,19 +1245,32 @@ async function loadStep2() {
   await loadPnInfo();
 }
 
-// Step 3: Standard keeps the designer's settings, Customize sends only the fields the user touched.
-function paintCustom() {
-  $("pcustomrows").hidden = !$("pcustom").checked;
-  $("pnstd").classList.toggle("on", !$("pcustom").checked);
-  $("pncustom").classList.toggle("on", $("pcustom").checked);
-  paintSteps();
+const MODE_NOTE = {
+  original: "The designer's settings from the 3MF, as published",
+  standard: "BFF's tested settings for this printer, the same as for an STL",
+  custom: "Change only what you need, the rest stays as it is",
+};
+// Original (3MF only) keeps the designer's settings, Standard uses BFF's profile, Customize sends only touched fields.
+function pnMode() {
+  if ($("pcustom").checked) return "custom";
+  return /\.3mf$/i.test(PN.name || "") && $("psettings").dataset.mode !== "standard" ? "original" : "standard";
 }
-$("pnstd").onclick = () => { $("pcustom").checked = false; paintCustom(); };
+function paintMode() {
+  const m = pnMode();
+  $("pcustomrows").hidden = m !== "custom";
+  for (const [id, k] of [["pnorig", "original"], ["pnstd", "standard"], ["pncustom", "custom"]]) $(id).classList.toggle("on", m === k);
+  $("pnorig").hidden = !/\.3mf$/i.test(PN.name || "");
+  $("pnmodenote").textContent = MODE_NOTE[m];
+}
+function paintCustom() { paintSteps(); }
+$("pnorig").onclick = () => { $("pcustom").checked = false; $("psettings").dataset.mode = "original"; paintCustom(); };
+$("pnstd").onclick = () => { $("pcustom").checked = false; $("psettings").dataset.mode = "standard"; paintCustom(); };
 $("pncustom").onclick = () => { $("pcustom").checked = true; paintCustom(); };
 $("pplate").onchange = () => $("pplate").dataset.pick = $("pplate").value;
 $("pcustomrows").addEventListener("change", e => { if (e.target.id !== "pcustom") e.target.dataset.touched = "1"; });
 function printChoices(isThreeMf) {
-  if (!$("pcustom").checked) return isThreeMf ? {} : { supports: "auto" };
+  if (pnMode() === "original") return {};
+  if (pnMode() === "standard") return isThreeMf ? { fresh: true } : { supports: "auto" };
   const t = id => $(id).dataset.touched === "1", c = {};
   if (t("psup")) c.supports = $("psup").value;
   if (t("pqual")) c.quality = $("pqual").value;
@@ -1273,7 +1300,7 @@ function pnModelReady() {
   PN.sliced = false;
   $("s1status").hidden = true;
   $("s1name").textContent = PN.name.replace(/\.gcode\.3mf$/, "");
-  $("s1cols").innerHTML = colourSquares((PN.facts || {}).colors || []);
+  $("s1cols").innerHTML = colourSquares(usedColors());
   $("s1file").hidden = false;
   pnEdit = 0;
   paintSteps();
@@ -1505,7 +1532,13 @@ async function pnStartPrint(fileId, reqId, printer) {
   try {
     const prep = await rpc("prepare_print_start", { file_id: fileId, printer: alias });
     ask("Start this print?", prep, "Start print", false, t => act(async () => {
-      await rpc("confirm_print_start", { token: t, idempotency_key: key(), printer: alias });
+      // Sending takes a few seconds (upload, light, checks): say so, or the screen looks stuck (the user)
+      pnProgress("Sending the file to the printer…"); $("pnprint").disabled = $("pnqueue").disabled = true;
+      try {
+        await rpc("confirm_print_start", { token: t, idempotency_key: key(), printer: alias });
+      } finally {
+        $("pnsliceprog").hidden = true; $("pnprint").disabled = $("pnqueue").disabled = false;
+      }
       if (reqId) rpc("print_requests", { id: reqId, status: "started" }).catch(() => {});
       pnReset();
       if (alias !== PRINTER) selectPrinter(alias);
