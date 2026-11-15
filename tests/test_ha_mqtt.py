@@ -246,6 +246,14 @@ class HaBridgeTest(unittest.TestCase):
                       "homeassistant/sensor/bff_a1/ams_a_info/config"):
             self.assertIn(topic, kept)
 
+    def test_ha_ams_state_drops_impossible_sensor_values(self):
+        b = self.bridge()
+        bad = b._serial_state({"humidity_raw": 0, "temp": 6503.6}, "a1", "AUNA A1")
+        self.assertIsNone(bad["temp"])
+        self.assertIsNone(bad["humidity_pct"])
+        ok = b._serial_state({"humidity_raw": 29, "temp": 33.0}, "a1", "AUNA A1")
+        self.assertEqual((ok["temp"], ok["humidity_pct"]), (33.0, 29))
+
     def test_profile_learned_later_republishes_discovery(self):
         status = dict(STATUS)
         profile = {}

@@ -1,5 +1,6 @@
 """Run with: python3 -m unittest discover -s tests"""
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -139,6 +140,12 @@ class TestedModelTest(unittest.TestCase):
 
     def test_tested_model_reports_true(self):
         self.assertTrue(self.info("N2S")["tested"])
+
+    def test_expert_unlock_via_env(self):
+        with mock.patch.dict(os.environ, {"BFF_EXPERT_MODELS": " O1D, N9X "}):
+            self.assertTrue(self.info("O1D")["tested"])
+            self.assertTrue(self.info("N9X")["tested"])
+            self.assertFalse(self.info("SOMETHING_ELSE")["tested"])
 
     def test_expert_refused_on_untested_model(self):
         with self.assertRaises(server.ToolError) as e:

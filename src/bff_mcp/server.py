@@ -364,7 +364,12 @@ def model_code(alias):
 
 def tested_model(alias):
     """Whether the user tested this model by hand: Expert mode stays locked on anything else."""
-    return model_code(alias) in onboard.TESTED_MODELS
+    code = model_code(alias)
+    if code in onboard.TESTED_MODELS:
+        return True
+    # BFF_EXPERT_MODELS lets a tester unlock Expert mode on a model whose safe area is being mapped.
+    expert = os.environ.get("BFF_EXPERT_MODELS") or ""
+    return code in {entry.strip() for entry in expert.split(",") if entry.strip()}
 
 
 def feed_of(alias):

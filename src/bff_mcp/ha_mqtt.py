@@ -701,8 +701,11 @@ class HaBridge:
         out = {}
         h = unit.get("humidity")
         out["humidity"] = "EDCBA"[h - 1] if isinstance(h, int) and 1 <= h <= 5 else None
-        out["humidity_pct"] = unit.get("humidity_raw")
-        out["temp"] = unit.get("temp")
+        # First-gen AMS sends impossible values: temp 6503.6, humidity_raw 0 (no % sensor). Drop them.
+        raw_temp = unit.get("temp")
+        out["temp"] = raw_temp if isinstance(raw_temp, (int, float)) and -20 <= raw_temp <= 120 else None
+        raw_hum = unit.get("humidity_raw")
+        out["humidity_pct"] = raw_hum if isinstance(raw_hum, (int, float)) and 1 <= raw_hum <= 100 else None
         out["dry_time"] = unit.get("dry_time")
         if unit.get("model") in DRY_MODELS:
             out["drying"] = bool(unit.get("drying"))

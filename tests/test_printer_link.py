@@ -144,6 +144,28 @@ class Hms(unittest.TestCase):
         self.assertTrue(self.errors(print_error=0x07FF8007)[0]["description"])
 
 
+class AmsModelFromInfo(unittest.TestCase):
+    """The unit's own info hex field (type = low nibble) overrides the get_version model."""
+
+    def feed(self, info_hex):
+        link = PrinterLink("a1", "host", "03919A000000000", "code", "/nonexistent")
+        link.feed({"info": {"command": "get_version", "module": [{"name": "ams/0", "sn": "S0"}]}})
+        link.feed({"print": {"ams": {"ams": [{"id": 0, "ams_id": "0" * 20, "info": info_hex}]}}})
+        return link.snapshot()["ams"][0]
+
+    def test_info_1004_reports_ams_ht(self):
+        unit = self.feed("1004")
+        self.assertEqual(unit["model"], "AMS HT")
+
+    def test_info_1001_reports_ams(self):
+        unit = self.feed("1001")
+        self.assertEqual(unit["model"], "AMS")
+
+    def test_invalid_info_keeps_get_version_model(self):
+        unit = self.feed("zz")
+        self.assertEqual(unit["model"], "AMS")
+
+
 class Link(unittest.TestCase):
     def test_changed_certificate_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp_dir:

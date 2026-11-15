@@ -27,6 +27,17 @@ def real_serial(sn):
 
 AMS_MODULES = {"ams": "AMS", "n3f": "AMS 2 Pro", "n3s": "AMS HT", "ams_f1": "AMS Lite"}
 DRY_MODELS = ("AMS 2 Pro", "AMS HT")  # The only AMS units with a heater.
+AMS_MODEL_BY_INFO_TYPE = {1: "AMS", 2: "AMS Lite", 3: "AMS 2 Pro", 4: "AMS HT"}
+
+
+def ams_model_from_info(info):
+    """Model of an AMS unit from its info hex field (type = low nibble), None when absent/invalid."""
+    if not isinstance(info, str) or not info:
+        return None
+    try:
+        return AMS_MODEL_BY_INFO_TYPE.get(int(info, 16) & 0x0F)
+    except ValueError:
+        return None
 
 
 class CertificateChanged(Exception):
@@ -122,7 +133,7 @@ def build_command(action, heater=None, target=None, on=None, **_unused):
 def fault(module, code, attr, full_code, severity=None):
     # ponytail: code only for now, a description catalogue comes with the notifications (plan Task 8).
     return {"module": module, "code": f"0x{code:x}", "attr": attr, "severity": severity,
-            "description": f"Errore HMS {full_code}"}
+            "description": f"HMS error {full_code}"}
 
 
 def decode_faults(raw):
@@ -316,12 +327,15 @@ class PrinterLink:
             uid = int(unit.get("id"))
         except (TypeError, ValueError):
             return
-        info = self.ams_serials.get(uid)
-        if info and info.get("serial"):
+        stored = self.ams_serials.get(uid) or {}
+        model = ams_model_from_info(unit.get("info"))
+        if model and model != stored.get("model"):
+            stored = self.ams_serials[uid] = {"serial": stored.get("serial"), "model": model}
+        if stored.get("serial"):
             return
         ams_id = unit.get("ams_id")
         if real_serial(ams_id) and ams_id.isalnum() and set(ams_id) != {"0"}:
-            self.ams_serials[uid] = {"serial": ams_id, "model": (info or {}).get("model", "AMS")}
+            self.ams_serials[uid] = {"serial": ams_id, "model": stored.get("model") or "AMS"}
 
     def snapshot(self):
         with self.lock:
