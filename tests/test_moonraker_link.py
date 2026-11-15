@@ -19,6 +19,7 @@ STATUS = {
     "heater_bed": {"temperature": 60.0, "target": 60.0},
     "gcode_move": {"speed_factor": 1.2},
     "fan": {"speed": 0.5},
+    "led main_led": {"color_data": [[0.0, 0.0, 0.0, 1.0]]},
     "ace": {"current_index": 2},
     "ace_instance_0": {"humidity": 43, "temp": 25, "dryer_status": {"state_code": 0, "remain_time": 0, "target_temp": 0},
                        "slots": [{"index": 0, "status": "ready", "material": "PLA", "color": [235, 235, 235], "temp": 210},
@@ -46,6 +47,9 @@ class FakeMoonraker(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/printer/info"):
             return self._reply({"result": {"state": FakeMoonraker.klippy, "software_version": "v0.12.0"}})
+        if self.path.startswith("/printer/objects/list"):
+            return self._reply({"result": {"objects": ["extruder", "led main_led", "gcode_macro mainled_on",
+                                                       "gcode_macro mainled_off", "gcode_macro LOAD_FILAMENT"]}})
         if self.path.startswith("/server/webcams/list"):
             return self._reply({"result": {"webcams": [{"enabled": False, "snapshot_url": "/off"},
                                                        {"enabled": True, "snapshot_url": "/webcam/?action=snapshot"}]}})
@@ -175,6 +179,20 @@ class MoonrakerLinkTest(unittest.TestCase):
         self.assertTrue(feed.latest().startswith(b"\xff\xd8"))
         with self.assertRaises(server.camera.CameraError):
             server.camera.SnapshotFeed(lambda: f"http://127.0.0.1:{self.port}/printer/info").latest()
+
+    def test_light_found_from_macros_and_controlled(self):
+        self.link.poll()
+        self.assertEqual(self.link.light, {"led": "main_led", "on": "mainled_on", "off": "mainled_off"})
+        self.assertTrue(self.link.snapshot()["chamber_light"])  # white channel at 1.0
+        self.assertTrue(self.link.command("light", on=True))
+        self.assertTrue(self.link.command("light", on=False))
+        paths = [p for p, _ in FakeMoonraker.calls]
+        self.assertEqual(paths, ["/printer/gcode/script?script=mainled_on", "/printer/gcode/script?script=mainled_off"])
+
+    def test_light_unknown_without_macros(self):
+        self.assertEqual(ml.find_light(["led x", "gcode_macro PAUSE"]), None)
+        self.assertIsNone(ml.to_snapshot({})["chamber_light"])
+        self.assertFalse(ml.MoonrakerLink("x", "127.0.0.1", port=1).command("light", on=True))
 
     def test_upload_sends_multipart_gcode(self):
         self.link.upload("a.gcode", b"G28\nG1 X1\n")

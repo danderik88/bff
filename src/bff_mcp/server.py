@@ -3064,7 +3064,8 @@ def keep_streams():
 
 def add_link(alias, entry, der=None):
     if onboard.is_klipper(entry.get("model")):  # Moonraker over HTTP: no certificate, no MQTT, no AMS.
-        LINKS[alias] = MoonrakerLink(alias, entry["host"], entry.get("api_key", ""), int(entry.get("port", 7125)))
+        LINKS[alias] = MoonrakerLink(alias, entry["host"], entry.get("api_key", ""), int(entry.get("port", 7125)),
+                                      light=entry.get("light"))
         CFG.setdefault("printers", {}).setdefault(alias, f"app:{alias}")
         LINKS[alias].start()
         if HA is not None:

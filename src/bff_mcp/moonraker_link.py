@@ -32,7 +32,7 @@ def pct(fraction):
     return None if fraction is None else round(float(fraction) * 100)
 
 
-def to_snapshot(raw, klippy="ready"):
+def to_snapshot(raw, klippy="ready", light=None):
     """Moonraker object status (merged `printer/objects/query` result) -> BFF snapshot."""
     stats = raw.get("print_stats") or {}
     ext, bed = raw.get("extruder") or {}, raw.get("heater_bed") or {}
@@ -69,7 +69,7 @@ def to_snapshot(raw, klippy="ready"):
         "door_open": False,
         "home_flag": None,
         "speed_level": None,
-        "chamber_light": None,
+        "chamber_light": led_on(raw, light),
         "hms_errors": [{"module": 0, "code": "klipper", "attr": 0, "severity": None, "description": stats["message"]}]
         if stats.get("message") and state == "FAILED" else [],
         "print_error": 1 if state == "FAILED" else 0,
@@ -108,6 +108,23 @@ def ace_units(raw):
     return units
 
 
+def led_on(raw, light):
+    """Whether the chamber LED is lit, from the `led <name>` object's colour (any channel above 0); None if unknown."""
+    colors = (raw.get(f"led {light['led']}") or {}).get("color_data") if light else None
+    return any(c > 0 for c in colors[0]) if colors else None
+
+
+def find_light(objects):
+    """(led, on_macro, off_macro) from Moonraker's object list: a `led X` plus macros named <prefix>_on / <prefix>_off."""
+    macros = {o.split(" ", 1)[1] for o in objects if o.startswith("gcode_macro ")}
+    for led in [o.split(" ", 1)[1] for o in objects if o.startswith("led ")]:
+        for on in sorted(macros):
+            off = on[:-3] + "_off" if on.lower().endswith("_on") else None
+            if off and off in macros and ("led" in on.lower() or "light" in on.lower()):
+                return {"led": led, "on": on, "off": off}
+    return None
+
+
 def merge(known, update):
     for key, value in update.items():
         if isinstance(value, dict) and isinstance(known.get(key), dict):
@@ -120,7 +137,7 @@ class MoonrakerLink:
     """Same duck type as PrinterLink; `serial` is the alias (there is none) and `access_code` the API key."""
     kind = "moonraker"
 
-    def __init__(self, alias, host, api_key="", port=DEFAULT_PORT, clock=time.monotonic):
+    def __init__(self, alias, host, api_key="", port=DEFAULT_PORT, clock=time.monotonic, light=None):
         self.alias, self.host, self.port = alias, host, port
         self.serial, self.access_code, self.fingerprint_dir = alias, api_key or "", None
         self.clock = clock
@@ -133,6 +150,8 @@ class MoonrakerLink:
         self.error = None
         self.drops = 0
         self.firmware_version = None
+        self.light = light  # {"led","on","off"}: given by the printer entry, else found on the first poll
+        self._light_searched = light is not None
         self._connected = None
         self._stop = False
 
@@ -170,7 +189,11 @@ class MoonrakerLink:
         """One round trip; the result feeds snapshot(). Returns whether Moonraker answered."""
         try:
             info = self._request("GET", "/printer/info").get("result", {})
-            status = self._request("GET", "/printer/objects/query?" + OBJECTS).get("result", {}).get("status", {})
+            if not self._light_searched:
+                self.light = find_light(self._request("GET", "/printer/objects/list").get("result", {}).get("objects", []))
+                self._light_searched = True
+            led = f"&led%20{urllib.parse.quote(self.light['led'])}" if self.light else ""
+            status = self._request("GET", "/printer/objects/query?" + OBJECTS + led).get("result", {}).get("status", {})
         except (urllib.error.URLError, OSError, ValueError):
             self.online = False
             return False
@@ -184,7 +207,7 @@ class MoonrakerLink:
 
     def snapshot(self):
         with self.lock:
-            snapshot = to_snapshot(json.loads(json.dumps(self.raw)), self.klippy)
+            snapshot = to_snapshot(json.loads(json.dumps(self.raw)), self.klippy, self.light)
             snapshot["firmware_version"] = self.firmware_version
             fresh = self.last_report is not None and self.clock() - self.last_report <= STALE_S
         snapshot["connected"] = fresh
@@ -226,7 +249,9 @@ class MoonrakerLink:
         if action == "temperature":
             gcode = {"bed": "M140", "nozzle": "M104"}[heater]
             return self.gcode(f"{gcode} S{int(target)}")
-        return False  # light and the rest: printer-specific macros, not guessed
+        if action == "light" and self.light:
+            return self.gcode(self.light["on" if on else "off"])
+        return False  # no light macros found, and the rest: printer-specific, not guessed
 
     def gcode(self, text):
         return self._send("POST", "/printer/gcode/script", script=text.strip())
