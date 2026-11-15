@@ -1,7 +1,5 @@
 # Pygmy
 
-*The little orca that watches your printers.*
-
 Run your Bambu Lab printers **LAN-only** (and Klipper printers, work in progress) from your phone: live camera, controls, notifications and
 "Print now" with server-side slicing. Everything stays on your network; no printer cloud account is used.
 
