@@ -3,6 +3,16 @@
 Run your Bambu Lab printers **LAN-only** (and Klipper printers, work in progress) from your phone: live camera, controls, notifications and
 "Print now" with server-side slicing. Everything stays on your network; no printer cloud account is used.
 
+| Printer status | Print now | AMS drying | Add printer |
+|:-:|:-:|:-:|:-:|
+| ![Status](assets/status.gif) | ![Print now](assets/printnow.gif) | ![AMS drying](assets/drying.gif) | ![Add printer](assets/addprinter.gif) |
+
+<sub>Recorded in the built-in simulator (`tools/sim`) with sample printers; the camera frames are real.</sub>
+
+> **Work in progress.** Pygmy is a young project and changes often. Print now in particular is still under active
+> development: we are fixing the remaining bugs one by one, so watch the first layers of every print and
+> [open an issue](https://github.com/danderik88/pygmy/issues) when something looks wrong.
+
 Status: early preview. Tested by hand on A1, A1 mini, P1P, P1S and P2S, with AMS, AMS 2 Pro and AMS lite.
 H2D: read-only plus pause/resume/stop (contributed).
 
@@ -85,6 +95,16 @@ volume and restart Pygmy:
 
     "sv08": {"host": "192.168.1.60", "port": 7125, "name": "SV08", "model": "KLIPPER-SV08", "api_key": ""}
 
+## Moving the axes (Expert mode)
+
+Day-to-day printing never needs it. To jog the head by hand: gear icon, **Advanced**, **Expert mode**. A **Motion**
+card appears on the printer screen (home first, then move in small steps). Only on models tested so far
+(A1, A1 mini, P1P, P1S, P2S) and only with `BFF_MCP_CONTROL=1`.
+
+Be careful: the printer does not report the head position over LAN, so Pygmy only knows it after homing and
+cannot see what is on the bed. Clear the bed, stay next to the printer, and never drive a P1 into its front-left
+corner (X0 Y0): the head hits the filament cutter.
+
 ## Printing: two ways
 
 | You have | How you print |
@@ -114,6 +134,11 @@ Download the model from MakerWorld yourself and use Upload.
 - [OpenBambuAPI](https://github.com/Doridian/OpenBambuAPI) and the community that documented the LAN interfaces.
 - [tommasobbianchi](https://github.com/tommasobbianchi) for the Klipper/Moonraker backend, SV08 slicing and the rootless installer.
 - [tlabcustomaudio](https://github.com/tlabcustomaudio) for H2D support, and the beta testers for their patience and feedback.
+
+## Support
+
+If Pygmy saved you a trip to the printer, you can [buy me a coffee](https://paypal.me/merighidaniel).
+Bug reports and tests on printers we don't have help just as much.
 
 ## Development
 

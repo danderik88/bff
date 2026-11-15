@@ -6,8 +6,10 @@ go2rtc is down, only the RTSP and WebRTC cameras go missing.
 """
 import hashlib
 import hmac
+import json
 import os
 import sys
+import threading
 import urllib.parse
 import urllib.request
 
@@ -55,12 +57,27 @@ def _soft(method, endpoint, query):
         print(f"go2rtc: {method} {endpoint}: {reason}", file=sys.stderr, flush=True)
 
 
+# go2rtc saves every PUT into its config file; two PUTs at once left a broken file and every later PUT
+# answered 400 (2026-11-15). So: one call at a time, and no PUT while go2rtc already has the same source.
+_LOCK = threading.Lock()
+_SENT = {}
+
+
 def add_stream(name, src):
     """PUT is idempotent: the same call updates an existing stream after a go2rtc restart."""
-    _soft("PUT", "/api/streams", {"name": name, "src": src})
+    with _LOCK:
+        try:
+            have = name in json.loads(_request("GET", "/api/streams", {}) or b"{}")
+        except Exception:
+            have = False
+        if have and _SENT.get(name) == src:
+            return
+        _soft("PUT", "/api/streams", {"name": name, "src": src})
+        _SENT[name] = src
 
 
 def remove_stream(name):
+    _SENT.pop(name, None)
     _soft("DELETE", "/api/streams", {"src": name})
 
 

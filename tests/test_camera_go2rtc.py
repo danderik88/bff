@@ -67,7 +67,7 @@ class StubApi(unittest.TestCase):
         with mock.patch.object(go2rtc, "API", self.url):
             go2rtc.add_stream("a1", src)
             go2rtc.remove_stream("a1")
-        put, delete = Stub.calls
+        put, delete = [c for c in Stub.calls if c["method"] != "GET"]  # GET: does go2rtc have it already
         path, _, query = put["path"].partition("?")
         self.assertEqual((put["method"], path), ("PUT", "/api/streams"))
         self.assertEqual(urllib.parse.parse_qs(query), {"name": ["a1"], "src": [src]})
@@ -181,3 +181,22 @@ class AppPage(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AddStreamOnce(unittest.TestCase):
+    """A stream go2rtc already has with the same source is not PUT again (each PUT rewrites its config)."""
+
+    def test_second_put_skipped_until_source_changes(self):
+        calls, streams = [], {}
+
+        def fake(method, endpoint, query, **_):
+            calls.append(method)
+            if method == "PUT":
+                streams[query["name"]] = query["src"]
+            return json.dumps(streams).encode() if method == "GET" else b""
+        go2rtc._SENT.clear()
+        with mock.patch.object(go2rtc, "_request", fake):
+            go2rtc.add_stream("a1", "ffmpeg:x")
+            go2rtc.add_stream("a1", "ffmpeg:x")
+            go2rtc.add_stream("a1", "ffmpeg:y")
+        self.assertEqual(calls.count("PUT"), 2)

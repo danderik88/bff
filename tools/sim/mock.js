@@ -1,4 +1,4 @@
-// BFF app simulator: a fake BFF inside the page. Sample printers only; nothing leaves the browser.
+// Pygmy app simulator: a fake Pygmy inside the page. Sample printers only; nothing leaves the browser.
 // The control panel around the phone drives it through window.SIM; notifications go up with postMessage.
 (() => {
   const PLATES = ["Textured PEI Plate", "High Temp Plate", "Cool Plate", "Supertack Plate", "Engineering Plate", "Textured Cool Plate"];
@@ -17,6 +17,8 @@
     a1mini: () => [{ unit: "A", humidity: 4, slots: [tray("A1", "PLA", "PLA Basic", "00AE42FF", 90, true), tray("A2", "PLA", "PLA Basic", "FF6A13FF", 35), empty("A3"), empty("A4")] }],
     p1s: () => [{ unit: "A", humidity: 5, slots: [tray("A1", "PLA", "PLA Basic", "E4002BFF", 71), empty("A2"), tray("A3", "PLA", "PLA Matte", "000000FF", 96, true), tray("A4", "PETG", null, "FFFFFFFF", null)] },
                 { unit: "B", humidity: 3, slots: [tray("B1", "PLA", "PLA Basic", "0086D6FF", 40), tray("B2", "PLA", "PLA Basic", "F4EE2AFF", 88), tray("B3", "PLA", "PLA Silk", "C0C0C0FF", 55), empty("B4")] }],
+    // AMS 2 Pro: the P2S can dry it (temperature and hours from the app, countdown from the printer).
+    p2s: () => [{ unit: "A", model: "AMS 2 Pro", can_dry: true, drying: false, dry_time: 0, humidity: 2, slots: [tray("A1", "PETG", "PETG HF", "2E7D32FF", 64), tray("A2", "PLA", "PLA Basic", "FFFFFFFF", 82), tray("A3", "PLA", "PLA Matte", "1F1F1FFF", 47), tray("A4", "TPU", null, "E4002BFF", null)] }],
   };
   const printer = (name, model, file, layers, mins, noz, bed, fan, spool, ams) =>
     ({ model, name, state: "RUNNING", file, progress: 20, layers, mins, noz, bed, light: true, speed: 2, fan, spool, units: ams ? ams() : [], runout: false, offline: false });
@@ -25,13 +27,15 @@
     a1: printer("Workshop A1", "A1", "Desk_organiser", 120, 95, 220, 65, 60, { material: "PLA", color: "AC95D5FF" }),
     a1mini: printer("Desk A1 mini", "A1 mini", "Cable_clip", 40, 25, 220, 60, 100, { material: "PLA", color: "00AE42FF" }, AMS.a1mini),
     p1s: printer("Studio P1S", "P1S", "Silicone_Cartridge_Cap", 90, 72, 220, 55, 80, { material: null, color: null }, AMS.p1s),
+    p2s: printer("Lab P2S", "P2S", null, 0, 0, 0, 0, 0, { material: null, color: null }, AMS.p2s),
   };
+  P.p2s.progress = 0; P.p2s.state = "IDLE"; P.p2s.light = false;
   P.a1mini.progress = 0; P.a1mini.state = "IDLE";
   const added = {};
   const get = a => P[a] || added[a] || P.a1;  // a stale saved printer falls back to the A1
   let requests = [{ id: 7, url: "https://makerworld.com/models/sample-phone-stand", status: "working", note: null, plates: [1], plate_index: 0, file_name: null }];
   const files = [{ file_id: 11, name: "Cable_clip.gcode.3mf", filament: "PLA", nozzle: "0.4", time_s: 1440, weight_g: 6.2, plate: "Textured PEI Plate" }];
-  const plate = { a1: "Textured PEI Plate", a1mini: "Textured PEI Plate", p1s: "Textured PEI Plate" };
+  const plate = { a1: "Textured PEI Plate", a1mini: "Textured PEI Plate", p1s: "Textured PEI Plate", p2s: "Textured PEI Plate" };
   let speed = 1, found = false;
 
   const say = (a, text) => parent.postMessage({ sim: "notify", title: get(a).name, text }, "*");
@@ -54,7 +58,36 @@
       p.progress = Math.min(100, p.progress + 0.4 * speed);
       if (p.progress >= 100) finish(a, true);
     }
+    // Drying counts down one minute per tick (sped up by the panel like a print).
+    for (const p of Object.values(P)) for (const u of p.units) if (u.drying && (u.dry_time = Math.max(0, u.dry_time - 3 * speed)) === 0) u.drying = false;
   }, 2000);
+
+  // Print now: an upload becomes a draft request; slicing walks it to ready like the real slicer.
+  let nextReq = 20, nextFile = 30;
+  function upload(url) {
+    const name = decodeURIComponent(url.split("/")[3].split("?")[0]);
+    const r = { id: nextReq++, url: null, status: "draft", note: null, plates: [1], plate_index: 0, file_name: name, facts: { plates: 1, colors: [] } };
+    requests = [r, ...requests];
+    return { id: r.id, facts: r.facts };
+  }
+  function slice(a, x) {
+    const r = requests.find(q => q.id === x.id); if (!r) throw new Error("Request not found");
+    r.status = "pending";
+    setTimeout(() => { r.status = "working"; }, 1200);
+    setTimeout(() => {
+      const f = { file_id: nextFile++, name: r.file_name.replace(/\.(stl|step|stp|3mf)$/i, "") + ".gcode.3mf", filament: "PETG", nozzle: "0.4", time_s: 2820, weight_g: 18.4, plate: plate[a] };
+      files.unshift(f); Object.assign(r, { status: "ready", file_id: f.file_id });
+    }, 4500);
+    return { request_id: r.id };
+  }
+  // A plate preview drawn on the fly: the bed and one part, top view.
+  function preview() {
+    const c = document.createElement("canvas"); c.width = 320; c.height = 320; const g = c.getContext("2d");
+    g.fillStyle = "#2b2f35"; g.fillRect(0, 0, 320, 320); g.strokeStyle = "#555b63";
+    for (let i = 0; i <= 320; i += 32) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 320); g.moveTo(0, i); g.lineTo(320, i); g.stroke(); }
+    g.fillStyle = "#2E7D32"; g.fillRect(120, 110, 80, 100); g.fillStyle = "#43a047"; g.fillRect(132, 122, 56, 76);
+    return { png: c.toDataURL("image/png").split(",")[1] };
+  }
 
   // What the control panel can do.
   window.SIM = {
@@ -74,7 +107,7 @@
       Object.assign(p, { state: "RUNNING", progress: 1, runout: false, spag: null, spagMuted: false, noz: 220, bed: p.model === "A1 mini" ? 60 : 65, fan: 60 });
       const s = p.units.flatMap(u => u.slots).find(x => !x.empty); if (s) s.active = true;
     },
-    spaghetti(a) { const p = get(a); if (p.spagOff || p.state !== "RUNNING") return; p.spag = "failure"; p.spagMuted = false; say(a, `🍝 Possible spaghetti on ${p.file} at layer ${layer(p)}: check the camera. BFF does not pause.`); },
+    spaghetti(a) { const p = get(a); if (p.spagOff || p.state !== "RUNNING") return; p.spag = "failure"; p.spagMuted = false; say(a, `🍝 Possible spaghetti on ${p.file} at layer ${layer(p)}: check the camera. Pygmy does not pause.`); },
     askPlate() {
       requests = [{ id: requests.length + 8, url: "https://makerworld.com/models/sample-hook", status: "blocked",
                     note: "Which plate is on the printer?", plates: [1], plate_index: 0, file_name: null }, ...requests];
@@ -117,7 +150,7 @@
       printer: a, available_printers: all(),
       names: Object.fromEntries(all().map(k => [k, get(k).name])), models: Object.fromEntries(all().map(k => [k, get(k).model])),
       profile: { fans: /^P1/.test(p.model) ? ["part", "aux", "chamber"] : ["part"] }, model: p.model, slicer_model: "Bambu Lab " + p.model, nozzle: { diameter: "0.4", type: "hardened_steel" },
-      ams_present: !!p.units.length, filaments, default_slot: filaments[0] ? filaments[0].slot : null,
+      slicer: true, ams_present: !!p.units.length, filaments, default_slot: filaments[0] ? filaments[0].slot : null,
       connected: !p.offline, state: p.state, free: p.state !== "RUNNING", not_free_reason: null, awaiting_plate_clear: p.state === "FINISH",
       attention: s.attention, plate: { state: "unknown", reason: "" }, plate_type: plate[a] || null,
       choices: { nozzle_diameters: [0.2, 0.4, 0.6, 0.8], nozzle_types: ["stainless_steel", "hardened_steel"], plate_types: PLATES, spool_profiles: PROFILES },
@@ -142,6 +175,13 @@
     camera_urls: a => ({ kind: "jpeg", rtsp: "rtsp://bff:demo@bff.local:8554/" + a }),
     camera_webrtc: () => { throw new Error("This printer has no video stream"); },
     print_requests: () => ({ requests }), ready_files: () => ({ files }),
+    slice_request: slice, plate_preview: preview, mw_status: () => ({ available: false }),
+    queue_list: () => ({ jobs: [] }),  // ponytail: an empty queue; the simulator does not model queued jobs
+    ams_dry: (a, x) => {
+      const u = get(a).units.find(v => v.unit === x.unit); if (!u || !u.can_dry) throw new Error("This AMS cannot dry");
+      if (x.action === "stop") Object.assign(u, { drying: false, dry_time: 0 }); else Object.assign(u, { drying: true, dry_time: Math.round((x.hours || 8) * 60), dry_target: x.temp });
+      return ok;
+    },
     pause: a => { get(a).state = "PAUSE"; return ok; },
     resume: a => { const p = get(a); p.state = "RUNNING"; p.runout = false; return ok; },
     prepare_stop: a => ({ printer: a, summary: "Stop the print on " + get(a).name + ". This cannot be undone.", confirm_token: "sim", expires_in_s: 120 }),
@@ -211,7 +251,7 @@
       const a = decodeURIComponent(url.slice(8));
       return get(a).offline ? new Response("", { status: 503 }) : new Response(await frame(a), { status: 200 });
     }
-    if (url.startsWith("/model/")) return json({ request_id: 99 });
+    if (url.startsWith("/model/")) return json(upload(url));
     if (url === "/" && opts.method === "POST") {
       const msg = JSON.parse(opts.body), name = msg.params.name, args = msg.params.arguments || {}, a = args.printer || "a1";
       if (!tools[name] && name.startsWith("prepare_")) {
