@@ -15,7 +15,7 @@ import server  # noqa: E402
 
 CODE = "87654321"
 HEARD = [{"ip": "192.168.0.20", "serial": "ALPHASERIAL", "model": "C11", "name": "Alpha"},
-         {"ip": "192.168.0.30", "serial": "BRAVOSERIAL", "model": "O1D", "name": "Bravo"}]
+         {"ip": "192.168.0.30", "serial": "BRAVOSERIAL", "model": "BL-P001", "name": "Bravo"}]
 APP_TOOLS = ("discover_printers", "add_printer", "set_access_code", "remove_printer")
 
 

@@ -52,7 +52,8 @@ class Discovery(unittest.TestCase):
         self.assertEqual(onboard.model_name("C11"), "P1P")
         self.assertEqual(onboard.model_name("C11", True), "P1S")
         self.assertEqual(onboard.model_name("N2S", True), "A1")
-        self.assertIs(onboard.MODELS["O1D"]["supported"], False)
+        self.assertIs(onboard.MODELS["BL-P001"]["supported"], False)
+        self.assertIs(onboard.MODELS["O1D"]["supported"], True)
         self.assertIs(onboard.MODELS["N7"]["supported"], True)
         self.assertEqual(onboard.model_name("XYZ"), "Unknown (XYZ)")
 
