@@ -38,8 +38,8 @@ exec flatpak --user run --filesystem=host --filesystem=/tmp com.orcaslicer.OrcaS
 W
 chmod +x bin/orca
 # Official profiles of the same tag, flattened (same step as deploy/slicer/provision.sh).
-[ -f slicer/profiles/index.json ] || { rm -rf /tmp/orca-src && git clone -q --depth 1 --branch "v$ORCA_VERSION" --filter=blob:none --sparse https://github.com/SoftFever/OrcaSlicer.git /tmp/orca-src \
-  && (cd /tmp/orca-src && git sparse-checkout set --no-cone /resources/profiles/BBL/ /resources/profiles/BBL.json \
+grep -q "Sovol SV08" slicer/profiles/index.json 2>/dev/null || { rm -rf /tmp/orca-src && git clone -q --depth 1 --branch "v$ORCA_VERSION" --filter=blob:none --sparse https://github.com/SoftFever/OrcaSlicer.git /tmp/orca-src \
+  && (cd /tmp/orca-src && git sparse-checkout set --no-cone /resources/profiles/BBL/ /resources/profiles/BBL.json /resources/profiles/Sovol/ /resources/profiles/Sovol.json /resources/profiles/OrcaFilamentLibrary/ /resources/profiles/OrcaFilamentLibrary.json \
   && python3 ~/bff/slicer/flatten_profiles.py resources/profiles ~/bff/slicer/profiles) && rm -rf /tmp/orca-src; }
 gen() { python3 -c 'import secrets;print(secrets.token_urlsafe(32))'; }
 umask 077
