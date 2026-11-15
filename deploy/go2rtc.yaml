@@ -8,3 +8,9 @@ webrtc:
   listen: ":8555"
 log:
   level: warn
+# The MJPEG printers (A1, P1) send ~1.5 frames/s with no timestamps: HA and ffmpeg viewers then probed
+# 30-70 s before the first frame. Wall-clock timestamps and a steady 10 fps bring it under 5 s.
+# Only http sources (BFF's /stream/) use these; RTSP printers pass through untouched.
+ffmpeg:
+  http: "-fflags nobuffer -flags low_delay -use_wallclock_as_timestamps 1 -i {input}"
+  h264: "-c:v libx264 -r:v 10 -g:v 20 -profile:v high -level:v 4.1 -preset:v superfast -tune:v zerolatency -pix_fmt:v yuv420p"
