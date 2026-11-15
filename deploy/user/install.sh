@@ -84,7 +84,8 @@ RestartSec=5
 WantedBy=default.target
 W
 systemctl --user daemon-reload
-systemctl --user enable --now bff-slicer.service bff.service
+systemctl --user enable bff-slicer.service bff.service
+systemctl --user restart bff-slicer.service bff.service  # restart: a redeploy must pick up new code and units
 loginctl enable-linger "$USER" 2>/dev/null || echo "WARN: linger not enabled; services stop at logout (sudo loginctl enable-linger $USER)"
 sleep 3; systemctl --user is-active bff-slicer bff; curl -fsS http://127.0.0.1:8775/health; echo
 REMOTE
