@@ -3185,7 +3185,8 @@ def tool_add_printer(args):
             raise ToolError("This printer is already added")
         seen = heard.get(probed["serial"]) or seen or {}
         entry = {"host": host, "serial": probed["serial"], "access_code": code, "name": args.get("name").strip(),
-                 "model": seen.get("model", ""), "enclosure": bool(args.get("enclosure"))}
+                 "model": seen.get("model") or onboard.model_from_serial(probed["serial"]),
+                 "enclosure": bool(args.get("enclosure"))}
         store = onboard.load_store(store_path())
         store[alias] = entry
         onboard.save_store(store_path(), store)

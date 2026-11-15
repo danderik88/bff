@@ -34,6 +34,15 @@ MODELS = {
 TESTED_MODELS = {"N2S", "N1", "C11", "C12", "N7"}
 
 
+# First three serial characters when discovery never saw the printer.
+SERIAL_PREFIX_MODEL = {"00M": "BL-P001", "01S": "C11", "01P": "C12", "030": "N1", "039": "N2S", "094": "O1D"}
+
+
+def model_from_serial(serial):
+    """Model code from a serial's first three characters; "" when unknown or not a string."""
+    return SERIAL_PREFIX_MODEL.get(serial[:3], "") if isinstance(serial, str) else ""
+
+
 def camera_kind(model_code):
     """How BFF gets this model's camera; unknown models keep the JPEG feed."""
     return MODELS.get(model_code, {}).get("camera", "jpeg")
@@ -299,9 +308,13 @@ def probe(host, access_code, timeout=10, cert=peer_cert, connect=mqtt_login):
 def load_store(path):
     import json
     try:
-        return json.loads(Path(path).read_text())
+        printers = json.loads(Path(path).read_text())
     except FileNotFoundError:
         return {}
+    for entry in printers.values():  # older entries saved without a discovery hit
+        if isinstance(entry, dict) and not entry.get("model"):
+            entry["model"] = model_from_serial(entry.get("serial"))
+    return printers
 
 
 def save_store(path, printers):

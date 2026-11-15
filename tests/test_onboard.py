@@ -216,3 +216,20 @@ class NewerDeviceCa(unittest.TestCase):
     def test_other_issuer_still_refused(self):
         with self.assertRaises(onboard.ProbeError):
             onboard.probe("h", "12345678", cert=lambda h, t: self_signed("Some Router CA"), connect=lambda *a: (0, True))
+
+
+class SerialModel(unittest.TestCase):
+    def test_model_from_serial(self):
+        self.assertEqual(onboard.model_from_serial("094ABC"), "O1D")
+        self.assertEqual(onboard.model_from_serial(""), "")
+        self.assertEqual(onboard.model_from_serial(None), "")
+
+    def test_load_store_fills_empty_model(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "printers.json"
+            onboard.save_store(path, {"h2d": {"serial": "094ABC", "model": ""},
+                                      "old": {"serial": "ZZZ", "model": ""}})
+            store = onboard.load_store(path)
+            self.assertEqual(store["h2d"]["model"], "O1D")
+            self.assertEqual(store["old"]["model"], "")
