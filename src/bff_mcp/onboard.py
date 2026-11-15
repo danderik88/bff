@@ -24,7 +24,7 @@ MODELS = {
     "O1D": {"name": "H2D", "supported": False, "enclosed": None, "camera": "rtsp", "chamber_sensor": True,
             "ams_drying": True},
     # Klipper printers (Moonraker, see moonraker_link.py). Not in TESTED_MODELS: Expert mode stays locked.
-    "KLIPPER-SV08MAX": {"name": "Sovol SV08 Max", "supported": True, "enclosed": None, "camera": "jpeg", "kind": "moonraker"},
+    "KLIPPER-SV08": {"name": "Sovol SV08", "supported": True, "enclosed": None, "camera": "jpeg", "kind": "moonraker"},
     "KLIPPER-IR3V2": {"name": "IdeaFormer IR3 V2", "supported": True, "enclosed": None, "camera": "jpeg", "kind": "moonraker"},
 }
 
@@ -68,10 +68,8 @@ MODEL_PROFILES = {
 }
 
 
-def _klipper_profile(name, nozzle_max, bed_max, nozzle_confirm, bed_confirm):
-    # ponytail: limits are conservative placeholders (anything above *_confirm_above_c asks for a confirmation),
-    # not vendor specs; check them against the printer's own printer.cfg max_temp before relying on them.
-    src = "conservative default: check printer.cfg max_temp"
+def _klipper_profile(name, nozzle_max, bed_max, nozzle_confirm, bed_confirm, src="conservative placeholder: check printer.cfg max_temp"):
+    # Anything above *_confirm_above_c asks for a confirmation. Prefer limits read from the printer's own printer.cfg.
     return {"model": name, "slicer_model": name, "command_timeout_s": 15, "start_timeout_s": 150,
             "supports": {"pause": True, "resume": True, "stop": True, "start": True},
             "limits": {"nozzle_max_c": {"value": nozzle_max, "source": src}, "bed_max_c": {"value": bed_max, "source": src},
@@ -79,7 +77,8 @@ def _klipper_profile(name, nozzle_max, bed_max, nozzle_confirm, bed_confirm):
                        "bed_confirm_above_c": {"value": bed_confirm, "source": src}}}
 
 
-MODEL_PROFILES["KLIPPER-SV08MAX"] = _klipper_profile("Sovol SV08 Max", 300, 120, 260, 100)
+MODEL_PROFILES["KLIPPER-SV08"] = _klipper_profile("Sovol SV08", 300, 100, 260, 90,
+                                                  "printer.cfg of an SV08 (2026-11-15): extruder max_temp 305, heater_bed max_temp 105")
 MODEL_PROFILES["KLIPPER-IR3V2"] = _klipper_profile("IdeaFormer IR3 V2", 300, 110, 260, 90)
 
 

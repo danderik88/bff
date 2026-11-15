@@ -148,7 +148,7 @@ class MoonrakerLinkTest(unittest.TestCase):
 
 
     def test_server_adds_a_klipper_printer_and_reports_status(self):
-        entry = {"host": "127.0.0.1", "port": self.port, "name": "SV08", "model": "KLIPPER-SV08MAX", "api_key": ""}
+        entry = {"host": "127.0.0.1", "port": self.port, "name": "SV08", "model": "KLIPPER-SV08", "api_key": ""}
         server.add_link("sv08test", entry)
         try:
             self.assertIsInstance(server.LINKS["sv08test"], ml.MoonrakerLink)
