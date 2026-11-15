@@ -1,0 +1,10 @@
+api:
+  listen: "127.0.0.1:1984"
+rtsp:
+  listen: ":8554"
+  username: "${BFF_RTSP_USER}"
+  password: "${BFF_RTSP_PASS}"
+webrtc:
+  listen: ":8555"
+log:
+  level: warn

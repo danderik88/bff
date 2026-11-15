@@ -1,0 +1,8 @@
+{
+  "name": "FDM Base",
+  "type": "machine",
+  "from": "system",
+  "printer_technology": "FFF",
+  "bed_shape": ["0x0,256x0,256x256,0x256"],
+  "machine_max_acceleration_x": ["10000"]
+}

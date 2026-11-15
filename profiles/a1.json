@@ -1,0 +1,13 @@
+{
+  "model": "A1",
+  "slicer_model": "Bambu Lab A1",
+  "command_timeout_s": 15,
+  "start_timeout_s": 150,
+  "supports": {"pause": true, "resume": true, "stop": true, "start": true},
+  "limits": {
+    "nozzle_max_c": {"value": 300, "source": "https://bambulab.com/en/a1/tech-specs"},
+    "bed_max_c": {"value": 100, "source": "https://bambulab.com/en/a1/tech-specs"},
+    "nozzle_confirm_above_c": {"value": 300, "source": "the user 2026-11-08: A1 maximum"},
+    "bed_confirm_above_c": {"value": 100, "source": "the user 2026-11-08: A1 maximum"}
+  }
+}

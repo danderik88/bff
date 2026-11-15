@@ -1,0 +1,8 @@
+{
+  "name": "PLA base",
+  "type": "filament",
+  "from": "system",
+  "filament_id": "GFL99",
+  "filament_type": ["PLA"],
+  "nozzle_temperature": ["220"]
+}

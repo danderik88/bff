@@ -1,0 +1,9 @@
+{
+  "name": "Bambu Lab A1 base",
+  "type": "machine",
+  "inherits": "FDM Base",
+  "from": "system",
+  "printer_model": ["A1"],
+  "printer_settings_id": "Bambu Lab A1 base",
+  "machine_max_acceleration_x": ["8000"]
+}

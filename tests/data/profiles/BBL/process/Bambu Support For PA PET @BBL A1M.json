@@ -1,0 +1,7 @@
+{
+  "name": "Bambu Support For PA/PET @BBL A1M",
+  "type": "process",
+  "from": "system",
+  "compatible_printers": ["Bambu Lab A1 0.4 nozzle"],
+  "sparse_infill_density": ["15%"]
+}

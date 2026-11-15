@@ -1,0 +1,8 @@
+{
+  "name": "Bambu PLA Basic @BBL A1",
+  "type": "filament",
+  "inherits": "Bambu PLA Basic @base",
+  "from": "system",
+  "compatible_printers": ["Bambu Lab A1 0.4 nozzle"],
+  "nozzle_temperature": ["230"]
+}

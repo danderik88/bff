@@ -1,0 +1,19 @@
+[Unit]
+Description=BFF slicer (OrcaSlicer CLI behind a small HTTP service)
+After=network-online.target
+
+[Service]
+User=slicer
+EnvironmentFile=/etc/bff-slicer.env
+Environment=SLICER_PROFILES=/opt/slicer/profiles ORCA_BIN=/opt/orca/AppRun HOME=/home/slicer
+ExecStart=/usr/bin/python3 /opt/slicer/slicerd.py
+Restart=on-failure
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/slicer /tmp
+PrivateTmp=yes
+MemoryMax=3500M
+
+[Install]
+WantedBy=multi-user.target

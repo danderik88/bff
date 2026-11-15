@@ -1,0 +1,8 @@
+{
+  "name": "Support base",
+  "type": "process",
+  "from": "system",
+  "instantiation": "false",
+  "compatible_printers": ["Bambu Lab A1 0.4 nozzle"],
+  "support_type": ["tree(auto)"]
+}

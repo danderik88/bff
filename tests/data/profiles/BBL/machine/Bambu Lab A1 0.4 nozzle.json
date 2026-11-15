@@ -1,0 +1,8 @@
+{
+  "name": "Bambu Lab A1 0.4 nozzle",
+  "type": "machine",
+  "inherits": "Bambu Lab A1 base",
+  "from": "system",
+  "nozzle_diameter": ["0.4"],
+  "machine_max_acceleration_x": ["12000"]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "0.20mm Standard @BBL",
+  "type": "process",
+  "inherits": "0.20 Standard base",
+  "from": "system",
+  "wall_loops": ["2"]
+}

@@ -1,0 +1,947 @@
+{"print": {"nozzle_temper": 11.09375, "nozzle_target_temper": 0, "bed_temper": 11.59375, "bed_target_temper": 0, "chamber_temper": 5, "mc_print_stage": "1", "heatbreak_fan_speed": "0", "cooling_fan_speed": "0", "big_fan1_speed": "0", "big_fan2_speed": "0", "mc_percent": 100, "mc_remaining_time": 0, "ams_status": 0, "ams_rfid_status": 6, "hw_switch_state": 1, "spd_mag": 100, "spd_lvl": 2, "print_error": 0, "lifecycle": "product", "wifi_signal": "-47dBm", "gcode_state": "FINISH", "gcode_file_prepare_percent": "100", "queue_number": 0, "queue_total": 0, "queue_est": 0, "queue_sts": 0, "project_id": "1161457863", "profile_id": "0", "task_id": "1161457863", "subtask_id": "1161457863", "subtask_name": "organizer_formine", "gcode_file": "", "stg": [], "stg_cur": 255, "print_type": "idle", "home_flag": 863847832, "mc_print_line_number": "0", "mc_print_sub_stage": 0, "sdcard": true, "force_upgrade": false, "mess_production_state": "active", "layer_num": 120, "total_layer_num": 120, "s_obj": [], "filam_bak": [], "fan_gear": 0, "nozzle_diameter": "0.4", "nozzle_type": "hardened_steel", "cali_version": 0, "k": "0.0200", "flag3": 221839, "upgrade_state": {"sequence_id": 0, "progress": "", "status": "IDLE", "consistency_request": false, "dis_state": 0, "err_code": 0, "force_upgrade": false, "message": "", "module": "", "new_version_state": 0, "cur_state_code": 0, "idx2": 52660986, "new_ver_list": [], "mc_for_ams_firmware": {"current_run_firmware_id": 1, "current_firmware_id": 1, "status": "IDLE", "firmware": [{"id": 0, "name": "AMS Lite"}, {"id": 1, "name": "AMS/AMS 2 Pro/AMS HT"}]}}, "online": {"ahb": false, "rfid": false, "version": 112945446}, "ipcam": {"ipcam_dev": "1", "ipcam_record": "enable", "timelapse": "disable", "resolution": "1080p", "tutk_server": "disable", "mode_bits": 3}, "upload": {"status": "idle", "progress": 0, "message": ""}, "net": null, "hms": [], "ams": {"ams": [], "ams_exist_bits": "0", "tray_exist_bits": "0", "tray_is_bbl_bits": "0", "tray_tar": "255", "tray_now": "254", "tray_pre": "254", "tray_read_done_bits": "0", "tray_reading_bits": "0", "version": 12, "insert_flag": true, "power_on_flag": true}, "xcam": {"buildplate_marker_detector": true}, "vt_tray": {"id": "254", "tag_uid": null, "tray_id_name": "", "tray_info_idx": "GFA01", "tray_type": "PLA", "tray_sub_brands": "", "tray_color": "AC95D5FF", "tray_weight": "0", "tray_diameter": "0.00", "tray_temp": "0", "tray_time": "0", "bed_temp_type": "0", "bed_temp": "0", "nozzle_temp_max": "240", "nozzle_temp_min": "190", "xcam_info": "000000000000000000000000", "tray_uuid": null, "remain": 0, "k": 0.019999999552965164, "n": 1, "cali_idx": -1}, "lights_report": [{"node": "chamber_light", "mode": "on"}], "command": "push_status", "msg": 0, "sequence_id": "41226"}}
+{"print": {"bed_temper": 11.625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41227"}}
+{"print": {"nozzle_temper": 11.0625, "bed_temper": 11.59375, "command": "push_status", "msg": 1, "sequence_id": "41228"}}
+{"print": {"sequence_id": "20000", "command": "project_file", "param": "Metadata/plate_1.gcode", "url": "ftp://clip-vite-wd40.3mf", "file": "clip-vite-wd40.3mf", "md5": "", "bed_type": "auto", "timelapse": false, "bed_leveling": false, "auto_bed_leveling": 2, "flow_cali": false, "vibration_cali": true, "layer_inspect": false, "use_ams": false, "extrude_cali_flag": 2, "extrude_cali_manual_mode": 0, "nozzle_offset_cali": 0, "subtask_name": "clip-vite-wd40", "profile_id": "0", "project_id": "1184454401", "subtask_id": "1184454401", "task_id": "1184454401", "ams_mapping": [-1], "ams_mapping2": [{"ams_id": 255, "slot_id": 0}], "reason": "success", "result": "success"}}
+{"print": {"nozzle_temper": 11.09375, "bed_temper": 11.625, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41229"}}
+{"print": {"wifi_signal": "-44dBm", "gcode_state": "PREPARE", "project_id": "1184454401", "task_id": "1184454401", "subtask_id": "1184454401", "subtask_name": "clip-vite-wd40", "gcode_file": "clip-vite-wd40.3mf", "print_type": "local", "upgrade_state": {"cur_state_code": 1}, "command": "push_status", "msg": 1, "sequence_id": "41230"}}
+{"print": {"nozzle_temper": 12.28125, "nozzle_target_temper": 75, "mc_print_stage": "2", "heatbreak_fan_speed": "5", "mc_percent": 0, "ams_rfid_status": 3, "gcode_state": "RUNNING", "stg": [2, 13, 24, 4, 3, 14, 13], "layer_num": 0, "total_layer_num": 200, "command": "push_status", "msg": 1, "sequence_id": "41231"}}
+{"print": {"nozzle_temper": 24.90625, "nozzle_target_temper": 140, "bed_temper": 11.65625, "bed_target_temper": 65, "heatbreak_fan_speed": "9", "mc_remaining_time": 45, "wifi_signal": "-45dBm", "stg_cur": 2, "home_flag": 863847864, "command": "push_status", "msg": 1, "sequence_id": "41232"}}
+{"print": {"nozzle_temper": 31.03125, "command": "push_status", "msg": 1, "sequence_id": "41233"}}
+{"print": {"nozzle_temper": 51.15625, "bed_temper": 12.03125, "wifi_signal": "-46dBm", "stg_cur": 13, "mc_print_sub_stage": 1, "command": "push_status", "msg": 1, "sequence_id": "41234"}}
+{"print": {"nozzle_temper": 70.6875, "bed_temper": 13.53125, "wifi_signal": "-47dBm", "home_flag": 863847867, "command": "push_status", "msg": 1, "sequence_id": "41235"}}
+{"print": {"nozzle_temper": 83.21875, "bed_temper": 15.15625, "heatbreak_fan_speed": "8", "mc_print_sub_stage": 0, "command": "push_status", "msg": 1, "sequence_id": "41236"}}
+{"print": {"nozzle_temper": 95.3125, "bed_temper": 17.21875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41237"}}
+{"print": {"nozzle_temper": 106.78125, "nozzle_target_temper": 117, "bed_temper": 19.5625, "heatbreak_fan_speed": "9", "wifi_signal": "-44dBm", "mc_print_sub_stage": 1, "command": "push_status", "msg": 1, "sequence_id": "41238"}}
+{"print": {"nozzle_temper": 115.46875, "bed_temper": 22.125, "wifi_signal": "-41dBm", "command": "push_status", "msg": 1, "sequence_id": "41239"}}
+{"print": {"nozzle_temper": 120.34375, "bed_temper": 26.21875, "wifi_signal": "-40dBm", "command": "push_status", "msg": 1, "sequence_id": "41240"}}
+{"print": {"nozzle_temper": 119.9375, "bed_temper": 29.03125, "heatbreak_fan_speed": "8", "wifi_signal": "-41dBm", "command": "push_status", "msg": 1, "sequence_id": "41241"}}
+{"print": {"nozzle_temper": 118.21875, "bed_temper": 31.875, "heatbreak_fan_speed": "9", "command": "push_status", "msg": 1, "sequence_id": "41242"}}
+{"print": {"nozzle_temper": 116.34375, "bed_temper": 34.8125, "wifi_signal": "-40dBm", "command": "push_status", "msg": 1, "sequence_id": "41243"}}
+{"print": {"nozzle_temper": 115.46875, "bed_temper": 37.71875, "heatbreak_fan_speed": "8", "wifi_signal": "-41dBm", "command": "push_status", "msg": 1, "sequence_id": "41244"}}
+{"print": {"nozzle_temper": 115.65625, "bed_temper": 40.625, "heatbreak_fan_speed": "9", "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41245"}}
+{"print": {"nozzle_temper": 116.3125, "bed_temper": 43.5625, "heatbreak_fan_speed": "8", "home_flag": 863847871, "command": "push_status", "msg": 1, "sequence_id": "41246"}}
+{"print": {"nozzle_temper": 116.8125, "bed_temper": 46.40625, "heatbreak_fan_speed": "9", "command": "push_status", "msg": 1, "sequence_id": "41247"}}
+{"print": {"nozzle_temper": 117.96875, "nozzle_target_temper": 240, "bed_temper": 50.4375, "ams_status": 768, "stg_cur": 24, "mc_print_sub_stage": 2, "ams": {"tray_tar": "254"}, "command": "push_status", "msg": 1, "sequence_id": "41248"}}
+{"print": {"nozzle_temper": 122.125, "bed_temper": 52.90625, "heatbreak_fan_speed": "8", "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41249"}}
+{"print": {"nozzle_temper": 128.75, "bed_temper": 55.125, "command": "push_status", "msg": 1, "sequence_id": "41250"}}
+{"print": {"nozzle_temper": 136.6875, "bed_temper": 57.15625, "heatbreak_fan_speed": "9", "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41251"}}
+{"print": {"nozzle_temper": 145.0625, "bed_temper": 58.96875, "heatbreak_fan_speed": "8", "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41252"}}
+{"print": {"nozzle_temper": 157.53125, "bed_temper": 61.1875, "heatbreak_fan_speed": "9", "command": "push_status", "msg": 1, "sequence_id": "41253"}}
+{"print": {"nozzle_temper": 165.5, "bed_temper": 62.40625, "wifi_signal": "-42dBm", "command": "push_status", "msg": 1, "sequence_id": "41254"}}
+{"print": {"nozzle_temper": 173.125, "bed_temper": 63.4375, "heatbreak_fan_speed": "8", "command": "push_status", "msg": 1, "sequence_id": "41255"}}
+{"print": {"nozzle_temper": 176.8125, "bed_temper": 63.875, "heatbreak_fan_speed": "9", "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41256"}}
+{"print": {"nozzle_temper": 187.34375, "bed_temper": 64.90625, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41257"}}
+{"print": {"nozzle_temper": 193.96875, "bed_temper": 65.375, "command": "push_status", "msg": 1, "sequence_id": "41258"}}
+{"print": {"nozzle_temper": 200.28125, "bed_temper": 65.75, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41259"}}
+{"print": {"nozzle_temper": 206.28125, "bed_temper": 65.96875, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41260"}}
+{"print": {"nozzle_temper": 212.03125, "bed_temper": 66.125, "heatbreak_fan_speed": "10", "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41261"}}
+{"print": {"nozzle_temper": 220.1875, "bed_temper": 66.1875, "wifi_signal": "-42dBm", "command": "push_status", "msg": 1, "sequence_id": "41262"}}
+{"print": {"nozzle_temper": 225.3125, "bed_temper": 66.15625, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41263"}}
+{"print": {"nozzle_temper": 229.84375, "bed_temper": 66.09375, "heatbreak_fan_speed": "11", "wifi_signal": "-42dBm", "command": "push_status", "msg": 1, "sequence_id": "41264"}}
+{"print": {"nozzle_temper": 231.75, "bed_temper": 66.03125, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41265"}}
+{"print": {"nozzle_temper": 235.59375, "bed_temper": 65.84375, "mc_print_sub_stage": 0, "command": "push_status", "msg": 1, "sequence_id": "41266"}}
+{"print": {"nozzle_temper": 237, "bed_temper": 65.625, "wifi_signal": "-42dBm", "command": "push_status", "msg": 1, "sequence_id": "41267"}}
+{"print": {"nozzle_temper": 237.0625, "bed_temper": 65.46875, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41268"}}
+{"print": {"nozzle_temper": 236.96875, "bed_temper": 65.3125, "command": "push_status", "msg": 1, "sequence_id": "41269"}}
+{"print": {"nozzle_temper": 237, "bed_temper": 65.25, "wifi_signal": "-42dBm", "command": "push_status", "msg": 1, "sequence_id": "41270"}}
+{"print": {"nozzle_temper": 237.34375, "nozzle_target_temper": 200, "bed_temper": 65, "mc_percent": 2, "mc_remaining_time": 44, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41271"}}
+{"print": {"nozzle_temper": 237.71875, "bed_temper": 64.875, "cooling_fan_speed": "10", "big_fan1_speed": "10", "big_fan2_speed": "10", "wifi_signal": "-42dBm", "fan_gear": 187, "command": "push_status", "msg": 1, "sequence_id": "41272"}}
+{"print": {"nozzle_temper": 236.34375, "bed_temper": 64.71875, "cooling_fan_speed": "1", "big_fan1_speed": "1", "big_fan2_speed": "1", "wifi_signal": "-48dBm", "fan_gear": 0, "command": "push_status", "msg": 1, "sequence_id": "41273"}}
+{"print": {"nozzle_temper": 233.125, "nozzle_target_temper": 170, "bed_temper": 64.59375, "cooling_fan_speed": "0", "big_fan1_speed": "0", "big_fan2_speed": "0", "mc_percent": 3, "wifi_signal": "-43dBm", "stg_cur": 3, "fan_gear": 66, "command": "push_status", "msg": 1, "sequence_id": "41274"}}
+{"print": {"nozzle_temper": 229.1875, "bed_temper": 64.5, "cooling_fan_speed": "10", "big_fan1_speed": "10", "big_fan2_speed": "10", "wifi_signal": "-44dBm", "fan_gear": 201, "command": "push_status", "msg": 1, "sequence_id": "41275"}}
+{"print": {"nozzle_temper": 222.15625, "bed_temper": 64.375, "heatbreak_fan_speed": "10", "cooling_fan_speed": "15", "big_fan1_speed": "15", "big_fan2_speed": "15", "wifi_signal": "-45dBm", "mc_print_sub_stage": 3, "fan_gear": 255, "command": "push_status", "msg": 1, "sequence_id": "41276"}}
+{"print": {"nozzle_temper": 217.28125, "bed_temper": 64.25, "command": "push_status", "msg": 1, "sequence_id": "41277"}}
+{"print": {"nozzle_temper": 212.5625, "bed_temper": 64.09375, "command": "push_status", "msg": 1, "sequence_id": "41278"}}
+{"print": {"nozzle_temper": 210.25, "bed_temper": 64, "command": "push_status", "msg": 1, "sequence_id": "41279"}}
+{"print": {"nozzle_temper": 203.8125, "bed_temper": 63.71875, "cooling_fan_speed": "14", "big_fan1_speed": "14", "big_fan2_speed": "14", "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41280"}}
+{"print": {"nozzle_temper": 197.84375, "bed_temper": 63.4375, "heatbreak_fan_speed": "9", "command": "push_status", "msg": 1, "sequence_id": "41281"}}
+{"print": {"nozzle_temper": 194.03125, "bed_temper": 63.25, "command": "push_status", "msg": 1, "sequence_id": "41282"}}
+{"print": {"nozzle_temper": 190.34375, "bed_temper": 63.0625, "command": "push_status", "msg": 1, "sequence_id": "41283"}}
+{"print": {"nozzle_temper": 188.53125, "bed_temper": 62.96875, "cooling_fan_speed": "15", "big_fan1_speed": "15", "big_fan2_speed": "15", "mc_print_sub_stage": 0, "command": "push_status", "msg": 1, "sequence_id": "41284"}}
+{"print": {"nozzle_temper": 184.03125, "bed_temper": 62.78125, "cooling_fan_speed": "14", "big_fan1_speed": "14", "big_fan2_speed": "14", "mc_print_sub_stage": 3, "command": "push_status", "msg": 1, "sequence_id": "41285"}}
+{"print": {"nozzle_temper": 180.125, "bed_temper": 62.625, "heatbreak_fan_speed": "8", "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41286"}}
+{"print": {"nozzle_temper": 178.15625, "bed_temper": 62.5625, "wifi_signal": "-44dBm", "mc_print_sub_stage": 0, "command": "push_status", "msg": 1, "sequence_id": "41287"}}
+{"print": {"nozzle_temper": 175.96875, "bed_temper": 62.5, "heatbreak_fan_speed": "9", "wifi_signal": "-48dBm", "mc_print_sub_stage": 1, "command": "push_status", "msg": 1, "sequence_id": "41288"}}
+{"print": {"nozzle_temper": 171.1875, "bed_temper": 62.375, "cooling_fan_speed": "15", "big_fan1_speed": "15", "big_fan2_speed": "15", "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41289"}}
+{"print": {"nozzle_temper": 169.34375, "heatbreak_fan_speed": "8", "cooling_fan_speed": "14", "big_fan1_speed": "14", "big_fan2_speed": "14", "wifi_signal": "-46dBm", "stg_cur": 14, "mc_print_sub_stage": 2, "command": "push_status", "msg": 1, "sequence_id": "41290"}}
+{"print": {"nozzle_temper": 169.15625, "bed_temper": 62.4375, "heatbreak_fan_speed": "9", "cooling_fan_speed": "15", "big_fan1_speed": "15", "big_fan2_speed": "15", "mc_print_sub_stage": 0, "command": "push_status", "msg": 1, "sequence_id": "41291"}}
+{"print": {"nozzle_temper": 169.03125, "bed_temper": 62.53125, "mc_remaining_time": 43, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41292"}}
+{"print": {"nozzle_temper": 168.875, "bed_temper": 62.59375, "heatbreak_fan_speed": "8", "cooling_fan_speed": "14", "big_fan1_speed": "14", "big_fan2_speed": "14", "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41293"}}
+{"print": {"nozzle_temper": 168.5625, "bed_temper": 62.8125, "wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "41294"}}
+{"print": {"nozzle_temper": 168.625, "bed_temper": 62.875, "heatbreak_fan_speed": "9", "cooling_fan_speed": "15", "big_fan1_speed": "15", "big_fan2_speed": "15", "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41295"}}
+{"print": {"nozzle_temper": 168.84375, "bed_temper": 62.90625, "heatbreak_fan_speed": "8", "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41296"}}
+{"print": {"nozzle_temper": 168.96875, "nozzle_target_temper": 150, "heatbreak_fan_speed": "9", "mc_print_sub_stage": 2, "command": "push_status", "msg": 1, "sequence_id": "41297"}}
+{"print": {"nozzle_temper": 168.875, "bed_temper": 62.84375, "wifi_signal": "-42dBm", "command": "push_status", "msg": 1, "sequence_id": "41298"}}
+{"print": {"nozzle_temper": 166.6875, "bed_temper": 62.8125, "cooling_fan_speed": "14", "big_fan1_speed": "14", "big_fan2_speed": "14", "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41299"}}
+{"print": {"nozzle_temper": 164.4375, "cooling_fan_speed": "15", "big_fan1_speed": "15", "big_fan2_speed": "15", "wifi_signal": "-42dBm", "command": "push_status", "msg": 1, "sequence_id": "41300"}}
+{"print": {"nozzle_temper": 161.90625, "bed_temper": 62.875, "command": "push_status", "msg": 1, "sequence_id": "41301"}}
+{"print": {"nozzle_temper": 160.59375, "bed_temper": 62.9375, "heatbreak_fan_speed": "8", "cooling_fan_speed": "14", "big_fan1_speed": "14", "big_fan2_speed": "14", "command": "push_status", "msg": 1, "sequence_id": "41302"}}
+{"print": {"nozzle_temper": 156.625, "bed_temper": 63.09375, "heatbreak_fan_speed": "9", "cooling_fan_speed": "15", "big_fan1_speed": "15", "big_fan2_speed": "15", "command": "push_status", "msg": 1, "sequence_id": "41303"}}
+{"print": {"nozzle_temper": 154.03125, "bed_temper": 63.21875, "heatbreak_fan_speed": "8", "cooling_fan_speed": "14", "big_fan1_speed": "14", "big_fan2_speed": "14", "home_flag": 863847867, "mc_print_sub_stage": 1, "command": "push_status", "msg": 1, "sequence_id": "41304"}}
+{"print": {"nozzle_temper": 150.625, "bed_temper": 63.4375, "home_flag": 863847871, "command": "push_status", "msg": 1, "sequence_id": "41305"}}
+{"print": {"nozzle_temper": 149.3125, "nozzle_target_temper": 140, "bed_temper": 63.5625, "heatbreak_fan_speed": "9", "cooling_fan_speed": "15", "big_fan1_speed": "15", "big_fan2_speed": "15", "mc_percent": 4, "wifi_signal": "-41dBm", "mc_print_sub_stage": 0, "command": "push_status", "msg": 1, "sequence_id": "41306"}}
+{"print": {"nozzle_temper": 148.9375, "bed_temper": 63.625, "heatbreak_fan_speed": "8", "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41307"}}
+{"print": {"nozzle_temper": 147.34375, "bed_temper": 63.84375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41308"}}
+{"print": {"nozzle_temper": 145.5, "bed_temper": 63.96875, "wifi_signal": "-42dBm", "command": "push_status", "msg": 1, "sequence_id": "41309"}}
+{"print": {"nozzle_temper": 143.34375, "bed_temper": 64.09375, "cooling_fan_speed": "14", "big_fan1_speed": "14", "big_fan2_speed": "14", "mc_percent": 13, "mc_remaining_time": 39, "wifi_signal": "-47dBm", "mc_print_sub_stage": 2, "command": "push_status", "msg": 1, "sequence_id": "41310"}}
+{"print": {"nozzle_temper": 142.28125, "bed_temper": 64.15625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41311"}}
+{"print": {"nozzle_temper": 139.78125, "bed_temper": 64.3125, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41312"}}
+{"print": {"nozzle_temper": 139.03125, "bed_temper": 64.40625, "heatbreak_fan_speed": "9", "wifi_signal": "-46dBm", "fan_gear": 249, "command": "push_status", "msg": 1, "sequence_id": "41313"}}
+{"print": {"nozzle_temper": 139.0625, "bed_temper": 64.5, "cooling_fan_speed": "1", "big_fan1_speed": "1", "big_fan2_speed": "1", "wifi_signal": "-44dBm", "stg_cur": 13, "mc_print_sub_stage": 1, "fan_gear": 0, "command": "push_status", "msg": 1, "sequence_id": "41314"}}
+{"print": {"nozzle_temper": 139.53125, "bed_temper": 64.5625, "cooling_fan_speed": "0", "big_fan1_speed": "0", "big_fan2_speed": "0", "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41315"}}
+{"print": {"nozzle_temper": 139.8125, "bed_temper": 64.59375, "heatbreak_fan_speed": "8", "wifi_signal": "-42dBm", "home_flag": 863847867, "command": "push_status", "msg": 1, "sequence_id": "41316"}}
+{"print": {"nozzle_temper": 140.21875, "bed_temper": 64.65625, "heatbreak_fan_speed": "9", "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41317"}}
+{"print": {"nozzle_temper": 140.09375, "bed_temper": 64.71875, "heatbreak_fan_speed": "8", "home_flag": 863847871, "command": "push_status", "msg": 1, "sequence_id": "41318"}}
+{"print": {"nozzle_temper": 139.875, "bed_temper": 64.75, "wifi_signal": "-49dBm", "mc_print_sub_stage": 0, "command": "push_status", "msg": 1, "sequence_id": "41319"}}
+{"print": {"nozzle_temper": 139.75, "nozzle_target_temper": 200, "bed_temper": 64.78125, "mc_print_sub_stage": 2, "k": "0.0000", "command": "push_status", "msg": 1, "sequence_id": "41320"}}
+{"print": {"nozzle_temper": 142.09375, "bed_temper": 64.84375, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41321"}}
+{"print": {"nozzle_temper": 147.34375, "bed_temper": 64.875, "heatbreak_fan_speed": "9", "wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "41322"}}
+{"print": {"nozzle_temper": 154.53125, "heatbreak_fan_speed": "8", "wifi_signal": "-50dBm", "command": "push_status", "msg": 1, "sequence_id": "41323"}}
+{"print": {"nozzle_temper": 162.53125, "bed_temper": 64.90625, "heatbreak_fan_speed": "9", "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41324"}}
+{"print": {"nozzle_temper": 170.75, "bed_temper": 64.9375, "heatbreak_fan_speed": "8", "wifi_signal": "-50dBm", "command": "push_status", "msg": 1, "sequence_id": "41325"}}
+{"print": {"nozzle_temper": 178.84375, "bed_temper": 64.96875, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41326"}}
+{"print": {"nozzle_temper": 189.65625, "bed_temper": 65, "heatbreak_fan_speed": "9", "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41327"}}
+{"print": {"nozzle_temper": 194.65625, "mc_percent": 14, "wifi_signal": "-51dBm", "mc_print_sub_stage": 0, "command": "push_status", "msg": 1, "sequence_id": "41328"}}
+{"print": {"nozzle_temper": 196.25, "wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "41329"}}
+{"print": {"nozzle_temper": 198.3125, "bed_temper": 65.03125, "wifi_signal": "-52dBm", "command": "push_status", "msg": 1, "sequence_id": "41330"}}
+{"print": {"nozzle_temper": 198.46875, "command": "push_status", "msg": 1, "sequence_id": "41331"}}
+{"print": {"nozzle_temper": 198.5, "command": "push_status", "msg": 1, "sequence_id": "41332"}}
+{"print": {"nozzle_temper": 198.65625, "bed_temper": 65.0625, "wifi_signal": "-51dBm", "command": "push_status", "msg": 1, "sequence_id": "41333"}}
+{"print": {"nozzle_temper": 198.96875, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41334"}}
+{"print": {"nozzle_temper": 199.40625, "mc_percent": 15, "mc_remaining_time": 38, "wifi_signal": "-47dBm", "stg_cur": 0, "mc_print_sub_stage": 1, "k": "0.0200", "command": "push_status", "msg": 1, "sequence_id": "41335"}}
+{"print": {"nozzle_temper": 199.8125, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41336"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 65.03125, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41337"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41338"}}
+{"print": {"bed_temper": 64.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41339"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 64.875, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41340"}}
+{"print": {"bed_temper": 64.8125, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41341"}}
+{"print": {"nozzle_temper": 200.0625, "bed_temper": 64.75, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41342"}}
+{"print": {"bed_temper": 64.71875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41343"}}
+{"print": {"nozzle_temper": 200.125, "bed_temper": 64.625, "command": "push_status", "msg": 1, "sequence_id": "41344"}}
+{"print": {"bed_temper": 64.59375, "mc_percent": 16, "command": "push_status", "msg": 1, "sequence_id": "41345"}}
+{"print": {"nozzle_temper": 200.15625, "bed_temper": 64.53125, "wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "41346"}}
+{"print": {"bed_temper": 64.5, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41347"}}
+{"print": {"nozzle_temper": 200.1875, "command": "push_status", "msg": 1, "sequence_id": "41348"}}
+{"print": {"bed_temper": 64.46875, "command": "push_status", "msg": 1, "sequence_id": "41349"}}
+{"print": {"nozzle_temper": 200.21875, "bed_temper": 64.4375, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41350"}}
+{"print": {"nozzle_temper": 200.1875, "bed_temper": 64.40625, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41351"}}
+{"print": {"bed_temper": 64.4375, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41352"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41353"}}
+{"print": {"mc_percent": 17, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41354"}}
+{"print": {"mc_remaining_time": 37, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41355"}}
+{"print": {"nozzle_temper": 200.15625, "bed_temper": 64.46875, "command": "push_status", "msg": 1, "sequence_id": "41356"}}
+{"print": {"bed_temper": 64.5, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41357"}}
+{"print": {"bed_temper": 64.53125, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41358"}}
+{"print": {"nozzle_temper": 200.1875, "command": "push_status", "msg": 1, "sequence_id": "41359"}}
+{"print": {"bed_temper": 64.59375, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41360"}}
+{"print": {"nozzle_temper": 200.15625, "bed_temper": 64.625, "cooling_fan_speed": "8", "big_fan1_speed": "8", "big_fan2_speed": "8", "fan_gear": 199, "command": "push_status", "msg": 1, "sequence_id": "41361"}}
+{"print": {"nozzle_temper": 199.78125, "bed_temper": 64.65625, "cooling_fan_speed": "11", "big_fan1_speed": "11", "big_fan2_speed": "11", "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41362"}}
+{"print": {"nozzle_temper": 199.21875, "bed_temper": 64.71875, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41363"}}
+{"print": {"nozzle_temper": 199.0625, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41364"}}
+{"print": {"nozzle_temper": 199, "bed_temper": 64.78125, "mc_percent": 18, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41365"}}
+{"print": {"nozzle_temper": 199.25, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41366"}}
+{"print": {"nozzle_temper": 199.4375, "bed_temper": 64.75, "command": "push_status", "msg": 1, "sequence_id": "41367"}}
+{"print": {"nozzle_temper": 199.46875, "bed_temper": 64.71875, "command": "push_status", "msg": 1, "sequence_id": "41368"}}
+{"print": {"bed_temper": 64.6875, "command": "push_status", "msg": 1, "sequence_id": "41369"}}
+{"print": {"bed_temper": 64.65625, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41370"}}
+{"print": {"nozzle_temper": 199.65625, "bed_temper": 64.59375, "command": "push_status", "msg": 1, "sequence_id": "41371"}}
+{"print": {"nozzle_temper": 199.71875, "bed_temper": 64.53125, "command": "push_status", "msg": 1, "sequence_id": "41372"}}
+{"print": {"nozzle_temper": 199.65625, "bed_temper": 64.5, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41373"}}
+{"print": {"nozzle_temper": 199.4375, "bed_temper": 64.40625, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41374"}}
+{"print": {"nozzle_temper": 199.46875, "bed_temper": 64.34375, "mc_percent": 19, "command": "push_status", "msg": 1, "sequence_id": "41375"}}
+{"print": {"nozzle_temper": 199.5625, "bed_temper": 64.3125, "mc_remaining_time": 36, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41376"}}
+{"print": {"bed_temper": 64.28125, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41377"}}
+{"print": {"bed_temper": 64.25, "command": "push_status", "msg": 1, "sequence_id": "41378"}}
+{"print": {"nozzle_temper": 199.625, "bed_temper": 64.1875, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41379"}}
+{"print": {"nozzle_temper": 199.6875, "bed_temper": 64.125, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41380"}}
+{"print": {"nozzle_temper": 199.65625, "bed_temper": 64.09375, "command": "push_status", "msg": 1, "sequence_id": "41381"}}
+{"print": {"bed_temper": 64.0625, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41382"}}
+{"print": {"nozzle_temper": 199.6875, "bed_temper": 64, "command": "push_status", "msg": 1, "sequence_id": "41383"}}
+{"print": {"nozzle_temper": 199.71875, "bed_temper": 63.96875, "mc_percent": 20, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41384"}}
+{"print": {"nozzle_temper": 199.75, "bed_temper": 63.9375, "command": "push_status", "msg": 1, "sequence_id": "41385"}}
+{"print": {"nozzle_temper": 199.78125, "command": "push_status", "msg": 1, "sequence_id": "41386"}}
+{"print": {"nozzle_temper": 199.75, "bed_temper": 63.90625, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41387"}}
+{"print": {"nozzle_temper": 199.78125, "bed_temper": 63.875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41388"}}
+{"print": {"nozzle_temper": 199.84375, "command": "push_status", "msg": 1, "sequence_id": "41389"}}
+{"print": {"nozzle_temper": 199.875, "bed_temper": 63.84375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41390"}}
+{"print": {"nozzle_temper": 199.84375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41391"}}
+{"print": {"nozzle_temper": 199.90625, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41392"}}
+{"print": {"mc_percent": 21, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41393"}}
+{"print": {"nozzle_temper": 199.84375, "command": "push_status", "msg": 1, "sequence_id": "41394"}}
+{"print": {"wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41395"}}
+{"print": {"nozzle_temper": 199.90625, "mc_remaining_time": 35, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41396"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41397"}}
+{"print": {"nozzle_temper": 199.90625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41398"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 63.875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41399"}}
+{"print": {"mc_percent": 22, "command": "push_status", "msg": 1, "sequence_id": "41400"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41401"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41402"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41403"}}
+{"print": {"nozzle_temper": 199.90625, "bed_temper": 63.90625, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41404"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41405"}}
+{"print": {"nozzle_temper": 200.03125, "bed_temper": 63.875, "command": "push_status", "msg": 1, "sequence_id": "41406"}}
+{"print": {"bed_temper": 63.90625, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41407"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41408"}}
+{"print": {"nozzle_temper": 199.96875, "mc_percent": 23, "command": "push_status", "msg": 1, "sequence_id": "41409"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 63.9375, "command": "push_status", "msg": 1, "sequence_id": "41410"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41411"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 63.96875, "command": "push_status", "msg": 1, "sequence_id": "41412"}}
+{"print": {"bed_temper": 64, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41413"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41414"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 64.03125, "mc_remaining_time": 34, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41415"}}
+{"print": {"nozzle_temper": 199.9375, "command": "push_status", "msg": 1, "sequence_id": "41416"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41417"}}
+{"print": {"nozzle_temper": 200.09375, "command": "push_status", "msg": 1, "sequence_id": "41418"}}
+{"print": {"nozzle_temper": 200, "mc_percent": 24, "command": "push_status", "msg": 1, "sequence_id": "41419"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41420"}}
+{"print": {"bed_temper": 64.0625, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41421"}}
+{"print": {"nozzle_temper": 200.03125, "command": "push_status", "msg": 1, "sequence_id": "41422"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41423"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41424"}}
+{"print": {"wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41425"}}
+{"print": {"nozzle_temper": 200.0625, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41426"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41427"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 64.09375, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41428"}}
+{"print": {"nozzle_temper": 200, "mc_percent": 25, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41429"}}
+{"print": {"nozzle_temper": 200.0625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41430"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41431"}}
+{"print": {"nozzle_temper": 199.9375, "command": "push_status", "msg": 1, "sequence_id": "41432"}}
+{"print": {"nozzle_temper": 200.03125, "bed_temper": 64.125, "command": "push_status", "msg": 1, "sequence_id": "41433"}}
+{"print": {"nozzle_temper": 200.0625, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41434"}}
+{"print": {"nozzle_temper": 200, "mc_remaining_time": 33, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41435"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-50dBm", "command": "push_status", "msg": 1, "sequence_id": "41436"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41437"}}
+{"print": {"nozzle_temper": 200.0625, "mc_percent": 26, "wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "41438"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-50dBm", "command": "push_status", "msg": 1, "sequence_id": "41439"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 64.15625, "command": "push_status", "msg": 1, "sequence_id": "41440"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "41441"}}
+{"print": {"nozzle_temper": 200.0625, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41442"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "41443"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 64.1875, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41444"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41445"}}
+{"print": {"nozzle_temper": 200.0625, "bed_temper": 64.21875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41446"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41447"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 64.25, "mc_percent": 27, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41448"}}
+{"print": {"nozzle_temper": 200.03125, "bed_temper": 64.28125, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41449"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41450"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 64.3125, "command": "push_status", "msg": 1, "sequence_id": "41451"}}
+{"print": {"nozzle_temper": 200.0625, "bed_temper": 64.28125, "command": "push_status", "msg": 1, "sequence_id": "41452"}}
+{"print": {"bed_temper": 64.3125, "command": "push_status", "msg": 1, "sequence_id": "41453"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41454"}}
+{"print": {"nozzle_temper": 200.0625, "mc_percent": 28, "mc_remaining_time": 32, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41455"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41456"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41457"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41458"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "41459"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41460"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41461"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41462"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41463"}}
+{"print": {"bed_temper": 64.34375, "mc_percent": 29, "command": "push_status", "msg": 1, "sequence_id": "41464"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41465"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41466"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41467"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41468"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 64.375, "mc_percent": 30, "command": "push_status", "msg": 1, "sequence_id": "41469"}}
+{"print": {"mc_remaining_time": 31, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41470"}}
+{"print": {"nozzle_temper": 200.03125, "bed_temper": 64.40625, "command": "push_status", "msg": 1, "sequence_id": "41471"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41472"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 64.4375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41473"}}
+{"print": {"wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41474"}}
+{"print": {"nozzle_temper": 200.03125, "command": "push_status", "msg": 1, "sequence_id": "41475"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41476"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41477"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41478"}}
+{"print": {"nozzle_temper": 200.0625, "mc_percent": 31, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41479"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 64.46875, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41480"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41481"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41482"}}
+{"print": {"nozzle_temper": 200.0625, "command": "push_status", "msg": 1, "sequence_id": "41483"}}
+{"print": {"nozzle_temper": 200.03125, "bed_temper": 64.5, "command": "push_status", "msg": 1, "sequence_id": "41484"}}
+{"print": {"nozzle_temper": 199.9375, "command": "push_status", "msg": 1, "sequence_id": "41485"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 64.46875, "command": "push_status", "msg": 1, "sequence_id": "41486"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41487"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 64.5, "mc_percent": 32, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41488"}}
+{"print": {"nozzle_temper": 199.90625, "command": "push_status", "msg": 1, "sequence_id": "41489"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41490"}}
+{"print": {"nozzle_temper": 200.03125, "mc_remaining_time": 30, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41491"}}
+{"print": {"nozzle_temper": 200.0625, "command": "push_status", "msg": 1, "sequence_id": "41492"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 64.53125, "command": "push_status", "msg": 1, "sequence_id": "41493"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41494"}}
+{"print": {"nozzle_temper": 200.03125, "bed_temper": 64.5625, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41495"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41496"}}
+{"print": {"nozzle_temper": 199.90625, "command": "push_status", "msg": 1, "sequence_id": "41497"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 64.59375, "mc_percent": 33, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41498"}}
+{"print": {"nozzle_temper": 200.0625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41499"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41500"}}
+{"print": {"nozzle_temper": 199.90625, "command": "push_status", "msg": 1, "sequence_id": "41501"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41502"}}
+{"print": {"nozzle_temper": 200.0625, "bed_temper": 64.625, "command": "push_status", "msg": 1, "sequence_id": "41503"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41504"}}
+{"print": {"nozzle_temper": 199.875, "command": "push_status", "msg": 1, "sequence_id": "41505"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41506"}}
+{"print": {"nozzle_temper": 200.03125, "bed_temper": 64.59375, "mc_percent": 34, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41507"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41508"}}
+{"print": {"nozzle_temper": 199.90625, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41509"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41510"}}
+{"print": {"nozzle_temper": 200.0625, "bed_temper": 64.5625, "command": "push_status", "msg": 1, "sequence_id": "41511"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 64.59375, "mc_remaining_time": 29, "command": "push_status", "msg": 1, "sequence_id": "41512"}}
+{"print": {"nozzle_temper": 199.875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41513"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41514"}}
+{"print": {"nozzle_temper": 200.0625, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41515"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41516"}}
+{"print": {"nozzle_temper": 199.9375, "mc_percent": 35, "command": "push_status", "msg": 1, "sequence_id": "41517"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41518"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41519"}}
+{"print": {"nozzle_temper": 199.9375, "command": "push_status", "msg": 1, "sequence_id": "41520"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41521"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41522"}}
+{"print": {"nozzle_temper": 200.03125, "command": "push_status", "msg": 1, "sequence_id": "41523"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41524"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41525"}}
+{"print": {"nozzle_temper": 200.03125, "bed_temper": 64.625, "mc_percent": 36, "command": "push_status", "msg": 1, "sequence_id": "41526"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41527"}}
+{"print": {"nozzle_temper": 199.9375, "command": "push_status", "msg": 1, "sequence_id": "41528"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41529"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41530"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41531"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41532"}}
+{"print": {"mc_remaining_time": 28, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41533"}}
+{"print": {"nozzle_temper": 200.03125, "command": "push_status", "msg": 1, "sequence_id": "41534"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 64.65625, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41535"}}
+{"print": {"nozzle_temper": 199.875, "mc_percent": 37, "command": "push_status", "msg": 1, "sequence_id": "41536"}}
+{"print": {"nozzle_temper": 199.90625, "command": "push_status", "msg": 1, "sequence_id": "41537"}}
+{"print": {"nozzle_temper": 200.03125, "command": "push_status", "msg": 1, "sequence_id": "41538"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 64.6875, "command": "push_status", "msg": 1, "sequence_id": "41539"}}
+{"print": {"nozzle_temper": 199.875, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41540"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41541"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41542"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "41543"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41544"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 64.71875, "wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "41545"}}
+{"print": {"nozzle_temper": 200.03125, "mc_percent": 38, "command": "push_status", "msg": 1, "sequence_id": "41546"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41547"}}
+{"print": {"nozzle_temper": 199.875, "command": "push_status", "msg": 1, "sequence_id": "41548"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41549"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41550"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41551"}}
+{"print": {"nozzle_temper": 199.90625, "command": "push_status", "msg": 1, "sequence_id": "41552"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41553"}}
+{"print": {"nozzle_temper": 200.0625, "mc_remaining_time": 27, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41554"}}
+{"print": {"nozzle_temper": 200.03125, "mc_percent": 39, "command": "push_status", "msg": 1, "sequence_id": "41555"}}
+{"print": {"nozzle_temper": 199.90625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41556"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41557"}}
+{"print": {"nozzle_temper": 200.0625, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41558"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41559"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41560"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41561"}}
+{"print": {"nozzle_temper": 200.03125, "command": "push_status", "msg": 1, "sequence_id": "41562"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41563"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 64.75, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41564"}}
+{"print": {"nozzle_temper": 199.96875, "mc_percent": 40, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41565"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41566"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41567"}}
+{"print": {"wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41568"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41569"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41570"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41571"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41572"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41573"}}
+{"print": {"nozzle_temper": 200.03125, "mc_percent": 41, "mc_remaining_time": 26, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41574"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41575"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41576"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 64.78125, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41577"}}
+{"print": {"nozzle_temper": 200.03125, "command": "push_status", "msg": 1, "sequence_id": "41578"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 64.75, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41579"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 64.78125, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41580"}}
+{"print": {"nozzle_temper": 200.03125, "command": "push_status", "msg": 1, "sequence_id": "41581"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41582"}}
+{"print": {"nozzle_temper": 199.96875, "mc_percent": 42, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41583"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41584"}}
+{"print": {"bed_temper": 64.8125, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41585"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41586"}}
+{"print": {"wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41587"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41588"}}
+{"print": {"wifi_signal": "-42dBm", "command": "push_status", "msg": 1, "sequence_id": "41589"}}
+{"print": {"nozzle_temper": 199.90625, "bed_temper": 64.84375, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41590"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 64.8125, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41591"}}
+{"print": {"nozzle_temper": 200, "mc_percent": 43, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41592"}}
+{"print": {"nozzle_temper": 200.03125, "bed_temper": 64.84375, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41593"}}
+{"print": {"nozzle_temper": 199.9375, "mc_remaining_time": 25, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41594"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 64.875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41595"}}
+{"print": {"wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41596"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41597"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 64.84375, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41598"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41599"}}
+{"print": {"mc_percent": 44, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41600"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41601"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41602"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41603"}}
+{"print": {"bed_temper": 64.875, "wifi_signal": "-42dBm", "command": "push_status", "msg": 1, "sequence_id": "41604"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41605"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41606"}}
+{"print": {"nozzle_temper": 200.03125, "bed_temper": 64.90625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41607"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 64.9375, "command": "push_status", "msg": 1, "sequence_id": "41608"}}
+{"print": {"nozzle_temper": 199.96875, "mc_percent": 45, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41609"}}
+{"print": {"nozzle_temper": 200.03125, "bed_temper": 64.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41610"}}
+{"print": {"wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41611"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41612"}}
+{"print": {"bed_temper": 65, "mc_remaining_time": 24, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41613"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "41614"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41615"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "41616"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41617"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 64.96875, "mc_percent": 46, "command": "push_status", "msg": 1, "sequence_id": "41618"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41619"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 64.9375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41620"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41621"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41622"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41623"}}
+{"print": {"nozzle_temper": 199.9375, "command": "push_status", "msg": 1, "sequence_id": "41624"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41625"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41626"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 64.96875, "command": "push_status", "msg": 1, "sequence_id": "41627"}}
+{"print": {"nozzle_temper": 199.9375, "mc_percent": 47, "command": "push_status", "msg": 1, "sequence_id": "41628"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65, "command": "push_status", "msg": 1, "sequence_id": "41629"}}
+{"print": {"nozzle_temper": 200.03125, "command": "push_status", "msg": 1, "sequence_id": "41630"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65.03125, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41631"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41632"}}
+{"print": {"bed_temper": 65, "mc_remaining_time": 23, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41633"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41634"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 65.03125, "command": "push_status", "msg": 1, "sequence_id": "41635"}}
+{"print": {"bed_temper": 65, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41636"}}
+{"print": {"nozzle_temper": 200, "mc_percent": 48, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41637"}}
+{"print": {"nozzle_temper": 200.03125, "command": "push_status", "msg": 1, "sequence_id": "41638"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41639"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41640"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41641"}}
+{"print": {"wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41642"}}
+{"print": {"bed_temper": 64.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41643"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41644"}}
+{"print": {"bed_temper": 65, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41645"}}
+{"print": {"nozzle_temper": 199.96875, "mc_percent": 49, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41646"}}
+{"print": {"nozzle_temper": 199.9375, "command": "push_status", "msg": 1, "sequence_id": "41647"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65.03125, "command": "push_status", "msg": 1, "sequence_id": "41648"}}
+{"print": {"bed_temper": 65.0625, "command": "push_status", "msg": 1, "sequence_id": "41649"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41650"}}
+{"print": {"nozzle_temper": 199.9375, "command": "push_status", "msg": 1, "sequence_id": "41651"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41652"}}
+{"print": {"nozzle_temper": 199.9375, "mc_remaining_time": 22, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41653"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41654"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41655"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65.03125, "mc_percent": 50, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41656"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41657"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41658"}}
+{"print": {"nozzle_temper": 200.0625, "command": "push_status", "msg": 1, "sequence_id": "41659"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65.0625, "command": "push_status", "msg": 1, "sequence_id": "41660"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41661"}}
+{"print": {"bed_temper": 65.03125, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41662"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41663"}}
+{"print": {"nozzle_temper": 199.96875, "mc_percent": 51, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41664"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41665"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41666"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41667"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41668"}}
+{"print": {"nozzle_temper": 199.9375, "command": "push_status", "msg": 1, "sequence_id": "41669"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41670"}}
+{"print": {"nozzle_temper": 200.03125, "bed_temper": 65.0625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41671"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.03125, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41672"}}
+{"print": {"nozzle_temper": 199.9375, "mc_percent": 52, "mc_remaining_time": 21, "command": "push_status", "msg": 1, "sequence_id": "41673"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41674"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41675"}}
+{"print": {"nozzle_temper": 199.9375, "command": "push_status", "msg": 1, "sequence_id": "41676"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41677"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41678"}}
+{"print": {"bed_temper": 65, "command": "push_status", "msg": 1, "sequence_id": "41679"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41680"}}
+{"print": {"mc_percent": 53, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41681"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 65.03125, "command": "push_status", "msg": 1, "sequence_id": "41682"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41683"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41684"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41685"}}
+{"print": {"nozzle_temper": 199.9375, "command": "push_status", "msg": 1, "sequence_id": "41686"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41687"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41688"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41689"}}
+{"print": {"bed_temper": 65, "mc_percent": 54, "command": "push_status", "msg": 1, "sequence_id": "41690"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41691"}}
+{"print": {"nozzle_temper": 200, "mc_remaining_time": 20, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41692"}}
+{"print": {"nozzle_temper": 199.9375, "command": "push_status", "msg": 1, "sequence_id": "41693"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.03125, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41694"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65, "wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "41695"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41696"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.03125, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41697"}}
+{"print": {"bed_temper": 65, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41698"}}
+{"print": {"nozzle_temper": 200, "mc_percent": 55, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41699"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41700"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41701"}}
+{"print": {"nozzle_temper": 199.90625, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41702"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41703"}}
+{"print": {"nozzle_temper": 200.03125, "bed_temper": 65.03125, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41704"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41705"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41706"}}
+{"print": {"bed_temper": 65, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41707"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41708"}}
+{"print": {"nozzle_temper": 199.96875, "mc_percent": 56, "command": "push_status", "msg": 1, "sequence_id": "41709"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 64.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41710"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41711"}}
+{"print": {"mc_remaining_time": 19, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41712"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 64.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41713"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41714"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41715"}}
+{"print": {"nozzle_temper": 200.03125, "bed_temper": 64.90625, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41716"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41717"}}
+{"print": {"bed_temper": 64.9375, "wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "41718"}}
+{"print": {"mc_percent": 57, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41719"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41720"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 64.96875, "command": "push_status", "msg": 1, "sequence_id": "41721"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 65, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41722"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41723"}}
+{"print": {"bed_temper": 65.03125, "command": "push_status", "msg": 1, "sequence_id": "41724"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41725"}}
+{"print": {"bed_temper": 65.0625, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41726"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41727"}}
+{"print": {"bed_temper": 65.09375, "mc_percent": 58, "command": "push_status", "msg": 1, "sequence_id": "41728"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41729"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41730"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41731"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65.0625, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41732"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.03125, "mc_remaining_time": 18, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41733"}}
+{"print": {"bed_temper": 65, "command": "push_status", "msg": 1, "sequence_id": "41734"}}
+{"print": {"bed_temper": 64.96875, "command": "push_status", "msg": 1, "sequence_id": "41735"}}
+{"print": {"mc_percent": 59, "command": "push_status", "msg": 1, "sequence_id": "41736"}}
+{"print": {"bed_temper": 64.9375, "command": "push_status", "msg": 1, "sequence_id": "41737"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41738"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41739"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41740"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 64.90625, "wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "41741"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41742"}}
+{"print": {"wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41743"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41744"}}
+{"print": {"bed_temper": 64.875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41745"}}
+{"print": {"nozzle_temper": 200, "mc_percent": 60, "command": "push_status", "msg": 1, "sequence_id": "41746"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41747"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41748"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41749"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 64.84375, "command": "push_status", "msg": 1, "sequence_id": "41750"}}
+{"print": {"mc_remaining_time": 17, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41751"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 64.875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41752"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41753"}}
+{"print": {"nozzle_temper": 199.9375, "mc_percent": 61, "command": "push_status", "msg": 1, "sequence_id": "41754"}}
+{"print": {"nozzle_temper": 199.90625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41755"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 64.90625, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41756"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 64.9375, "command": "push_status", "msg": 1, "sequence_id": "41757"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 64.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41758"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41759"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65.03125, "command": "push_status", "msg": 1, "sequence_id": "41760"}}
+{"print": {"nozzle_temper": 200.03125, "command": "push_status", "msg": 1, "sequence_id": "41761"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65.0625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41762"}}
+{"print": {"nozzle_temper": 199.9375, "mc_percent": 62, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41763"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.09375, "command": "push_status", "msg": 1, "sequence_id": "41764"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41765"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41766"}}
+{"print": {"nozzle_temper": 199.90625, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41767"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41768"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41769"}}
+{"print": {"nozzle_temper": 200.03125, "command": "push_status", "msg": 1, "sequence_id": "41770"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65.0625, "command": "push_status", "msg": 1, "sequence_id": "41771"}}
+{"print": {"nozzle_temper": 199.9375, "mc_remaining_time": 16, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41772"}}
+{"print": {"nozzle_temper": 199.96875, "mc_percent": 63, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41773"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65.03125, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41774"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41775"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41776"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41777"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65.0625, "command": "push_status", "msg": 1, "sequence_id": "41778"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41779"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41780"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.03125, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41781"}}
+{"print": {"mc_percent": 64, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41782"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41783"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41784"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41785"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41786"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41787"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.03125, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41788"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 65, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41789"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41790"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41791"}}
+{"print": {"mc_percent": 65, "mc_remaining_time": 15, "command": "push_status", "msg": 1, "sequence_id": "41792"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41793"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41794"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 64.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41795"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 64.9375, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41796"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41797"}}
+{"print": {"nozzle_temper": 199.9375, "command": "push_status", "msg": 1, "sequence_id": "41798"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "41799"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41800"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41801"}}
+{"print": {"nozzle_temper": 199.90625, "bed_temper": 64.96875, "mc_percent": 66, "command": "push_status", "msg": 1, "sequence_id": "41802"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41803"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41804"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41805"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 64.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41806"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41807"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41808"}}
+{"print": {"bed_temper": 64.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41809"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 65, "mc_percent": 67, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41810"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 64.96875, "mc_remaining_time": 14, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41811"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41812"}}
+{"print": {"nozzle_temper": 200.03125, "bed_temper": 64.96875, "command": "push_status", "msg": 1, "sequence_id": "41813"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41814"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41815"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41816"}}
+{"print": {"mc_percent": 68, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41817"}}
+{"print": {"bed_temper": 65, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41818"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 64.96875, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "41819"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41820"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41821"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41822"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41823"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41824"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65, "command": "push_status", "msg": 1, "sequence_id": "41825"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41826"}}
+{"print": {"mc_percent": 69, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41827"}}
+{"print": {"bed_temper": 65.03125, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41828"}}
+{"print": {"bed_temper": 65, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41829"}}
+{"print": {"mc_remaining_time": 13, "command": "push_status", "msg": 1, "sequence_id": "41830"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41831"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.03125, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41832"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41833"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41834"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.0625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41835"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 65.03125, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41836"}}
+{"print": {"mc_percent": 70, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41837"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41838"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41839"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41840"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41841"}}
+{"print": {"bed_temper": 65.0625, "command": "push_status", "msg": 1, "sequence_id": "41842"}}
+{"print": {"bed_temper": 65.03125, "command": "push_status", "msg": 1, "sequence_id": "41843"}}
+{"print": {"nozzle_temper": 199.9375, "mc_percent": 71, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41844"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41845"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41846"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41847"}}
+{"print": {"nozzle_temper": 199.9375, "command": "push_status", "msg": 1, "sequence_id": "41848"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41849"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41850"}}
+{"print": {"nozzle_temper": 200, "mc_remaining_time": 12, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41851"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41852"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 65, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41853"}}
+{"print": {"bed_temper": 65.03125, "mc_percent": 72, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41854"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41855"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41856"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41857"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41858"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41859"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41860"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 65, "command": "push_status", "msg": 1, "sequence_id": "41861"}}
+{"print": {"nozzle_temper": 199.90625, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41862"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41863"}}
+{"print": {"nozzle_temper": 199.9375, "mc_percent": 73, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41864"}}
+{"print": {"nozzle_temper": 200.03125, "command": "push_status", "msg": 1, "sequence_id": "41865"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41866"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41867"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41868"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41869"}}
+{"print": {"wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41870"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41871"}}
+{"print": {"nozzle_temper": 199.9375, "mc_remaining_time": 11, "command": "push_status", "msg": 1, "sequence_id": "41872"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41873"}}
+{"print": {"nozzle_temper": 200, "mc_percent": 74, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41874"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41875"}}
+{"print": {"nozzle_temper": 199.90625, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41876"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41877"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41878"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41879"}}
+{"print": {"nozzle_temper": 199.90625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41880"}}
+{"print": {"nozzle_temper": 199.9375, "mc_percent": 75, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41881"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41882"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41883"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41884"}}
+{"print": {"bed_temper": 65.03125, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41885"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.0625, "command": "push_status", "msg": 1, "sequence_id": "41886"}}
+{"print": {"nozzle_temper": 199.90625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41887"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 65.03125, "command": "push_status", "msg": 1, "sequence_id": "41888"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41889"}}
+{"print": {"nozzle_temper": 200.0625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41890"}}
+{"print": {"nozzle_temper": 199.9375, "mc_percent": 76, "mc_remaining_time": 10, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41891"}}
+{"print": {"nozzle_temper": 199.90625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41892"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41893"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41894"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.0625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41895"}}
+{"print": {"nozzle_temper": 199.90625, "bed_temper": 65.03125, "command": "push_status", "msg": 1, "sequence_id": "41896"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41897"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.0625, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41898"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41899"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41900"}}
+{"print": {"nozzle_temper": 199.90625, "mc_percent": 77, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41901"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41902"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "41903"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41904"}}
+{"print": {"nozzle_temper": 199.90625, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41905"}}
+{"print": {"nozzle_temper": 199.875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41906"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.03125, "command": "push_status", "msg": 1, "sequence_id": "41907"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41908"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41909"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41910"}}
+{"print": {"mc_percent": 78, "command": "push_status", "msg": 1, "sequence_id": "41911"}}
+{"print": {"nozzle_temper": 200.03125, "bed_temper": 65, "command": "push_status", "msg": 1, "sequence_id": "41912"}}
+{"print": {"bed_temper": 65.03125, "mc_remaining_time": 9, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41913"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41914"}}
+{"print": {"nozzle_temper": 199.90625, "command": "push_status", "msg": 1, "sequence_id": "41915"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41916"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41917"}}
+{"print": {"nozzle_temper": 199.90625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41918"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41919"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41920"}}
+{"print": {"nozzle_temper": 200.03125, "mc_percent": 79, "command": "push_status", "msg": 1, "sequence_id": "41921"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65.0625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41922"}}
+{"print": {"nozzle_temper": 199.875, "command": "push_status", "msg": 1, "sequence_id": "41923"}}
+{"print": {"nozzle_temper": 199.90625, "command": "push_status", "msg": 1, "sequence_id": "41924"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41925"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41926"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41927"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41928"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41929"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41930"}}
+{"print": {"nozzle_temper": 199.96875, "mc_percent": 80, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41931"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41932"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41933"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41934"}}
+{"print": {"nozzle_temper": 199.9375, "mc_remaining_time": 8, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41935"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41936"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41937"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41938"}}
+{"print": {"nozzle_temper": 199.9375, "command": "push_status", "msg": 1, "sequence_id": "41939"}}
+{"print": {"nozzle_temper": 200, "mc_percent": 81, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41940"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41941"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41942"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41943"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41944"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41945"}}
+{"print": {"nozzle_temper": 199.96875, "mc_percent": 82, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41946"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41947"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41948"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41949"}}
+{"print": {"nozzle_temper": 200.03125, "command": "push_status", "msg": 1, "sequence_id": "41950"}}
+{"print": {"nozzle_temper": 199.9375, "mc_remaining_time": 7, "command": "push_status", "msg": 1, "sequence_id": "41951"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41952"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41953"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41954"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41955"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65.03125, "mc_percent": 83, "command": "push_status", "msg": 1, "sequence_id": "41956"}}
+{"print": {"wifi_signal": "-44dBm", "fan_gear": 201, "command": "push_status", "msg": 1, "sequence_id": "41957"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41958"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41959"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41960"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41961"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41962"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41963"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41964"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.0625, "mc_percent": 84, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41965"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41966"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41967"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "41968"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.03125, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41969"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41970"}}
+{"print": {"mc_remaining_time": 6, "command": "push_status", "msg": 1, "sequence_id": "41971"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41972"}}
+{"print": {"bed_temper": 65.0625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41973"}}
+{"print": {"mc_percent": 85, "command": "push_status", "msg": 1, "sequence_id": "41974"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41975"}}
+{"print": {"bed_temper": 65.03125, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41976"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41977"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41978"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41979"}}
+{"print": {"nozzle_temper": 199.9375, "command": "push_status", "msg": 1, "sequence_id": "41980"}}
+{"print": {"bed_temper": 65, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41981"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.03125, "mc_percent": 86, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41982"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41983"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41984"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41985"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41986"}}
+{"print": {"bed_temper": 65.0625, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41987"}}
+{"print": {"nozzle_temper": 199.9375, "mc_remaining_time": 5, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41988"}}
+{"print": {"mc_percent": 87, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41989"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "41990"}}
+{"print": {"wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41991"}}
+{"print": {"bed_temper": 65.09375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41992"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41993"}}
+{"print": {"wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "41994"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "41995"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41996"}}
+{"print": {"mc_percent": 88, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "41997"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "41998"}}
+{"print": {"bed_temper": 65.0625, "command": "push_status", "msg": 1, "sequence_id": "41999"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42000"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42001"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "42002"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "42003"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42004"}}
+{"print": {"nozzle_temper": 199.9375, "mc_percent": 89, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "42005"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.03125, "mc_remaining_time": 4, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42006"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42007"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "42008"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "42009"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65.0625, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "42010"}}
+{"print": {"bed_temper": 65.03125, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "42011"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.0625, "command": "push_status", "msg": 1, "sequence_id": "42012"}}
+{"print": {"nozzle_temper": 199.9375, "mc_percent": 90, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42013"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42014"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42015"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42016"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65.03125, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42017"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42018"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "42019"}}
+{"print": {"bed_temper": 65.0625, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "42020"}}
+{"print": {"bed_temper": 65.03125, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42021"}}
+{"print": {"mc_percent": 91, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42022"}}
+{"print": {"wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "42023"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-41dBm", "command": "push_status", "msg": 1, "sequence_id": "42024"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65.0625, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42025"}}
+{"print": {"nozzle_temper": 200.125, "bed_temper": 65.09375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42026"}}
+{"print": {"nozzle_temper": 200.15625, "bed_temper": 65.15625, "mc_remaining_time": 3, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42027"}}
+{"print": {"nozzle_temper": 200.0625, "bed_temper": 65.21875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42028"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.28125, "command": "push_status", "msg": 1, "sequence_id": "42029"}}
+{"print": {"nozzle_temper": 199.90625, "bed_temper": 65.3125, "command": "push_status", "msg": 1, "sequence_id": "42030"}}
+{"print": {"nozzle_temper": 199.875, "bed_temper": 65.34375, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "42031"}}
+{"print": {"nozzle_temper": 199.90625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42032"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42033"}}
+{"print": {"bed_temper": 65.3125, "mc_percent": 92, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42034"}}
+{"print": {"bed_temper": 65.28125, "command": "push_status", "msg": 1, "sequence_id": "42035"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.21875, "command": "push_status", "msg": 1, "sequence_id": "42036"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 65.1875, "wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "42037"}}
+{"print": {"bed_temper": 65.15625, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42038"}}
+{"print": {"bed_temper": 65.125, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42039"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65.0625, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "42040"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 65.03125, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42041"}}
+{"print": {"nozzle_temper": 199.96875, "mc_percent": 93, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "42042"}}
+{"print": {"bed_temper": 65, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42043"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-49dBm", "command": "push_status", "msg": 1, "sequence_id": "42044"}}
+{"print": {"nozzle_temper": 199.90625, "bed_temper": 64.96875, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42045"}}
+{"print": {"nozzle_temper": 199.96875, "mc_remaining_time": 2, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42046"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42047"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "42048"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42049"}}
+{"print": {"nozzle_temper": 199.96875, "mc_percent": 94, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42050"}}
+{"print": {"nozzle_temper": 199.9375, "bed_temper": 64.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42051"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42052"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42053"}}
+{"print": {"nozzle_temper": 199.9375, "command": "push_status", "msg": 1, "sequence_id": "42054"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "42055"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "42056"}}
+{"print": {"nozzle_temper": 199.96875, "mc_percent": 95, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "42057"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42058"}}
+{"print": {"nozzle_temper": 199.96875, "command": "push_status", "msg": 1, "sequence_id": "42059"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "42060"}}
+{"print": {"mc_remaining_time": 1, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42061"}}
+{"print": {"wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "42062"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42063"}}
+{"print": {"nozzle_temper": 199.96875, "mc_percent": 96, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "42064"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 64.96875, "command": "push_status", "msg": 1, "sequence_id": "42065"}}
+{"print": {"bed_temper": 64.9375, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42066"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42067"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 64.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42068"}}
+{"print": {"nozzle_temper": 199.9375, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "42069"}}
+{"print": {"wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42070"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42071"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "42072"}}
+{"print": {"bed_temper": 64.9375, "mc_percent": 97, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42073"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "42074"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42075"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 64.96875, "wifi_signal": "-43dBm", "command": "push_status", "msg": 1, "sequence_id": "42076"}}
+{"print": {"nozzle_temper": 199.96875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "42077"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42078"}}
+{"print": {"wifi_signal": "-45dBm", "fan_gear": 199, "command": "push_status", "msg": 1, "sequence_id": "42079"}}
+{"print": {"wifi_signal": "-48dBm", "command": "push_status", "msg": 1, "sequence_id": "42080"}}
+{"print": {"wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42081"}}
+{"print": {"cooling_fan_speed": "14", "big_fan1_speed": "14", "big_fan2_speed": "14", "mc_percent": 98, "mc_remaining_time": 0, "fan_gear": 241, "command": "push_status", "msg": 1, "sequence_id": "42082"}}
+{"print": {"nozzle_temper": 199.90625, "bed_temper": 64.9375, "cooling_fan_speed": "11", "big_fan1_speed": "11", "big_fan2_speed": "11", "fan_gear": 199, "command": "push_status", "msg": 1, "sequence_id": "42083"}}
+{"print": {"nozzle_temper": 199.84375, "command": "push_status", "msg": 1, "sequence_id": "42084"}}
+{"print": {"nozzle_temper": 199.875, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "42085"}}
+{"print": {"nozzle_temper": 200, "bed_temper": 64.90625, "command": "push_status", "msg": 1, "sequence_id": "42086"}}
+{"print": {"nozzle_temper": 200.03125, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42087"}}
+{"print": {"nozzle_temper": 200, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "42088"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 64.9375, "command": "push_status", "msg": 1, "sequence_id": "42089"}}
+{"print": {"bed_temper": 64.96875, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42090"}}
+{"print": {"nozzle_temper": 199.9375, "mc_percent": 99, "wifi_signal": "-45dBm", "command": "push_status", "msg": 1, "sequence_id": "42091"}}
+{"print": {"nozzle_temper": 199.96875, "bed_temper": 65, "wifi_signal": "-44dBm", "command": "push_status", "msg": 1, "sequence_id": "42092"}}
+{"print": {"nozzle_temper": 200, "stg_cur": 255, "fan_gear": 198, "command": "push_status", "msg": 1, "sequence_id": "42093"}}
+{"print": {"nozzle_temper": 200.09375, "nozzle_target_temper": 0, "bed_temper": 65.03125, "bed_target_temper": 0, "cooling_fan_speed": "0", "big_fan1_speed": "0", "big_fan2_speed": "0", "ams_status": 0, "wifi_signal": "-46dBm", "mc_print_sub_stage": 0, "fan_gear": 0, "ams": {"tray_tar": "255"}, "command": "push_status", "msg": 1, "sequence_id": "42094"}}
+{"print": {"nozzle_temper": 200, "command": "push_status", "msg": 1, "sequence_id": "42095"}}
+{"print": {"nozzle_temper": 198.90625, "bed_temper": 65.09375, "heatbreak_fan_speed": "8", "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "42096"}}
+{"print": {"nozzle_temper": 198, "bed_temper": 65.125, "command": "push_status", "msg": 1, "sequence_id": "42097"}}
+{"print": {"nozzle_temper": 194.5, "bed_temper": 65.15625, "command": "push_status", "msg": 1, "sequence_id": "42098"}}
+{"print": {"nozzle_temper": 191.75, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "42099"}}
+{"print": {"nozzle_temper": 187.53125, "bed_temper": 65.09375, "mc_print_stage": "1", "heatbreak_fan_speed": "9", "mc_percent": 100, "ams_rfid_status": 6, "gcode_state": "FINISH", "gcode_file": "", "stg": [], "print_type": "idle", "home_flag": 863847832, "upgrade_state": {"cur_state_code": 0}, "command": "push_status", "msg": 1, "sequence_id": "42100"}}
+{"print": {"nozzle_temper": 184.75, "bed_temper": 65.03125, "heatbreak_fan_speed": "8", "command": "push_status", "msg": 1, "sequence_id": "42101"}}
+{"print": {"nozzle_temper": 182.0625, "bed_temper": 64.9375, "heatbreak_fan_speed": "9", "command": "push_status", "msg": 1, "sequence_id": "42102"}}
+{"print": {"nozzle_temper": 180.75, "bed_temper": 64.90625, "command": "push_status", "msg": 1, "sequence_id": "42103"}}
+{"print": {"nozzle_temper": 176.96875, "bed_temper": 64.75, "heatbreak_fan_speed": "8", "command": "push_status", "msg": 1, "sequence_id": "42104"}}
+{"print": {"nozzle_temper": 174.5625, "bed_temper": 64.625, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "42105"}}
+{"print": {"nozzle_temper": 173.40625, "bed_temper": 64.5625, "command": "push_status", "msg": 1, "sequence_id": "42106"}}
+{"print": {"nozzle_temper": 170.0625, "bed_temper": 64.40625, "heatbreak_fan_speed": "9", "command": "push_status", "msg": 1, "sequence_id": "42107"}}
+{"print": {"nozzle_temper": 167.9375, "bed_temper": 64.25, "command": "push_status", "msg": 1, "sequence_id": "42108"}}
+{"print": {"nozzle_temper": 165.875, "bed_temper": 64.125, "heatbreak_fan_speed": "8", "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "42109"}}
+{"print": {"nozzle_temper": 163.875, "bed_temper": 64, "command": "push_status", "msg": 1, "sequence_id": "42110"}}
+{"print": {"nozzle_temper": 162.875, "bed_temper": 63.9375, "heatbreak_fan_speed": "9", "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "42111"}}
+{"print": {"nozzle_temper": 160.03125, "bed_temper": 63.75, "heatbreak_fan_speed": "8", "command": "push_status", "msg": 1, "sequence_id": "42112"}}
+{"print": {"nozzle_temper": 158.21875, "bed_temper": 63.59375, "heatbreak_fan_speed": "9", "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "42113"}}
+{"print": {"nozzle_temper": 156.4375, "bed_temper": 63.46875, "heatbreak_fan_speed": "8", "command": "push_status", "msg": 1, "sequence_id": "42114"}}
+{"print": {"nozzle_temper": 155.53125, "bed_temper": 63.40625, "heatbreak_fan_speed": "9", "command": "push_status", "msg": 1, "sequence_id": "42115"}}
+{"print": {"nozzle_temper": 153.84375, "bed_temper": 63.25, "heatbreak_fan_speed": "8", "command": "push_status", "msg": 1, "sequence_id": "42116"}}
+{"print": {"nozzle_temper": 152.15625, "bed_temper": 63.125, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "42117"}}
+{"print": {"nozzle_temper": 150.53125, "bed_temper": 62.96875, "heatbreak_fan_speed": "9", "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "42118"}}
+{"print": {"nozzle_temper": 148.9375, "bed_temper": 62.84375, "heatbreak_fan_speed": "8", "command": "push_status", "msg": 1, "sequence_id": "42119"}}
+{"print": {"nozzle_temper": 148.15625, "bed_temper": 62.75, "heatbreak_fan_speed": "9", "command": "push_status", "msg": 1, "sequence_id": "42120"}}
+{"print": {"nozzle_temper": 145.875, "bed_temper": 62.5625, "heatbreak_fan_speed": "8", "command": "push_status", "msg": 1, "sequence_id": "42121"}}
+{"print": {"nozzle_temper": 144.375, "bed_temper": 62.40625, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "42122"}}
+{"print": {"nozzle_temper": 142.90625, "bed_temper": 62.28125, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "42123"}}
+{"print": {"nozzle_temper": 141.46875, "bed_temper": 62.125, "command": "push_status", "msg": 1, "sequence_id": "42124"}}
+{"print": {"nozzle_temper": 140.78125, "bed_temper": 62.0625, "command": "push_status", "msg": 1, "sequence_id": "42125"}}
+{"print": {"nozzle_temper": 138.71875, "bed_temper": 61.84375, "command": "push_status", "msg": 1, "sequence_id": "42126"}}
+{"print": {"nozzle_temper": 137.375, "bed_temper": 61.6875, "command": "push_status", "msg": 1, "sequence_id": "42127"}}
+{"print": {"nozzle_temper": 136.03125, "bed_temper": 61.53125, "command": "push_status", "msg": 1, "sequence_id": "42128"}}
+{"print": {"nozzle_temper": 135.375, "bed_temper": 61.46875, "command": "push_status", "msg": 1, "sequence_id": "42129"}}
+{"print": {"nozzle_temper": 134.09375, "bed_temper": 61.34375, "command": "push_status", "msg": 1, "sequence_id": "42130"}}
+{"print": {"nozzle_temper": 132.84375, "bed_temper": 61.1875, "command": "push_status", "msg": 1, "sequence_id": "42131"}}
+{"print": {"nozzle_temper": 131.625, "bed_temper": 61.03125, "heatbreak_fan_speed": "9", "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "42132"}}
+{"print": {"nozzle_temper": 130.375, "bed_temper": 60.875, "command": "push_status", "msg": 1, "sequence_id": "42133"}}
+{"print": {"nozzle_temper": 129.1875, "bed_temper": 60.75, "heatbreak_fan_speed": "8", "command": "push_status", "msg": 1, "sequence_id": "42134"}}
+{"print": {"nozzle_temper": 128, "bed_temper": 60.59375, "heatbreak_fan_speed": "9", "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "42135"}}
+{"print": {"nozzle_temper": 126.84375, "bed_temper": 60.46875, "heatbreak_fan_speed": "8", "command": "push_status", "msg": 1, "sequence_id": "42136"}}
+{"print": {"nozzle_temper": 125.6875, "bed_temper": 60.3125, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "42137"}}
+{"print": {"nozzle_temper": 125.125, "bed_temper": 60.25, "command": "push_status", "msg": 1, "sequence_id": "42138"}}
+{"print": {"nozzle_temper": 124, "bed_temper": 60.09375, "command": "push_status", "msg": 1, "sequence_id": "42139"}}
+{"print": {"nozzle_temper": 122.3125, "bed_temper": 59.875, "heatbreak_fan_speed": "9", "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "42140"}}
+{"print": {"nozzle_temper": 121.15625, "bed_temper": 59.71875, "heatbreak_fan_speed": "8", "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "42141"}}
+{"print": {"nozzle_temper": 120.03125, "bed_temper": 59.59375, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "42142"}}
+{"print": {"nozzle_temper": 119.46875, "bed_temper": 59.53125, "command": "push_status", "msg": 1, "sequence_id": "42143"}}
+{"print": {"nozzle_temper": 118.375, "bed_temper": 59.375, "heatbreak_fan_speed": "9", "command": "push_status", "msg": 1, "sequence_id": "42144"}}
+{"print": {"nozzle_temper": 117.25, "bed_temper": 59.21875, "heatbreak_fan_speed": "8", "command": "push_status", "msg": 1, "sequence_id": "42145"}}
+{"print": {"nozzle_temper": 116.15625, "bed_temper": 59.0625, "command": "push_status", "msg": 1, "sequence_id": "42146"}}
+{"print": {"nozzle_temper": 115.09375, "bed_temper": 58.9375, "heatbreak_fan_speed": "9", "command": "push_status", "msg": 1, "sequence_id": "42147"}}
+{"print": {"nozzle_temper": 114.0625, "bed_temper": 58.78125, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "42148"}}
+{"print": {"nozzle_temper": 113, "bed_temper": 58.65625, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "42149"}}
+{"print": {"nozzle_temper": 111.96875, "bed_temper": 58.5, "command": "push_status", "msg": 1, "sequence_id": "42150"}}
+{"print": {"nozzle_temper": 110.96875, "bed_temper": 58.34375, "heatbreak_fan_speed": "8", "command": "push_status", "msg": 1, "sequence_id": "42151"}}
+{"print": {"nozzle_temper": 110.46875, "bed_temper": 58.28125, "heatbreak_fan_speed": "9", "command": "push_status", "msg": 1, "sequence_id": "42152"}}
+{"print": {"nozzle_temper": 109.46875, "bed_temper": 58.15625, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "42153"}}
+{"print": {"nozzle_temper": 108, "bed_temper": 57.90625, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "42154"}}
+{"print": {"nozzle_temper": 107.03125, "bed_temper": 57.78125, "heatbreak_fan_speed": "8", "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "42155"}}
+{"print": {"nozzle_temper": 106.5625, "bed_temper": 57.6875, "heatbreak_fan_speed": "9", "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "42156"}}
+{"print": {"nozzle_temper": 105.625, "bed_temper": 57.53125, "command": "push_status", "msg": 1, "sequence_id": "42157"}}
+{"print": {"nozzle_temper": 104.6875, "bed_temper": 57.40625, "command": "push_status", "msg": 1, "sequence_id": "42158"}}
+{"print": {"nozzle_temper": 103.78125, "bed_temper": 57.28125, "heatbreak_fan_speed": "8", "command": "push_status", "msg": 1, "sequence_id": "42159"}}
+{"print": {"nozzle_temper": 102.875, "bed_temper": 57.15625, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "42160"}}
+{"print": {"nozzle_temper": 102.40625, "bed_temper": 57.0625, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "42161"}}
+{"print": {"nozzle_temper": 101.09375, "bed_temper": 56.875, "heatbreak_fan_speed": "9", "command": "push_status", "msg": 1, "sequence_id": "42162"}}
+{"print": {"nozzle_temper": 100.21875, "bed_temper": 56.75, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "42163"}}
+{"print": {"nozzle_temper": 99.34375, "bed_temper": 56.59375, "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "42164"}}
+{"print": {"nozzle_temper": 98.46875, "bed_temper": 56.46875, "heatbreak_fan_speed": "8", "command": "push_status", "msg": 1, "sequence_id": "42165"}}
+{"print": {"nozzle_temper": 98.0625, "bed_temper": 56.40625, "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "42166"}}
+{"print": {"nozzle_temper": 96.8125, "bed_temper": 56.1875, "command": "push_status", "msg": 1, "sequence_id": "42167"}}
+{"print": {"nozzle_temper": 95.96875, "bed_temper": 56.0625, "heatbreak_fan_speed": "9", "wifi_signal": "-46dBm", "command": "push_status", "msg": 1, "sequence_id": "42168"}}
+{"print": {"nozzle_temper": 95.15625, "bed_temper": 55.9375, "command": "push_status", "msg": 1, "sequence_id": "42169"}}
+{"print": {"nozzle_temper": 94.75, "bed_temper": 55.875, "heatbreak_fan_speed": "8", "command": "push_status", "msg": 1, "sequence_id": "42170"}}
+{"print": {"nozzle_temper": 93.9375, "bed_temper": 55.75, "heatbreak_fan_speed": "9", "wifi_signal": "-47dBm", "command": "push_status", "msg": 1, "sequence_id": "42171"}}

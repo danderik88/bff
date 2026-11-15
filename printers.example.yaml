@@ -1,0 +1,6 @@
+# Example only. Real values live in secrets/printers.env, referenced by BFF_<ALIAS>_* variables.
+printers:
+  - alias: A1
+    model: A1
+    profile: profiles/a1.yaml
+    env_prefix: BFF_A1

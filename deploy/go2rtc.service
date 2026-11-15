@@ -1,0 +1,17 @@
+[Unit]
+Description=go2rtc for the BFF printer cameras
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/bff-mcp.env
+# go2rtc saves streams added through its API into its config: give it a writable copy.
+StateDirectory=go2rtc
+ExecStartPre=/bin/cp -f /etc/go2rtc.yaml /var/lib/go2rtc/go2rtc.yaml
+ExecStart=/usr/local/bin/go2rtc -config /var/lib/go2rtc/go2rtc.yaml
+DynamicUser=yes
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

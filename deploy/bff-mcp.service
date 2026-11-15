@@ -1,0 +1,19 @@
+[Unit]
+Description=BFF MCP read-only server
+After=network-online.target tailscaled.service docker.service
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/bff-mcp.env
+# A DynamicUser cannot read a root-only file: systemd hands it over instead.
+LoadCredential=printers.json:/etc/bff-mcp-printers.json
+ExecStart=/opt/bff-mcp/venv/bin/python /opt/bff-mcp/server.py
+# Also covers the boot window when the Tailscale IP is not assigned yet.
+Restart=always
+RestartSec=5
+DynamicUser=yes
+StateDirectory=bff-mcp
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
