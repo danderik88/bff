@@ -906,27 +906,32 @@ const HEAD = (() => {
 
     h2d: h2(false), h2c: h2(true),
 
-    // Any other printer (Klipper and the rest): a modern enclosed toolhead in the Stealthburner style. Shaped
-    // shell with a front fan and an accent LED ring, CPAP ducts on both sides, silicone sock, brass nozzle.
-    klipper: `<defs><linearGradient id="gKbody" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4a4d53"/><stop offset=".55" stop-color="#2a2c30"/><stop offset="1" stop-color="#1a1b1e"/></linearGradient>
-        <radialGradient id="gKhub" cx=".35" cy=".35" r=".8"><stop offset="0" stop-color="#5a5d63"/><stop offset="1" stop-color="#1c1d20"/></radialGradient>
+    // Any other printer (Klipper and the rest): a Stealthburner-style head like the user's reference photo.
+    // Faceted teal shell over a black body, hotend fan behind the upper "eye", LED logo, round part-cooling
+    // fan below it, black duct and a green LED glow on the plate under the nozzle.
+    klipper: `<defs><radialGradient id="gKglow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#3dff8a" stop-opacity=".75"/><stop offset="1" stop-color="#3dff8a" stop-opacity="0"/></radialGradient>
         <linearGradient id="gKbrass" x1="0" x2="1"><stop offset="0" stop-color="#8a6a26"/><stop offset=".45" stop-color="#e2c071"/><stop offset="1" stop-color="#9b7a30"/></linearGradient></defs>
       <rect x="0" y="96" width="160" height="7" rx="3.5" fill="${RAIL}"/><rect x="0" y="130" width="160" height="7" rx="3.5" fill="${RAIL}"/>
-      ` + tube("M80 0C80 10 80 16 80 26") + `
-      <rect x="62" y="20" width="36" height="12" rx="4" fill="#2a2c30"/><rect x="75" y="16" width="10" height="6" rx="1.5" fill="url(#gKbrass)"/>
-      <path d="M48 30h64q8 0 12 8l8 30v74q0 10-8 16l-16 12H52l-16-12q-8-6-8-16V68l8-30q4-8 12-8z" fill="url(#gKbody)" stroke="#55585e" stroke-width="1"/>
-      <path d="M50 34h60q5 0 8 5" fill="none" stroke="#6b6e75" stroke-width="1.5" stroke-linecap="round" opacity=".7"/>
-      <circle cx="80" cy="92" r="31" fill="none" stroke="var(--accent)" stroke-width="2" opacity=".95"/>
-      <circle cx="80" cy="92" r="31" fill="none" stroke="var(--accent)" stroke-width="6" opacity=".18"/>
-      <circle cx="80" cy="92" r="28" fill="#101113"/>
-      <g fill="#2e3035">${[0, 1, 2, 3, 4, 5, 6].map(k => `<path d="M80 92 C84 80 92 72 102 70 C98 80 92 88 80 92z" transform="rotate(${k * 360 / 7} 80 92)"/>`).join("")}</g>
-      <circle cx="80" cy="92" r="9" fill="url(#gKhub)"/><circle cx="80" cy="92" r="2.5" fill="var(--accent)"/>
-      <path d="M44 132h72" stroke="#3a3c41" stroke-width="2" stroke-linecap="round"/>
-      <rect x="66" y="138" width="28" height="4" rx="2" fill="var(--accent)" opacity=".85"/>
-      <path d="M30 136h14l18 42-6 6z" fill="#1c1d20" stroke="#3a3c41"/><path d="M130 136h-14l-18 42 6 6z" fill="#1c1d20" stroke="#3a3c41"/>
-      <rect x="64" y="166" width="32" height="18" rx="5" fill="#d9573b"/><rect x="66" y="168" width="28" height="4" rx="2" fill="#f08a6e" opacity=".6"/>
-      <path d="M73 184h14l-4 8h-6z" fill="url(#gKbrass)"/><path d="M77.5 192h5l-1 3h-3z" fill="#b8913f"/>
-      ` + extrude(80, 195),
+      ` + tube("M80 0C80 10 80 16 80 24") + `
+      <path d="M52 22h56l8 10v26H44V32z" fill="#1c1d1f"/><path d="M52 22h56l8 10H44z" fill="#2c2d31"/>
+      <rect x="62" y="12" width="20" height="12" rx="2" fill="#26272a"/><rect x="100" y="16" width="14" height="22" rx="2" fill="#12937f"/>
+      <path d="M44 40h72l14 30-2 82-12 26H44l-12-26-2-82z" fill="#12937f"/>
+      <path d="M44 40h72l14 30H30z" fill="#1fb39b"/>
+      <path d="M30 70l14 0 6 82-6 26-12-26z" fill="#0d7a69"/><path d="M130 70h-14l-6 82 6 26 12-26z" fill="#0f8572"/>
+      <path d="M44 152h72l-6 26H50z" fill="#0f8572"/>
+      <path d="M62 52h36l12 24-12 24H62L50 76z" fill="#0b0c0d"/>
+      <circle cx="80" cy="76" r="17" fill="#18191b"/>
+      <g fill="#2a2c30">${[0, 1, 2, 3, 4, 5, 6].map(k => `<path d="M80 76 C82 69 87 64 93 63 C91 69 87 73 80 76z" transform="rotate(${k * 360 / 7} 80 76)"/>`).join("")}</g>
+      <circle cx="80" cy="76" r="4.5" fill="#26272a"/>
+      <path d="M74 120l4-8h3l-4 8zM81 120l4-8h3l-4 8z" fill="#5ad8ff"/><path d="M74 120l4-8h3l-4 8zM81 120l4-8h3l-4 8z" fill="none" stroke="#5ad8ff" stroke-width="3" opacity=".25"/>
+      <circle cx="80" cy="148" r="20" fill="#0b0c0d"/><circle cx="80" cy="148" r="17" fill="#18191b"/>
+      <g fill="#2a2c30">${[0, 1, 2, 3, 4, 5, 6].map(k => `<path d="M80 148 C82 141 87 136 93 135 C91 141 87 145 80 148z" transform="rotate(${k * 360 / 7} 80 148)"/>`).join("")}</g>
+      <circle cx="80" cy="148" r="5" fill="#26272a"/>
+      <g fill="#0b6e5f"><circle cx="61" cy="131" r="1.8"/><circle cx="99" cy="131" r="1.8"/><circle cx="61" cy="165" r="1.8"/><circle cx="99" cy="165" r="1.8"/></g>
+      <path d="M50 178h60l-8 14H58z" fill="#1c1d1f"/><path d="M50 178h60l-3 5H53z" fill="#2c2d31"/>
+      <ellipse cx="80" cy="207" rx="34" ry="7" fill="url(#gKglow)"/>
+      <path d="M74 192h12l-3 7h-6z" fill="url(#gKbrass)"/><path d="M78 199h4l-1 3h-2z" fill="#b8913f"/>
+      ` + extrude(80, 202),
   };
   // P1P / P1S: the user says it is the P2S head with a slightly smaller fan.
   const p2sFan = fan(80, 106, "#f2f1ed", "#d6d4ce");
@@ -1973,6 +1978,11 @@ const OPT_NAMES = { spaghetti_detector: "Spaghetti detection", first_layer_inspe
   pileup_detector: "Pile-up detection", clump_detector: "Nozzle clump detection", airprint_detector: "Air printing detection",
   auto_recovery: "Recover from step loss", sound_enable: "Printer sounds", filament_tangle_detect: "Filament tangle detection", bff_spaghetti: "Spaghetti alarm (Pygmy)" };
 let extra = {};
+function optLabel(k) {  // Klipper runout sensors carry their own name and say whether filament is in
+  if (!k.startsWith("filament_sensor:")) return OPT_NAMES[k] || k;
+  const name = k.slice(16), det = (extra.filament_sensors || {})[name];
+  return `Filament sensor ${esc(name.replace(/_/g, " "))}<small class="note"> · ${det ? "filament in" : "no filament"}</small>`;
+}
 function optList() {
   const x = extra.xcam || {}, o = extra.options || {};
   return [...Object.keys(x).filter(k => OPT_NAMES[k] && typeof x[k] === "boolean").map(k => [k, held("opt:" + k, x[k]), "set_detector", "module"]),
@@ -2129,7 +2139,7 @@ function paintOpts() {
   const keep = {}; for (const i of optAll("input[id]")) keep[i.id] = i.value;
   $("optrows").innerHTML = sec("printer", "Printer", opts.length ? `${opts.filter(o => o[1]).length} of ${opts.length} on` : "",
       opts.map(([k, v, tool, arg]) =>
-        `<div class="row"><span>${OPT_NAMES[k] || k}</span><button class="sw ${v ? "on" : ""}" data-k="${k}" data-tool="${tool}" data-arg="${arg}" data-v="${v}"></button></div>`).join("")
+        `<div class="row"><span>${optLabel(k)}</span><button class="sw ${v ? "on" : ""}" data-k="${k}" data-tool="${tool}" data-arg="${arg}" data-v="${v}"></button></div>`).join("")
       || "<p>The printer has not reported its options yet.</p>")
     + (camUrls ? sec("ha", "Home Assistant", "", camOptions()) : "")
     + sec("adv", "Advanced", expert ? "Expert mode on" : "",

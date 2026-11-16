@@ -22,6 +22,7 @@ TIMEOUT_S = 5
 # print_stats.state -> the gcode_state words the rest of BFF understands.
 STATES = {"standby": "IDLE", "printing": "RUNNING", "paused": "PAUSE", "complete": "FINISH",
           "cancelled": "FAILED", "error": "FAILED"}
+SENSOR_KINDS = ("filament_switch_sensor", "filament_motion_sensor")  # Klipper's documented runout sensors
 OBJECTS = ("print_stats&display_status&virtual_sdcard&extruder&heater_bed&gcode_move&fan&idle_timeout&toolhead"
            "&ace&ace_instance_0&ace_instance_1&ace_instance_2&ace_instance_3")  # unknown objects are just left out
 # Moonraker's own hostname-free defaults; a printer entry can override port and key.
@@ -152,6 +153,7 @@ class MoonrakerLink:
         self.firmware_version = None
         self.light = light  # {"led","on","off"}: given by the printer entry, else found on the first poll
         self._light_searched = light is not None
+        self.sensors = None  # filament_switch_sensor / filament_motion_sensor objects, found on the first poll
         self.cam_flip = (False, False, 0)  # Moonraker's flip_horizontal, flip_vertical, rotation of the webcam used
         self._connected = None
         self._stop = False
@@ -191,10 +193,14 @@ class MoonrakerLink:
         """One round trip; the result feeds snapshot(). Returns whether Moonraker answered."""
         try:
             info = self._request("GET", "/printer/info").get("result", {})
-            if not self._light_searched:
-                self.light = find_light(self._request("GET", "/printer/objects/list").get("result", {}).get("objects", []))
-                self._light_searched = True
+            if not self._light_searched or self.sensors is None:
+                objects = self._request("GET", "/printer/objects/list").get("result", {}).get("objects", [])
+                if not self._light_searched:
+                    self.light = find_light(objects)
+                    self._light_searched = True
+                self.sensors = [o for o in objects if o.split(" ")[0] in SENSOR_KINDS and " " in o]
             led = f"&led%20{urllib.parse.quote(self.light['led'])}" if self.light else ""
+            led += "".join(f"&{urllib.parse.quote(s)}" for s in self.sensors)
             status = self._request("GET", "/printer/objects/query?" + OBJECTS + led).get("result", {}).get("status", {})
         except (urllib.error.URLError, OSError, ValueError):
             self.online = False

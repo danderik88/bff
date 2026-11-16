@@ -454,3 +454,21 @@ class Klipper(AddPrinter):
         self.assertEqual(go2rtc.source_for("e3k", entry, "http://bff", "tok"), "ffmpeg:http://bff/stream/e3k/tok#video=h264")
         self.assertEqual(go2rtc.source_for("e3k", entry, "http://bff", "tok", 3),
                          "ffmpeg:http://bff/stream/e3k/tok#video=h264_o3")
+
+    def test_klipper_filament_sensors(self):
+        import moonraker_link
+        call("add_printer", kind="klipper", name="SV08", ip="192.168.0.60", model="KLIPPER-SV08")
+        link = server.LINKS["sv08"]
+        link.raw.update({"filament_switch_sensor btt_switch_sensor": {"enabled": True, "filament_detected": True},
+                         "filament_motion_sensor btt_motion_sensor": {"enabled": False, "filament_detected": False}})
+        sent = []
+        with mock.patch.object(moonraker_link.MoonrakerLink, "gcode", lambda s, text: sent.append(text) or True), \
+                mock.patch.object(server, "read_status", lambda p: link.raw, create=True):
+            got, err = call("status", printer="sv08")
+            if err is None:
+                self.assertEqual((got["options"]["filament_sensor:btt_switch_sensor"], got["filament_sensors"]["btt_motion_sensor"]), (True, False))
+            got, err = call("set_print_option", printer="sv08", option="filament_sensor:btt_motion_sensor", enabled=True)
+            self.assertIsNone(err)
+            self.assertEqual(sent, ["SET_FILAMENT_SENSOR SENSOR=btt_motion_sensor ENABLE=1"])
+            self.assertEqual(call("set_print_option", printer="sv08", option="filament_sensor:nope", enabled=True)[1], "Unknown filament sensor")
+            self.assertEqual(call("set_print_option", printer="sv08", option="filament_sensor:x\nG28", enabled=True)[1], "Unknown filament sensor")

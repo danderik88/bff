@@ -294,6 +294,11 @@ def status_dict(args):
     if units:
         result["ams_units"] = units
     result["options"] = {**(result.get("options") or {}), "bff_spaghetti": spaghetti_watch_on(args["printer"])}
+    for key, val in raw.items():  # Klipper runout sensors: a switch in Options, filament in or out beside it
+        kind, _, name = key.partition(" ")
+        if kind in ("filament_switch_sensor", "filament_motion_sensor") and isinstance(val, dict) and "enabled" in val:
+            result["options"][f"filament_sensor:{name}"] = bool(val["enabled"])
+            result.setdefault("filament_sensors", {})[name] = bool(val.get("filament_detected"))
     if onboard.chamber_sensor(model_code(args["printer"])):
         # Only these models report a real chamber temperature; A1/P1 echo a constant 5 and never publish it.
         result["chamber_temp"] = raw.get("chamber_temp")
@@ -1745,6 +1750,16 @@ def tool_set_detector(args):
 
 def tool_set_print_option(args):
     option, enabled = args.get("option"), args.get("enabled")
+    if str(option).startswith("filament_sensor:") and type(enabled) is bool:  # Klipper: SET_FILAMENT_SENSOR
+        printer_id(args)
+        link, name = link_of(args["printer"]), option.split(":", 1)[1]
+        raw = getattr(link, "raw", {}) or {}
+        if not isinstance(link, MoonrakerLink) or not re.fullmatch(r"[A-Za-z0-9_-]+", name) or not any(
+                f"{kind} {name}" in raw for kind in ("filament_switch_sensor", "filament_motion_sensor")):
+            raise ToolError("Unknown filament sensor")
+        if not link.gcode(f"SET_FILAMENT_SENSOR SENSOR={name} ENABLE={1 if enabled else 0}"):
+            raise ToolError("The printer did not take the command")
+        return as_text({"printer": args["printer"], "option": option, "enabled": enabled, "outcome": "sent"})
     if option == "bff_spaghetti" and type(enabled) is bool:  # BFF's own alarm: kept in BFF, nothing goes to the printer
         printer_id(args)
         with DB:
@@ -2740,7 +2755,7 @@ TOOLS = {
     "set_print_speed": (tool_set_print_speed, "Imposta la velocita' di stampa da 1 a 4. Solo durante una stampa o in pausa.", schema(level={"type": "integer", "description": "Velocita' 1-4"}, **KEY), True),
     "set_fan": (tool_set_fan, "Imposta la velocita' di una ventola da 0 a 100%.", schema(fan={"type": "string", "enum": ["part", "aux", "chamber"]}, percent={"type": "integer", "description": "0-100"}, **KEY), True),
     "set_detector": (tool_set_detector, "Attiva o disattiva un sensore xcam. Sensibilita' opzionale per l'arresto.", schema(module={"type": "string", "enum": list(DETECTOR_MODULES)}, enabled={"type": "boolean"}, sensitivity={"type": "string", "enum": list(SENSITIVITIES)}, **KEY), True),
-    "set_print_option": (tool_set_print_option, "Attiva o disattiva un'opzione di stampa.", schema(option={"type": "string", "enum": [*PRINT_OPTIONS, "bff_spaghetti"]}, enabled={"type": "boolean"}, **KEY), True),
+    "set_print_option": (tool_set_print_option, "Attiva o disattiva un'opzione di stampa.", schema(option={"type": "string", "description": f"{', '.join([*PRINT_OPTIONS, 'bff_spaghetti'])}, or filament_sensor:<name> on Klipper"}, enabled={"type": "boolean"}, **KEY), True),
     "clear_errors": (tool_clear_errors, "Pulisce gli errori mostrati dalla stampante.", schema(**KEY), True),
     "dismiss_spaghetti": (tool_dismiss_spaghetti, "Falso allarme spaghetti: niente avvisi fino alla fine di questa stampa. Solo su richiesta dell'utente.", schema(), True),
     "prepare_skip_objects": (tool_prepare_skip_objects, "Prepara il salto di oggetti in stampa, irreversibile. Solo durante stampa o pausa." + CONFIRM_RULE, schema(obj_ids={"type": "array", "items": {"type": "integer"}, "description": "Id degli oggetti da saltare"}), True),
