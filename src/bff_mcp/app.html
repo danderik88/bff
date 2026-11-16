@@ -439,17 +439,23 @@ select { font: 16px var(--sans); color: var(--fg); background: var(--panel2); bo
     <input autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-form-type="other" id="apip0" placeholder="Printer IP" inputmode="decimal">
     <div class="acts"><button class="btn" id="apback">Cancel</button><button class="btn primary" id="apnext">Next</button></div>
   </div>
-  <style>#apform.klipper .bambu { display: none !important } #apform:not(.klipper) .kl { display: none !important }</style>
+  <style>#apform .fld { display: flex; flex-direction: column; gap: 6px } #apform.klipper .bambu { display: none !important } #apform:not(.klipper) .kl { display: none !important }</style>
   <div id="apform" hidden style="display: flex; flex-direction: column; gap: 14px">
     <p class="note kl">Pygmy finds Klipper printers when Moonraker answers on port 7125 (Mainsail or Fluidd running means it does). Temperature limits come from the printer's own printer.cfg.</p>
     <p class="note bambu">On the printer: Settings, Network, turn on LAN-only mode and Developer Mode. The access code is on the same screen.</p>
     <p class="note bambu">Put a USB stick or SD card (FAT32) in the printer: Pygmy sends prints to it. Newer printers (P2S, H2 series) keep files in internal memory that Pygmy can't reach, so they need one too.</p>
     <p class="note" id="apmodel"></p>
-    <input autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-form-type="other" id="apname" placeholder="Name">
+    <label class="note fld">Name, as Pygmy shows it
+    <input autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-form-type="other" id="apname" placeholder="e.g. E3K">
+    </label>
     <input autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-form-type="other" id="apcode" class="bambu" type="text" maxlength="8" placeholder="Access code">
     <p class="note bambu">On the printer: Settings → Network → Access code</p>
-    <select class="kl" id="apkmodel"></select>
-    <input class="kl" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-form-type="other" id="apklabel" placeholder="What printer is it? e.g. Ender 3, modded" maxlength="60" hidden>
+    <label class="note fld kl">Model
+    <select id="apkmodel"></select>
+    </label>
+    <label class="note fld kl" id="apklabelwrap" hidden>What printer is it?
+    <input autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-form-type="other" id="apklabel" placeholder="What printer is it? e.g. Ender 3, modded" maxlength="60">
+    </label>
     <details class="kl"><summary class="note">Advanced</summary><div style="display: flex; flex-direction: column; gap: 14px; margin-top: 10px">
       <input autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-form-type="other" id="apkport" placeholder="Moonraker port" inputmode="numeric" value="7125">
       <input autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-form-type="other" id="apkkey" class="secret" placeholder="API key (only if Moonraker asks for one)">
@@ -1696,7 +1702,7 @@ async function showPrinters() {
     apKModels = r.klipper_models || apKModels;
     FOUND = (r.printers || []).filter(p => p.supported && !p.managed);
     if ($("pfound")) $("pfound").innerHTML = FOUND.length ? `<p class="note found-h">New printer found</p>` + FOUND.map((p, i) =>
-      `<div class="prow found"><span class="prn"><span><b>${esc(p.name || p.model_name)}</b><span class="online">${esc(p.brand ? p.brand + " " + p.model_name : p.model_name)} · ${esc(p.ip)}</span></span></span><button class="btn primary" data-act="addfound" data-i="${i}">Add</button></div>`).join("") : "";
+      `<div class="prow found"><span class="prn"><span><b>${esc(foundTitle(p))}</b><span class="online">${esc(p.brand ? p.brand + " " + p.model_name : p.model_name)} · ${esc(p.ip)}</span></span></span><button class="btn primary" data-act="addfound" data-i="${i}">Add</button></div>`).join("") : "";
   }).catch(() => {});
 }
 $("pick").onclick = showPrinters;
@@ -1771,6 +1777,9 @@ $("printers").onclick = async e => {
   if (row || e.target.id === "printers") { $("printers").hidden = true; selecting = false; picked = new Set(); }
 };
 // Add a printer: discovery, or the IP by hand. The code goes to Pygmy once and never stays in this page.
+// Stock hostnames of Klipper images say nothing about the machine: show the IP instead.
+const STOCK_HOST = /^(klipper|mainsail(os)?|fluidd(pi)?|raspberrypi|pi|octopi|localhost)$/i;
+const foundTitle = (p, fallback = p.ip) => (p.name && !STOCK_HOST.test(p.name)) ? p.name : fallback;
 let CUSTOM = new Set(), KLIPPERS = new Set(), MODELS_OF = {};
 let apRows = [], apRow = null, apManual = false, apKlipper = false, apKModels = [];
 async function openAdd() {
@@ -1784,14 +1793,14 @@ async function openAdd() {
     apKModels = found.klipper_models || apKModels;
     apRows = found.printers.filter(p => !p.managed);
     $("apfind").innerHTML = apRows.map((p, i) => p.supported
-      ? `<button class="prn" data-i="${i}"><span><b>${esc(p.name || p.model_name)}</b><span class="online">${esc(p.brand ? p.brand + " " + p.model_name : p.model_name)} · ${esc(p.ip)}</span></span></button>`
-      : `<button class="prn" data-i="${i}" disabled style="opacity:.4"><span><b>${esc(p.name || p.model_name)}</b><span class="online">${esc(p.ip)} · Not supported yet</span></span></button>`).join("")
+      ? `<button class="prn" data-i="${i}"><span><b>${esc(foundTitle(p))}</b><span class="online">${esc(p.brand ? p.brand + " " + p.model_name : p.model_name)} · ${esc(p.ip)}</span></span></button>`
+      : `<button class="prn" data-i="${i}" disabled style="opacity:.4"><span><b>${esc(foundTitle(p))}</b><span class="online">${esc(p.ip)} · Not supported yet</span></span></button>`).join("")
       || "<p>No printer answered. Enter its IP.</p>";
   } catch (e) { $("apfind").innerHTML = `<p>${esc(e.message)}</p>`; }
 }
 function apFill() {
   $("apform").hidden = false; $("apfind").hidden = true; $("apbtns").hidden = true;
-  $("apname").value = apRow ? (apRow.name || "") : "";
+  $("apname").value = apRow ? foundTitle(apRow, "") : "";
   if (apRow) apKlipper = apRow.kind === "klipper";
   $("apform").classList.toggle("klipper", apKlipper);
   $("apmodel").textContent = apRow ? (apRow.model_name ? `${apRow.model_name} · ${apRow.ip}` : apRow.ip) : "";
@@ -1811,7 +1820,7 @@ async function apIdentify() {
   } catch (e) { toast(e.message); }
   $("apnext").disabled = false;
 }
-function apReady() { $("apklabel").hidden = $("apkmodel").value !== "KLIPPER-GENERIC"; if (apKlipper) $("apadd").disabled = !($("apkmodel").value && (!apManual || $("apip").value.trim())); }
+function apReady() { $("apklabelwrap").hidden = $("apkmodel").value !== "KLIPPER-GENERIC"; if (apKlipper) $("apadd").disabled = !($("apkmodel").value && (!apManual || $("apip").value.trim())); }
 $("apkmodel").onchange = apReady; $("apip").oninput = apReady;
 $("addprinter").onclick = e => {
   const b = e.target.closest(".prn");
