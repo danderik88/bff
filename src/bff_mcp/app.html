@@ -433,7 +433,7 @@ select { font: 16px var(--sans); color: var(--fg); background: var(--panel2); bo
 <div class="sheet" id="addprinter" hidden><div style="max-height: 92vh; overflow: auto">
   <h3>Add printer</h3>
   <div id="apfind" style="display: flex; flex-direction: column; gap: 14px"><p>Looking for printers on the network…</p></div>
-  <div class="acts" id="apbtns"><button class="btn" id="apipbtn">Bambu Lab: enter IP</button><button class="btn" id="apkbtn">Klipper: enter IP</button></div>
+  <div class="acts" id="apbtns"><button class="btn" id="apipbtn">A1 / P1 / P2 / H2: enter IP</button><button class="btn" id="apkbtn">Klipper: enter IP</button></div>
   <style>#apform.klipper .bambu { display: none !important } #apform:not(.klipper) .kl { display: none !important }</style>
   <div id="apform" hidden style="display: flex; flex-direction: column; gap: 14px">
     <p class="note kl">Pygmy finds Klipper printers when Moonraker answers on port 7125 (Mainsail or Fluidd running means it does). Temperature limits come from the printer's own printer.cfg.</p>

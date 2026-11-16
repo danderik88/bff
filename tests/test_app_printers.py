@@ -7,7 +7,7 @@ PAGE = (Path(__file__).resolve().parents[1] / "src" / "bff_mcp" / "app.html").re
 
 class AppPrinters(unittest.TestCase):
     def test_add_sheet(self):
-        for text in ("+ Add printer", "Bambu Lab: enter IP", "Klipper: enter IP", "Not supported yet", "New printer found",
+        for text in ("+ Add printer", "A1 / P1 / P2 / H2: enter IP", "Klipper: enter IP", "Not supported yet", "New printer found",
                      "On the printer: Settings → Network → Access code"):
             self.assertIn(text, PAGE)
         self.assertIn("P1S enclosure kit fitted", PAGE)  # the user: ask it with a tick, only for a P1P
