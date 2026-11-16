@@ -160,7 +160,7 @@ temperatures, chamber light, webcam still, Print now with OrcaSlicer's own profi
 Supported so far: Sovol SV08 (`KLIPPER-SV08`) and IdeaFormer IR3 V2 (`KLIPPER-IR3V2`, conservative temperature limits).
 One filament per print.
 
-They show up by themselves under **+ Add printer** when Moonraker answers on port 7125 (Mainsail or Fluidd running means it does); otherwise use **Klipper: enter IP**. Temperature limits come from the printer's own printer.cfg. Manual alternative: add an entry to `printers.json` in the data volume and restart Pygmy:
+They show up by themselves under **+ Add printer** when Moonraker answers on port 7125 (Mainsail or Fluidd running means it does); otherwise **Enter IP** recognises it. Temperature limits come from the printer's own printer.cfg. Manual alternative: add an entry to `printers.json` in the data volume and restart Pygmy:
 
     "sv08": {"host": "192.168.1.60", "port": 7125, "name": "SV08", "model": "KLIPPER-SV08", "api_key": ""}
 

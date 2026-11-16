@@ -18,7 +18,7 @@ REAL_SCAN = onboard.scan_moonraker  # setUp patches it: no test scans the real L
 CODE = "87654321"
 HEARD = [{"ip": "192.168.0.20", "serial": "ALPHASERIAL", "model": "C11", "name": "Alpha"},
          {"ip": "192.168.0.30", "serial": "BRAVOSERIAL", "model": "BL-P001", "name": "Bravo"}]
-APP_TOOLS = ("discover_printers", "add_printer", "set_access_code", "remove_printer")
+APP_TOOLS = ("discover_printers", "add_printer", "set_access_code", "remove_printer", "identify_printer")
 
 
 def call(tool, app=True, **args):
@@ -348,3 +348,15 @@ class Klipper(AddPrinter):
         t[0] = 61
         onboard.klipper_heard(["10.0.0"], clock=lambda: t[0], scan=scan)
         self.assertEqual(len(calls), 2)
+
+    def test_identify_printer(self):
+        def get(host, port, path, timeout):
+            if host == "192.168.0.60" and port == 7125:
+                return {"state": "ready", "hostname": "SV08"}
+            raise onboard.ProbeError("moonraker unreachable")
+        with mock.patch.object(onboard, "moonraker_get", get):
+            got, _ = call("identify_printer", ip=" 192.168.0.60 ")
+            self.assertEqual((got["kind"], got["port"], got["model"]), ("klipper", 7125, "KLIPPER-SV08"))
+            got, _ = call("identify_printer", ip="192.168.0.20")
+            self.assertEqual(got["kind"], "bambu")
+        self.assertEqual(call("identify_printer", ip="")[1], "Enter the printer IP")

@@ -433,7 +433,12 @@ select { font: 16px var(--sans); color: var(--fg); background: var(--panel2); bo
 <div class="sheet" id="addprinter" hidden><div style="max-height: 92vh; overflow: auto">
   <h3>Add printer</h3>
   <div id="apfind" style="display: flex; flex-direction: column; gap: 14px"><p>Looking for printers on the network…</p></div>
-  <div class="acts" id="apbtns"><button class="btn" id="apipbtn">A1 / P1 / P2 / H2: enter IP</button><button class="btn" id="apkbtn">Klipper: enter IP</button></div>
+  <div class="acts" id="apbtns"><button class="btn" id="apipbtn">Enter IP</button></div>
+  <div id="apipstep" hidden style="display: flex; flex-direction: column; gap: 14px">
+    <p class="note">Pygmy checks what answers at that address: a Klipper printer (Moonraker) or one that needs an access code.</p>
+    <input autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-form-type="other" id="apip0" placeholder="Printer IP" inputmode="decimal">
+    <div class="acts"><button class="btn" id="apback">Cancel</button><button class="btn primary" id="apnext">Next</button></div>
+  </div>
   <style>#apform.klipper .bambu { display: none !important } #apform:not(.klipper) .kl { display: none !important }</style>
   <div id="apform" hidden style="display: flex; flex-direction: column; gap: 14px">
     <p class="note kl">Pygmy finds Klipper printers when Moonraker answers on port 7125 (Mainsail or Fluidd running means it does). Temperature limits come from the printer's own printer.cfg.</p>
@@ -1731,7 +1736,7 @@ let apRows = [], apRow = null, apManual = false, apKlipper = false, apKModels = 
 async function openAdd() {
   apRows = []; apRow = null; apManual = false;
   $("printers").hidden = true; $("addprinter").hidden = false;
-  $("apform").hidden = true; $("apbtns").hidden = false; $("apfind").hidden = false;
+  $("apform").hidden = true; $("apipstep").hidden = true; $("apbtns").hidden = false; $("apfind").hidden = false;
   $("apip").value = "";
   $("apfind").innerHTML = "<p>Looking for printers on the network…</p>";
   try {
@@ -1749,19 +1754,31 @@ function apFill() {
   $("apname").value = apRow ? (apRow.name || "") : "";
   if (apRow) apKlipper = apRow.kind === "klipper";
   $("apform").classList.toggle("klipper", apKlipper);
-  $("apmodel").textContent = apRow ? `${apRow.model_name} · ${apRow.ip}` : apKlipper ? "Enter the printer IP" : "Enter the printer IP and its access code";
+  $("apmodel").textContent = apRow ? (apRow.model_name ? `${apRow.model_name} · ${apRow.ip}` : apRow.ip) : "";
   $("apkmodel").innerHTML = '<option value="">Model…</option>' + apKModels.map(m => `<option value="${esc(m.code)}">${esc(m.name)}</option>`).join("");
   $("apkmodel").value = (apRow && apRow.model) || ""; $("apkport").value = (apRow && apRow.port) || 7125; $("apkkey").value = "";
-  $("apipwrap").hidden = !apManual; $("apcode").value = ""; $("apadd").disabled = true;
+  $("apipwrap").hidden = true; $("apcode").value = ""; $("apadd").disabled = true;
   $("apencl").checked = false; $("apenclwrap").hidden = !(apManual || (apRow && apRow.model === "C11"));  // only a P1P can have the kit
   if (apKlipper) { apReady(); $("apname").focus(); } else $("apcode").focus();
+}
+async function apIdentify() {
+  const ip = $("apip0").value.trim();
+  if (!ip) return;
+  $("apnext").disabled = true;
+  try {
+    apRow = await rpc("identify_printer", { ip }, false); apManual = true; $("apip").value = ip;
+    $("apipstep").hidden = true; apFill();
+  } catch (e) { toast(e.message); }
+  $("apnext").disabled = false;
 }
 function apReady() { if (apKlipper) $("apadd").disabled = !($("apkmodel").value && (!apManual || $("apip").value.trim())); }
 $("apkmodel").onchange = apReady; $("apip").oninput = apReady;
 $("addprinter").onclick = e => {
   const b = e.target.closest(".prn");
   if (b && !b.disabled) { apRow = apRows[+b.dataset.i]; apManual = false; apFill(); }
-  if (e.target.id === "apipbtn" || e.target.id === "apkbtn") { apRow = null; apManual = true; apKlipper = e.target.id === "apkbtn"; apFill(); }
+  if (e.target.id === "apipbtn") { $("apipstep").hidden = false; $("apfind").hidden = true; $("apbtns").hidden = true; $("apip0").focus(); }
+  if (e.target.id === "apback") { $("apipstep").hidden = true; $("apfind").hidden = false; $("apbtns").hidden = false; }
+  if (e.target.id === "apnext") apIdentify();
   if (e.target.id === "apcancel") { $("apform").hidden = true; $("apbtns").hidden = false; $("apfind").hidden = false; }
   if (e.target.id === "addprinter") { $("apcode").value = ""; $("addprinter").hidden = true; }
 };

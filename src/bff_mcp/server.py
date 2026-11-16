@@ -3173,6 +3173,26 @@ def tool_discover_printers(args):
     return as_text({"printers": rows, "klipper_models": onboard.klipper_models()})
 
 
+def tool_identify_printer(args):
+    """What answers at a typed IP: Moonraker (Klipper) or else a printer that wants an access code."""
+    host = (args.get("ip") or "").strip()
+    if not host:
+        raise ToolError("Enter the printer IP")
+    for port in onboard.SCAN_PORTS:
+        try:
+            info = onboard.moonraker_get(host, port, "/printer/info", timeout=3)
+        except onboard.ProbeError as err:
+            if err.reason != "moonraker key":
+                continue
+            info = {"state": "?"}  # Moonraker's own refusal: it wants a key
+        if "state" in info:
+            name = info.get("hostname", "")
+            model = onboard.guess_klipper_model(name)
+            return as_text({"kind": "klipper", "ip": host, "port": port, "name": name, "model": model,
+                            "model_name": onboard.model_name(model) if model else "Klipper printer"})
+    return as_text({"kind": "bambu", "ip": host, "name": "", "model_name": ""})
+
+
 def add_klipper(args, alias):
     host = (args.get("ip") or "").strip()
     if not host:
@@ -3368,6 +3388,7 @@ APP_TOOLS = {
                       {"type": "object", "properties": {"id": {"type": "integer"}, "plate": {"type": "integer"}},
                        "required": ["id", "plate"]}, True),
     "add_printer": (tool_add_printer, "", {}, True),
+    "identify_printer": (tool_identify_printer, "", {}, True),
     "set_access_code": (tool_set_access_code, "", {}, True),
     "remove_printer": (tool_remove_printer, "", {}, True),
     "set_expert": (tool_set_expert, "", {}, True),
