@@ -8,6 +8,10 @@ import re
 import socket
 import threading
 import time
+import json
+import urllib.error
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 # camera "jpeg" = the TLS JPEG feed on port 6000; "rtsp" = the printer's own RTSP stream on port 322.
@@ -439,3 +443,131 @@ def ams_units(units, tray_now=None, exist_bits=None):
                     "dry_hours": unit.get("dry_hours"), "dry_block": unit.get("dry_block") or [],
                     "slots": slots})
     return out
+
+
+# --- Klipper / Moonraker ---------------------------------------------------------------------------
+# Moonraker's documented HTTP API. A default install answers /printer/info on 7125 without a key and
+# announces nothing, so the LAN is looked at directly: one TCP connect per address, then /printer/info.
+MOONRAKER_PORT = 7125
+KLIPPER_HOSTNAMES = {"sv08": "KLIPPER-SV08", "ir3": "KLIPPER-IR3V2"}
+KLIPPER_SEEN = {"at": None, "rows": []}
+KLIPPER_LOCK = threading.Lock()
+
+
+def klipper_models():
+    return [{"code": c, "name": m["name"]} for c, m in MODELS.items() if m.get("kind") == "moonraker"]
+
+
+def guess_klipper_model(hostname):
+    # ponytail: hostname guess only; the user picks the model when it is wrong or empty
+    low = (hostname or "").lower()
+    return next((code for key, code in KLIPPER_HOSTNAMES.items() if key in low), "")
+
+
+def moonraker_get(host, port, path, api_key="", timeout=5, opener=None):
+    req = urllib.request.Request(f"http://{host}:{port}{path}")
+    if api_key:
+        req.add_header("X-Api-Key", api_key)
+    try:
+        with (opener or urllib.request.urlopen)(req, timeout=timeout) as resp:
+            return json.loads(resp.read() or b"{}").get("result", {})
+    except urllib.error.HTTPError as err:
+        raise ProbeError("moonraker key" if err.code in (401, 403) and moonraker_refusal(err) else "moonraker unreachable") from None
+    except (urllib.error.URLError, OSError, ValueError, AttributeError):
+        raise ProbeError("moonraker unreachable") from None
+
+
+def moonraker_refusal(err):
+    """Moonraker refuses with its own JSON error body; any other device on the port does not."""
+    try:
+        return json.loads(err.read()).get("error", {}).get("code") in (401, 403)
+    except (ValueError, OSError, AttributeError, TypeError):
+        return False
+
+
+def cfg_limits(settings):
+    """Max temperatures from printer.cfg as Moonraker parses it, 5 C under Klipper's own max_temp."""
+    limits = {}
+    for section, key in (("extruder", "nozzle_max_c"), ("heater_bed", "bed_max_c")):
+        value = (settings.get(section) or {}).get("max_temp")
+        if isinstance(value, (int, float)) and value > 5:
+            limits[key] = value - 5
+    return limits
+
+
+def probe_moonraker(host, port=MOONRAKER_PORT, api_key="", timeout=5, opener=None):
+    info = moonraker_get(host, port, "/printer/info", api_key, timeout, opener)
+    if "state" not in info:
+        raise ProbeError("not moonraker")
+    try:
+        status = moonraker_get(host, port, "/printer/objects/query?configfile=settings", api_key, timeout, opener)
+        settings = status.get("status", {}).get("configfile", {}).get("settings", {})
+    except ProbeError:
+        settings = {}  # Klippy not ready yet: the model's limits stay
+    return {"hostname": info.get("hostname", ""), "limits": cfg_limits(settings)}
+
+
+def apply_cfg_limits(profile, limits):
+    """printer.cfg wins over the model table; confirm thresholds never above the new max."""
+    if not limits:
+        return profile
+    out = {**profile, "limits": {k: dict(v) for k, v in profile.get("limits", {}).items()}}
+    for kind in ("nozzle", "bed"):
+        if f"{kind}_max_c" in limits:
+            value = limits[f"{kind}_max_c"]
+            out["limits"][f"{kind}_max_c"] = {"value": value, "source": "printer.cfg max_temp - 5"}
+            confirm = out["limits"].get(f"{kind}_confirm_above_c")
+            if confirm and confirm["value"] > value:
+                confirm["value"] = value
+    return out
+
+
+def lan_prefixes(extra_ips=()):
+    """The /24 of this host plus those of printers already known."""
+    prefixes = set()
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("192.0.2.1", 9))  # UDP connect sends nothing: it only picks the outgoing interface
+            prefixes.add(s.getsockname()[0].rsplit(".", 1)[0])
+    except OSError:
+        pass
+    prefixes.update(ip.rsplit(".", 1)[0] for ip in extra_ips if isinstance(ip, str) and ip.count(".") == 3)
+    return sorted(p for p in prefixes if not p.startswith("127."))
+
+
+# 7125 is Moonraker itself; 80 is the nginx of MainsailOS / FluiddPi, which passes /printer/* to it.
+# Other ports: "Klipper: enter IP", Advanced.
+SCAN_PORTS = (MOONRAKER_PORT, 80)
+
+
+def scan_moonraker(prefixes, ports=SCAN_PORTS, timeout=0.4, get=moonraker_get, connect=socket.create_connection):
+    def at(ip, port):
+        try:
+            with connect((ip, port), timeout=timeout):
+                pass
+            info = get(ip, port, "/printer/info", timeout=2)
+        except OSError:
+            return None
+        except ProbeError as err:
+            if err.reason != "moonraker key":
+                return None
+            info = {"state": "?"}  # Moonraker's own refusal: it wants a key
+        if "state" not in info:  # a JSON answer from something else
+            return None
+        host = info.get("hostname", "")
+        return {"ip": ip, "port": port, "name": host, "model": guess_klipper_model(host)}
+
+    def one(ip):
+        return next((row for port in ports if (row := at(ip, port))), None)
+
+    ips = [f"{p}.{n}" for p in prefixes for n in range(1, 255)]
+    with ThreadPoolExecutor(64) as pool:
+        return [row for row in pool.map(one, ips) if row]
+
+
+def klipper_heard(prefixes, clock=time.monotonic, ttl=60.0, scan=None):
+    """At most one LAN scan a minute, however often the app asks."""
+    with KLIPPER_LOCK:
+        if KLIPPER_SEEN["at"] is None or clock() - KLIPPER_SEEN["at"] > ttl:
+            KLIPPER_SEEN["rows"], KLIPPER_SEEN["at"] = (scan or scan_moonraker)(prefixes), clock()
+        return list(KLIPPER_SEEN["rows"])

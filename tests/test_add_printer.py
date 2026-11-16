@@ -13,6 +13,8 @@ import onboard  # noqa: E402
 import printer_link  # noqa: E402
 import server  # noqa: E402
 
+REAL_SCAN = onboard.scan_moonraker  # setUp patches it: no test scans the real LAN
+
 CODE = "87654321"
 HEARD = [{"ip": "192.168.0.20", "serial": "ALPHASERIAL", "model": "C11", "name": "Alpha"},
          {"ip": "192.168.0.30", "serial": "BRAVOSERIAL", "model": "BL-P001", "name": "Bravo"}]
@@ -42,7 +44,9 @@ class AddPrinter(unittest.TestCase):
         server.LINKS["a1"] = a1
         self.patches = [mock.patch.object(printer_link.PrinterLink, "start", lambda s: None),
                         mock.patch.object(printer_link.PrinterLink, "stop", lambda s: None),
-                        mock.patch.object(onboard, "heard", lambda clock=None: list(HEARD))]
+                        mock.patch.object(onboard, "heard", lambda clock=None: list(HEARD)),
+                        mock.patch.object(onboard, "scan_moonraker", lambda prefixes: [])]  # never scan the real LAN
+        onboard.KLIPPER_SEEN.update(at=None, rows=[])
         for p in self.patches:
             p.start()
         self.probe = mock.patch.object(onboard, "probe", side_effect=lambda host, code, **k: {"serial": "ALPHASERIAL", "der": b"cert"})
@@ -247,3 +251,100 @@ class AddPrinter(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FakeResp(io.BytesIO):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+class Klipper(AddPrinter):
+    def setUp(self):
+        super().setUp()
+        import moonraker_link
+        mock.patch.object(moonraker_link.MoonrakerLink, "start", lambda s: None).start()
+        mock.patch.object(moonraker_link.MoonrakerLink, "stop", lambda s: None).start()
+        onboard.KLIPPER_SEEN.update(at=None, rows=[])
+        mock.patch.object(onboard, "scan_moonraker", lambda prefixes: [
+            {"ip": "192.168.0.60", "port": 7125, "name": "SV08", "model": "KLIPPER-SV08"}]).start()
+        self.mprobe = mock.patch.object(onboard, "probe_moonraker", return_value={"hostname": "SV08", "limits": {"nozzle_max_c": 300, "bed_max_c": 100}})
+        self.mprobe.start()
+
+    def test_discover_lists_klipper(self):
+        got, _ = call("discover_printers")
+        row = [r for r in got["printers"] if r.get("kind") == "klipper"][0]
+        self.assertEqual((row["ip"], row["model_name"], row["managed"]), ("192.168.0.60", "Sovol SV08", False))
+        self.assertIn({"code": "KLIPPER-SV08", "name": "Sovol SV08"}, got["klipper_models"])
+
+    def test_add_klipper_saves_limits(self):
+        got, err = call("add_printer", kind="klipper", name="SV08", ip="192.168.0.60", model="KLIPPER-SV08", port="7125")
+        self.assertIsNone(err)
+        entry = self.store()["sv08"]
+        self.assertEqual((entry["host"], entry["port"], entry["model"], entry["limits"]["nozzle_max_c"]),
+                         ("192.168.0.60", 7125, "KLIPPER-SV08", 300))
+        self.assertIn("sv08", server.LINKS)
+        _, err = call("add_printer", kind="klipper", name="Other", ip="192.168.0.60", model="KLIPPER-SV08")
+        self.assertEqual(err, "This printer is already added")
+        _, err = call("set_access_code", printer="sv08", access_code=CODE)
+        self.assertEqual(err, "Klipper printers have no access code")
+
+    def test_add_klipper_refuses_bad_model_and_port(self):
+        self.assertEqual(call("add_printer", kind="klipper", name="X", ip="1.2.3.4", model="C11")[1], "Pick the printer model")
+        self.assertEqual(call("add_printer", kind="klipper", name="X", ip="1.2.3.4", model="KLIPPER-SV08", port="99999")[1],
+                         "The Moonraker port is a number up to 65535")
+        self.assertEqual(self.store(), {})
+
+    def test_probe_moonraker_and_limits(self):
+        self.mprobe.stop()
+        bodies = [b'{"result": {"state": "ready", "hostname": "sv08"}}',
+                  b'{"result": {"status": {"configfile": {"settings": {"extruder": {"max_temp": 305}, "heater_bed": {"max_temp": 105}}}}}}']
+        got = onboard.probe_moonraker("h", opener=lambda req, timeout: FakeResp(bodies.pop(0)))
+        self.assertEqual(got, {"hostname": "sv08", "limits": {"nozzle_max_c": 300, "bed_max_c": 100}})
+        prof = onboard.apply_cfg_limits(onboard.model_profile("KLIPPER-IR3V2"), {"nozzle_max_c": 250})
+        self.assertEqual(prof["limits"]["nozzle_max_c"]["value"], 250)
+        self.assertEqual(prof["limits"]["nozzle_confirm_above_c"]["value"], 250)
+        self.assertEqual(onboard.model_profile("KLIPPER-IR3V2")["limits"]["nozzle_max_c"]["value"], 300)
+        import urllib.error
+
+        def refuse(req, timeout):
+            raise urllib.error.HTTPError(req.full_url, 401, "no", {}, io.BytesIO(b'{"error": {"code": 401}}'))
+        with self.assertRaises(onboard.ProbeError) as ctx:
+            onboard.probe_moonraker("h", opener=refuse)
+        self.assertEqual(ctx.exception.reason, "moonraker key")
+
+        def other_401(req, timeout):  # a router or camera that wants a login
+            raise urllib.error.HTTPError(req.full_url, 401, "no", {}, io.BytesIO(b"<html>login</html>"))
+        with self.assertRaises(onboard.ProbeError) as ctx:
+            onboard.probe_moonraker("h", opener=other_401)
+        self.assertEqual(ctx.exception.reason, "moonraker unreachable")
+        with self.assertRaises(onboard.ProbeError) as ctx:  # JSON, but not Moonraker
+            onboard.probe_moonraker("h", opener=lambda req, timeout: FakeResp(b'{"result": {"ok": 1}}'))
+        self.assertEqual(ctx.exception.reason, "not moonraker")
+
+    def test_scan_skips_other_devices_and_tries_port_80(self):
+        answers = {("10.0.0.5", 7125): {"state": "ready", "hostname": "SV08"},  # Moonraker
+                   ("10.0.0.6", 7125): {"version": 3},                          # something else, JSON
+                   ("10.0.0.7", 80): {"state": "ready", "hostname": "ir3v2"}}   # behind nginx
+
+        def connect(addr, timeout):
+            if addr not in answers:
+                raise OSError("closed")
+            return contextlib.nullcontext()
+        rows = REAL_SCAN(["10.0.0"], get=lambda ip, port, path, timeout: answers[(ip, port)], connect=connect)
+        self.assertEqual(sorted((r["ip"], r["port"], r["model"]) for r in rows),
+                         [("10.0.0.5", 7125, "KLIPPER-SV08"), ("10.0.0.7", 80, "KLIPPER-IR3V2")])
+
+    def test_guess_and_cache(self):
+        self.assertEqual(onboard.guess_klipper_model("SV08-abc"), "KLIPPER-SV08")
+        self.assertEqual(onboard.guess_klipper_model("mainsailos"), "")
+        calls = []
+        t = [0.0]
+        scan = lambda p: calls.append(p) or []
+        onboard.klipper_heard(["10.0.0"], clock=lambda: t[0], scan=scan)
+        onboard.klipper_heard(["10.0.0"], clock=lambda: t[0], scan=scan)
+        t[0] = 61
+        onboard.klipper_heard(["10.0.0"], clock=lambda: t[0], scan=scan)
+        self.assertEqual(len(calls), 2)

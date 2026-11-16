@@ -572,6 +572,8 @@ def load_profile(alias):
         pass
     entry = onboard.load_store(store_path()).get(alias) if os.environ.get("STATE_DIRECTORY") else None
     profile = entry and onboard.model_profile(entry.get("model"), entry.get("enclosure"), profile_of(alias))
+    if profile and entry.get("limits"):  # Klipper: read from printer.cfg when added
+        profile = onboard.apply_cfg_limits(profile, entry["limits"])
     if not profile:
         raise ToolError(f"Profilo di {alias} mancante o non valido: comando rifiutato")
     return profile
@@ -3041,7 +3043,10 @@ def start_links():
 HA = None
 ADD_LOCK = threading.Lock()
 REASONS = {"unreachable": "Printer unreachable: check the IP", "not a Bambu printer": "This device does not answer like a supported printer",
-           "wrong access code": "Wrong access code: check it on the printer screen", "no report": "The printer answered but sent no data: check LAN-only and Developer Mode"}
+           "wrong access code": "Wrong access code: check it on the printer screen", "no report": "The printer answered but sent no data: check LAN-only and Developer Mode",
+           "moonraker unreachable": "Moonraker does not answer at that IP and port",
+           "moonraker key": "Moonraker asks for an API key: enter it under Advanced",
+           "not moonraker": "Something answers at that IP and port, but it is not Moonraker"}
 
 
 def store_path():
@@ -3159,17 +3164,58 @@ def tool_discover_printers(args):
     managed = {link.serial for link in LINKS.values()}
     rows = [{**p, "model_name": onboard.model_name(p["model"]), "supported": onboard.supported(p["model"]),
              "managed": p["serial"] in managed} for p in onboard.heard()]
-    return as_text({"printers": rows})
+    hosts = {(getattr(link, "host", None), getattr(link, "port", None)) for link in LINKS.values()}
+    prefixes = onboard.lan_prefixes([p["ip"] for p in rows] + [h for h, _ in hosts])
+    for k in onboard.klipper_heard(prefixes):
+        rows.append({**k, "kind": "klipper", "serial": f"{k['ip']}:{k['port']}", "supported": True,
+                     "model_name": onboard.model_name(k["model"]) if k["model"] else "Klipper printer",
+                     "managed": (k["ip"], k["port"]) in hosts})
+    return as_text({"printers": rows, "klipper_models": onboard.klipper_models()})
+
+
+def add_klipper(args, alias):
+    host = (args.get("ip") or "").strip()
+    if not host:
+        raise ToolError("Enter the printer IP")
+    model = args.get("model") or ""
+    if not onboard.is_klipper(model):
+        raise ToolError("Pick the printer model")
+    try:
+        port = int(args.get("port") or onboard.MOONRAKER_PORT)
+    except (TypeError, ValueError):
+        port = 0
+    if not 0 < port < 65536:
+        raise ToolError("The Moonraker port is a number up to 65535")
+    api_key = (args.get("api_key") or "").strip()
+    store = onboard.load_store(store_path())
+    if any(e.get("host") == host and int(e.get("port") or onboard.MOONRAKER_PORT) == port for e in store.values()) \
+            or any(getattr(link, "host", None) == host and getattr(link, "port", None) == port for link in LINKS.values()):
+        raise ToolError("This printer is already added")
+    try:
+        probed = onboard.probe_moonraker(host, port, api_key)
+    except onboard.ProbeError as err:
+        raise ToolError(REASONS.get(err.reason, err.reason)) from None
+    entry = {"host": host, "port": port, "api_key": api_key, "name": args.get("name").strip(), "model": model}
+    if probed["limits"]:
+        entry["limits"] = probed["limits"]
+    store[alias] = entry
+    onboard.save_store(store_path(), store)
+    add_link(alias, entry)
+    print(f"{alias}: Klipper aggiunta dall'app", file=sys.stderr)
+    return as_text({"printer": alias, "model_name": onboard.model_name(model)})
 
 
 def tool_add_printer(args):
     try:
-        code, alias = onboard.clean_code(args.get("access_code")), onboard.slug(args.get("name"))
+        code = None if args.get("kind") == "klipper" else onboard.clean_code(args.get("access_code"))
+        alias = onboard.slug(args.get("name"))
     except ValueError as err:
         raise ToolError(str(err)) from None
     with ADD_LOCK:
         if alias in LINKS or alias in CFG.get("printers", {}):
             raise ToolError(f"The name {args.get('name') or alias} is already used")
+        if args.get("kind") == "klipper":
+            return add_klipper(args, alias)
         heard = {p["serial"]: p for p in onboard.heard()}
         by_ip = {p["ip"]: p for p in heard.values()}
         seen = heard.get(args.get("serial")) or by_ip.get(args.get("ip"))
@@ -3211,6 +3257,8 @@ def tool_set_access_code(args):
     with ADD_LOCK:
         store = app_added(alias)
         entry = store[alias]
+        if onboard.is_klipper(entry.get("model")):
+            raise ToolError("Klipper printers have no access code")
         if checked(entry["host"], code)["serial"] != entry["serial"]:
             raise ToolError("a quell'IP ora risponde un'altra stampante")
         entry["access_code"] = code
