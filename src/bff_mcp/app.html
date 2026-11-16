@@ -1694,7 +1694,7 @@ async function showPrinters() {
     apKModels = r.klipper_models || apKModels;
     FOUND = (r.printers || []).filter(p => p.supported && !p.managed);
     if ($("pfound")) $("pfound").innerHTML = FOUND.length ? `<p class="note found-h">New printer found</p>` + FOUND.map((p, i) =>
-      `<div class="prow found"><span class="prn"><span><b>${esc(p.name || p.model_name)}</b><span class="online">${esc(p.model_name)} · ${esc(p.ip)}</span></span></span><button class="btn primary" data-act="addfound" data-i="${i}">Add</button></div>`).join("") : "";
+      `<div class="prow found"><span class="prn"><span><b>${esc(p.name || p.model_name)}</b><span class="online">${esc(p.brand ? p.brand + " " + p.model_name : p.model_name)} · ${esc(p.ip)}</span></span></span><button class="btn primary" data-act="addfound" data-i="${i}">Add</button></div>`).join("") : "";
   }).catch(() => {});
 }
 $("pick").onclick = showPrinters;
@@ -1744,7 +1744,7 @@ async function openAdd() {
     apKModels = found.klipper_models || apKModels;
     apRows = found.printers.filter(p => !p.managed);
     $("apfind").innerHTML = apRows.map((p, i) => p.supported
-      ? `<button class="prn" data-i="${i}"><span><b>${esc(p.name || p.model_name)}</b><span class="online">${esc(p.model_name)} · ${esc(p.ip)}</span></span></button>`
+      ? `<button class="prn" data-i="${i}"><span><b>${esc(p.name || p.model_name)}</b><span class="online">${esc(p.brand ? p.brand + " " + p.model_name : p.model_name)} · ${esc(p.ip)}</span></span></button>`
       : `<button class="prn" data-i="${i}" disabled style="opacity:.4"><span><b>${esc(p.name || p.model_name)}</b><span class="online">${esc(p.ip)} · Not supported yet</span></span></button>`).join("")
       || "<p>No printer answered. Enter its IP.</p>";
   } catch (e) { $("apfind").innerHTML = `<p>${esc(e.message)}</p>`; }

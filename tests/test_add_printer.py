@@ -73,7 +73,7 @@ class AddPrinter(unittest.TestCase):
         server.LINKS["a1"].serial = "BRAVOSERIAL"
         got, _ = call("discover_printers")
         rows = {r["serial"]: r for r in got["printers"]}
-        self.assertEqual(rows["ALPHASERIAL"]["model_name"], "P1P")
+        self.assertEqual((rows["ALPHASERIAL"]["brand"], rows["ALPHASERIAL"]["model_name"]), ("Bambu Lab", "P1P"))
         self.assertTrue(rows["ALPHASERIAL"]["supported"])
         self.assertTrue(rows["BRAVOSERIAL"]["managed"])
         self.assertFalse(rows["BRAVOSERIAL"]["supported"])
@@ -358,5 +358,5 @@ class Klipper(AddPrinter):
             got, _ = call("identify_printer", ip=" 192.168.0.60 ")
             self.assertEqual((got["kind"], got["port"], got["model"]), ("klipper", 7125, "KLIPPER-SV08"))
             got, _ = call("identify_printer", ip="192.168.0.20")
-            self.assertEqual(got["kind"], "bambu")
+            self.assertEqual((got["kind"], got["model_name"]), ("bambu", "Bambu Lab printer"))
         self.assertEqual(call("identify_printer", ip="")[1], "Enter the printer IP")

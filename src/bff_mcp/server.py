@@ -3162,7 +3162,7 @@ def app_names_models():
 
 def tool_discover_printers(args):
     managed = {link.serial for link in LINKS.values()}
-    rows = [{**p, "model_name": onboard.model_name(p["model"]), "supported": onboard.supported(p["model"]),
+    rows = [{**p, "brand": "Bambu Lab", "model_name": onboard.model_name(p["model"]), "supported": onboard.supported(p["model"]),
              "managed": p["serial"] in managed} for p in onboard.heard()]
     hosts = {(getattr(link, "host", None), getattr(link, "port", None)) for link in LINKS.values()}
     prefixes = onboard.lan_prefixes([p["ip"] for p in rows] + [h for h, _ in hosts])
@@ -3190,7 +3190,7 @@ def tool_identify_printer(args):
             model = onboard.guess_klipper_model(name)
             return as_text({"kind": "klipper", "ip": host, "port": port, "name": name, "model": model,
                             "model_name": onboard.model_name(model) if model else "Klipper printer"})
-    return as_text({"kind": "bambu", "ip": host, "name": "", "model_name": ""})
+    return as_text({"kind": "bambu", "ip": host, "name": "", "model_name": "Bambu Lab printer"})  # nominative use only
 
 
 def add_klipper(args, alias):
