@@ -321,10 +321,63 @@ def _cap_bbs_version(path):
                 z.writestr(info, data)
 
 
+# printer.cfg values BFF may put on a machine preset (Other Klipper printer); anything else is refused.
+OVERRIDE_KEYS = {"printable_area", "printable_height", "nozzle_diameter", "gcode_flavor", "use_firmware_retraction",
+                 "machine_start_gcode", "machine_end_gcode", "machine_max_speed_x", "machine_max_speed_y",
+                 "machine_max_speed_z", "machine_max_acceleration_x", "machine_max_acceleration_y",
+                 "machine_max_acceleration_extruding"}
+
+
+def with_overrides(machine_json: dict, overrides) -> dict:
+    if not overrides:
+        return machine_json
+    if not isinstance(overrides, dict) or set(overrides) - OVERRIDE_KEYS or not all(
+            isinstance(v, str) or (isinstance(v, list) and all(isinstance(x, str) for x in v)) for v in overrides.values()):
+        raise ValueError("machine_overrides: unknown key or value type")
+    return {**machine_json, **overrides}
+
+
+UNSAFE_PRESET_KEYS = ("post_process",)  # never run a script that came with a user preset
+
+
+def _merged(parent_file, delta, name):
+    out = json.loads((PROFILES / parent_file).read_text())
+    out.update({k: v for k, v in delta.items() if k not in ("inherits", "_type")})
+    for key in UNSAFE_PRESET_KEYS:
+        out.pop(key, None)
+    out.update({"name": name, "from": "User"})
+    return out
+
+
+def resolve_user(entry, user, quality):
+    """The user's machine, process and filaments on top of the system presets they inherit from."""
+    if not isinstance(user, dict) or not isinstance(user.get("machine"), dict) \
+            or not isinstance(user.get("processes"), dict) or not isinstance(user.get("filaments"), list):
+        raise ValueError("user_presets must have machine, processes and filaments")
+    machine = _merged(entry["file"], user["machine"], str(user["machine"].get("name") or "User printer"))
+    procs = {n: p for n, p in user["processes"].items() if isinstance(p, dict) and p.get("inherits") in entry["process"]}
+    if not procs:
+        raise ValueError("none of your process profiles is based on this printer's presets")
+    name = pick_quality(procs, quality)
+    process = _merged(entry["process"][procs[name]["inherits"]], procs[name], name)
+    process["compatible_printers"] = [machine["name"]]
+    filaments = []
+    for f in user["filaments"]:
+        if not isinstance(f, dict):
+            raise ValueError("user_presets filaments must be objects")
+        parent = f.get("inherits") if f.get("inherits") in entry["filament"] else \
+            resolve_filament(entry, filament_type=f.get("_type") or "PLA")  # base Orca does not ship: same type
+        flat = _merged(entry["filament"][parent], f, str(f.get("name") or parent))
+        flat["compatible_printers"] = []
+        filaments.append(flat)
+    return {"machine": machine, "process": process, "filaments": filaments}
+
+
 def slice_job(model: bytes, filename: str, machine: str, quality: str, filament: str = None,
               choices: dict = None, reorient: bool = False, copies: int = 1,
               filament_id: str = None, filament_type: str = None,
-              other_machines: list = None, filaments: list = None, plate_no: int = 0) -> dict:
+              other_machines: list = None, filaments: list = None, plate_no: int = 0,
+              machine_overrides: dict = None, user_presets: dict = None) -> dict:
     if not model or len(model) > MAX_UPLOAD:
         raise ValueError("model empty or over 100 MB")
     name = Path(filename or "").name
@@ -354,6 +407,9 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
                    for f in filaments]
     process_name = pick_quality(entry["process"], quality)
     base = json.loads((PROFILES / entry["process"][process_name]).read_text())
+    user = resolve_user(entry, user_presets, quality) if user_presets else None
+    if user:
+        base = user["process"]
     process = build_process(base, choices)
 
     fresh = ext == ".3mf" and choices.get("fresh") is True
@@ -363,6 +419,19 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
         model_path.write_bytes(model)
         process_path = tmp / "process.json"
         process_path.write_text(json.dumps(process))
+        machine_path = PROFILES / entry["file"]
+        if machine_overrides:  # Other Klipper printer: its printer.cfg on top of the preset
+            machine = with_overrides(json.loads(machine_path.read_text()), machine_overrides)
+            machine_path = tmp / "machine.json"
+            machine_path.write_text(json.dumps(machine))
+        filament_paths = [PROFILES / entry["filament"][f] for f in presets]
+        if user:  # the user's own presets, resolved
+            machine_path = tmp / "machine.json"
+            machine_path.write_text(json.dumps(user["machine"]))
+            filament_paths = []
+            for i, flat in enumerate(user["filaments"]):
+                filament_paths.append(tmp / f"filament_{i}.json")
+                filament_paths[-1].write_text(json.dumps(flat))
         outdir = tmp / "out"
         outdir.mkdir()
         if ext == ".3mf":
@@ -371,8 +440,8 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
                 _drop_project_settings(model_path)
             if copies > 1:
                 _add_instances(model_path, copies)
-        cmd = [ORCA_BIN, "--load-settings", f"{PROFILES / entry['file']};{process_path}",
-               "--load-filaments", ";".join(str(PROFILES / entry["filament"][f]) for f in presets)]
+        cmd = [ORCA_BIN, "--load-settings", f"{machine_path};{process_path}",
+               "--load-filaments", ";".join(str(p) for p in filament_paths)]
         if ext != ".3mf" or reorient:
             cmd += ["--orient", "1", "--arrange", "1", "--allow-rotations"]
         elif copies > 1 or fresh:
@@ -412,7 +481,7 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
                         "No object is fully inside the print volume")):
                 size = model_size(model_path)
                 index = load_index()
-                bed = bed_size(json.loads((PROFILES / entry["file"]).read_text()))
+                bed = bed_size(json.loads(machine_path.read_text()))
                 fits_on = [other for other in other_machines or []
                            if other in index and size and fits(
                                size, bed_size(json.loads((PROFILES / index[other]["file"]).read_text())))]
@@ -484,6 +553,7 @@ class Handler(BaseHTTPRequestHandler):
                                req.get("choices") or {}, bool(req.get("reorient")), req.get("copies", 1),
                                filament_id=req.get("filament_id"), filament_type=req.get("filament_type"),
                                other_machines=req.get("other_machines"), filaments=req.get("filaments"),
+                               machine_overrides=req.get("machine_overrides"), user_presets=req.get("user_presets"),
                                plate_no=req.get("plate_no", 0))
         except TooBig as exc:
             return self._send(422, {"error": "too_big", "size": list(exc.size) if exc.size else None,

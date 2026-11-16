@@ -173,6 +173,8 @@ def plate_info(root, files, colors):
 def machine_preset(model, nozzle_diameter=None):
     """"Bambu Lab <model> <d> nozzle", d formatted like 0.4 (default 0.4)."""
     d = nozzle_diameter if nozzle_diameter is not None else 0.4
+    if model == "Other Klipper printer":  # OrcaSlicer's "Generic Klipper Printer"; printer.cfg goes on top
+        return f"MyKlipper {float(d):g} nozzle"
     vendor = "" if str(model).startswith("Sovol ") else "Bambu Lab "  # Klipper models carry their vendor
     return f"{vendor}{model} {float(d):g} nozzle"
 
@@ -192,11 +194,13 @@ def _too_big_message(payload):
 
 
 def slice(model, filename, machine, filaments, choices, reorient, copies,
-          other_machines=None):
+          other_machines=None, machine_overrides=None, user_presets=None):
     body = {
         "model_b64": base64.b64encode(model).decode(),
         "filename": filename,
         "machine": machine,
+        "machine_overrides": machine_overrides or {},
+        "user_presets": user_presets,
         "quality": choices.get("quality", "normal"),
         "filaments": filaments,
         "choices": {k: v for k, v in choices.items() if k not in ("quality", "plate_no")},
@@ -238,3 +242,50 @@ def slice(model, filename, machine, filaments, choices, reorient, copies,
         plates.append({"gcode_3mf": base64.b64decode(plate["gcode_3mf"]),
                        "seconds": plate.get("seconds"), "grams": plate.get("grams")})
     return plates
+
+
+# --- the user's own OrcaSlicer presets (File, Export, Export Preset Bundle) ------------------------
+BUNDLE_DIRS = (("machine", "machines"), ("printer", "machines"), ("process", "processes"), ("filament", "filaments"))
+UNSAFE_PRESET_KEYS = ("post_process",)  # scripts Orca would run on the slicer host: never from an upload
+
+
+def _preset_kind(path, data):
+    for part in [p.lower() for p in path.split("/")[:-1]]:
+        for word, kind in BUNDLE_DIRS:
+            if word in part:
+                return kind
+    if "printable_area" in data or "printer_model" in data or "printer_settings_id" in data:
+        return "machines"
+    if "filament_type" in data or "filament_settings_id" in data:
+        return "filaments"
+    if "layer_height" in data or "print_settings_id" in data:
+        return "processes"
+    return None
+
+
+def user_bundle(data, max_files=3000, max_file=2_000_000):
+    """{"machines", "processes", "filaments"}: name -> preset JSON as Orca saved it (with `inherits`)."""
+    import io
+    import zipfile
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile:
+        raise SliceError("Not an Orca preset bundle: export it from OrcaSlicer with File, Export, Export Preset Bundle") from None
+    out = {"machines": {}, "processes": {}, "filaments": {}}
+    for info in archive.infolist()[:max_files]:
+        if not info.filename.lower().endswith(".json") or info.file_size > max_file:
+            continue
+        try:
+            preset = json.loads(archive.read(info))
+        except (ValueError, OSError, zipfile.BadZipFile):
+            continue
+        if not isinstance(preset, dict) or not isinstance(preset.get("name"), str):
+            continue
+        kind = _preset_kind(info.filename, preset)
+        if kind:
+            for key in UNSAFE_PRESET_KEYS:
+                preset.pop(key, None)
+            out[kind][preset["name"]] = preset
+    if not out["machines"]:
+        raise SliceError("No printer profile in this file: export it from OrcaSlicer with File, Export, Export Preset Bundle")
+    return out

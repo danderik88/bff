@@ -18,7 +18,7 @@ REAL_SCAN = onboard.scan_moonraker  # setUp patches it: no test scans the real L
 CODE = "87654321"
 HEARD = [{"ip": "192.168.0.20", "serial": "ALPHASERIAL", "model": "C11", "name": "Alpha"},
          {"ip": "192.168.0.30", "serial": "BRAVOSERIAL", "model": "BL-P001", "name": "Bravo"}]
-APP_TOOLS = ("discover_printers", "add_printer", "set_access_code", "remove_printer", "identify_printer")
+APP_TOOLS = ("discover_printers", "add_printer", "set_access_code", "remove_printer", "identify_printer", "rename_printer")
 
 
 def call(tool, app=True, **args):
@@ -270,7 +270,7 @@ class Klipper(AddPrinter):
         onboard.KLIPPER_SEEN.update(at=None, rows=[])
         mock.patch.object(onboard, "scan_moonraker", lambda prefixes: [
             {"ip": "192.168.0.60", "port": 7125, "name": "SV08", "model": "KLIPPER-SV08"}]).start()
-        self.mprobe = mock.patch.object(onboard, "probe_moonraker", return_value={"hostname": "SV08", "limits": {"nozzle_max_c": 300, "bed_max_c": 100}})
+        self.mprobe = mock.patch.object(onboard, "probe_moonraker", return_value={"hostname": "SV08", "limits": {"nozzle_max_c": 300, "bed_max_c": 100}, "machine": {}})
         self.mprobe.start()
 
     def test_discover_lists_klipper(self):
@@ -300,9 +300,9 @@ class Klipper(AddPrinter):
     def test_probe_moonraker_and_limits(self):
         self.mprobe.stop()
         bodies = [b'{"result": {"state": "ready", "hostname": "sv08"}}',
-                  b'{"result": {"status": {"configfile": {"settings": {"extruder": {"max_temp": 305}, "heater_bed": {"max_temp": 105}}}}}}']
+                  b'{"result": {"status": {"configfile": {"settings": {"extruder": {"max_temp": 300}, "heater_bed": {"max_temp": 100}}}}}}']
         got = onboard.probe_moonraker("h", opener=lambda req, timeout: FakeResp(bodies.pop(0)))
-        self.assertEqual(got, {"hostname": "sv08", "limits": {"nozzle_max_c": 300, "bed_max_c": 100}})
+        self.assertEqual(got, {"hostname": "sv08", "limits": {"nozzle_max_c": 300, "bed_max_c": 100}, "machine": {}})
         prof = onboard.apply_cfg_limits(onboard.model_profile("KLIPPER-IR3V2"), {"nozzle_max_c": 250})
         self.assertEqual(prof["limits"]["nozzle_max_c"]["value"], 250)
         self.assertEqual(prof["limits"]["nozzle_confirm_above_c"]["value"], 250)
@@ -339,7 +339,7 @@ class Klipper(AddPrinter):
 
     def test_guess_and_cache(self):
         self.assertEqual(onboard.guess_klipper_model("SV08-abc"), "KLIPPER-SV08")
-        self.assertEqual(onboard.guess_klipper_model("mainsailos"), "")
+        self.assertEqual(onboard.guess_klipper_model("klipper"), "KLIPPER-GENERIC")
         calls = []
         t = [0.0]
         scan = lambda p: calls.append(p) or []
@@ -360,3 +360,76 @@ class Klipper(AddPrinter):
             got, _ = call("identify_printer", ip="192.168.0.20")
             self.assertEqual((got["kind"], got["model_name"]), ("bambu", "Bambu Lab printer"))
         self.assertEqual(call("identify_printer", ip="")[1], "Enter the printer IP")
+
+    def test_generic_klipper_needs_printer_cfg(self):
+        self.mprobe.stop()
+        with mock.patch.object(onboard, "probe_moonraker", return_value={"hostname": "klipper", "limits": {}, "machine": {}}):
+            _, err = call("add_printer", kind="klipper", name="E3K", ip="192.168.0.180", model="KLIPPER-GENERIC")
+        self.assertIn("printer.cfg could not be read", err)
+        with mock.patch.object(onboard, "probe_moonraker", return_value={"hostname": "klipper", "limits": {"nozzle_max_c": 300.0, "bed_max_c": 130.0}, "machine": {"printable_height": "230"}}):
+            got, err = call("add_printer", kind="klipper", name="E3K", ip="192.168.0.180", model="KLIPPER-GENERIC", label="Ender 3, modded")
+        self.assertIsNone(err)
+        self.assertEqual(self.store()["e3k"]["limits"], {"nozzle_max_c": 300.0, "bed_max_c": 130.0})
+        self.assertEqual(got["model_name"], "Ender 3, modded")
+        self.assertEqual(server.cfg_machine_of("e3k"), {"printable_height": "230"})
+        listed, _ = call("list_printers")
+        self.assertEqual((listed["custom"], listed["models"]["e3k"]), (["e3k"], "Ender 3, modded"))
+        self.assertEqual(call("rename_printer", printer="e3k", name="")[1], "The name is 1 to 40 characters")
+        self.assertIsNone(call("rename_printer", printer="e3k", name="Ender", label="Ender 3 Pro")[1])
+        self.assertEqual((self.store()["e3k"]["name"], self.store()["e3k"]["label"]), ("Ender", "Ender 3 Pro"))
+        self.assertIsNone(call("rename_printer", printer="e3k", name="Ender", label="")[1])
+        self.assertNotIn("label", self.store()["e3k"])
+
+    def test_cfg_machine(self):
+        s = {"stepper_x": {"position_min": 0.0, "position_max": 232.0}, "stepper_y": {"position_min": -30.0, "position_max": 215.0},
+             "stepper_z": {"position_max": 230.0}, "printer": {"max_velocity": 250.0}, "extruder": {"nozzle_diameter": 0.6},
+             "gcode_macro print_start": {"gcode": "M190 S{params.BED_TEMP}\nM109 S{params['EXTRUDER_TEMP']}"}}
+        m = onboard.cfg_machine(s)
+        self.assertEqual(m["printable_area"], ["0x0", "232x0", "232x215", "0x215"])
+        self.assertEqual(m["machine_start_gcode"],
+                         "PRINT_START BED_TEMP=[bed_temperature_initial_layer_single] EXTRUDER_TEMP=[nozzle_temperature_initial_layer]")
+        self.assertEqual((m["machine_end_gcode"], m["nozzle_diameter"], m["machine_max_speed_x"]), ("M104 S0\nM140 S0\nM84", ["0.6"], ["250", "250"]))
+        self.assertNotIn("use_firmware_retraction", m)
+        s["gcode_macro print_start"] = {"gcode": "G28"}  # a macro that takes no temperatures: heat first
+        self.assertEqual(onboard.cfg_machine(s)["machine_start_gcode"],
+                         "M190 S[bed_temperature_initial_layer_single]\nM109 S[nozzle_temperature_initial_layer]\nPRINT_START")
+        self.assertEqual(onboard.cfg_machine({}), {})
+
+    def test_rename_bambu_ignores_label(self):
+        call("add_printer", name="Alpha", access_code=CODE, serial="ALPHASERIAL")
+        self.assertIsNone(call("rename_printer", printer="alpha", name="Alpha 2", label="x")[1])
+        self.assertEqual((self.store()["alpha"]["name"], "label" in self.store()["alpha"]), ("Alpha 2", False))
+
+    def test_orca_profiles_bundle(self):
+        import base64
+        import zipfile
+        call("add_printer", kind="klipper", name="SV08", ip="192.168.0.60", model="KLIPPER-SV08")
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("printer/E3K 0.4 nozzle.json", json.dumps({"name": "E3K 0.4 nozzle", "inherits": "MyKlipper 0.4 nozzle"}))
+            z.writestr("printer/E3K 0.6 nozzle.json", json.dumps({"name": "E3K 0.6 nozzle", "inherits": "MyKlipper 0.6 nozzle",
+                                                                  "nozzle_diameter": ["0.6"], "post_process": ["rm -rf /"]}))
+            z.writestr("process/q.json", json.dumps({"name": "0.20mm Standard @E3K 0.6", "inherits": "0.20mm Standard @MyKlipper",
+                                                     "compatible_printers": ["E3K 0.6 nozzle"]}))
+            z.writestr("process/other.json", json.dumps({"name": "0.20mm Standard @E3K 0.4", "inherits": "0.20mm Standard @MyKlipper",
+                                                         "compatible_printers": ["E3K 0.4 nozzle"]}))
+            z.writestr("filament/a.json", json.dumps({"name": "My PLA base", "inherits": "Generic PLA @System", "filament_flow_ratio": ["0.95"]}))
+            z.writestr("filament/b.json", json.dumps({"name": "PolyTerra PLA @E3K", "inherits": "My PLA base"}))
+        with mock.patch.object(server, "cfg_nozzle", lambda printer: 0.6):
+            got, err = call("orca_profiles", printer="sv08", bundle_b64=base64.b64encode(buf.getvalue()).decode())
+        self.assertIsNone(err)
+        self.assertEqual(got["machine"], "E3K 0.6 nozzle")
+        self.assertEqual(got["filaments"], ["My PLA base", "PolyTerra PLA @E3K"])
+        self.assertEqual(call("orca_profiles", printer="sv08", loaded="Nope")[1], "Unknown filament profile")
+        call("orca_profiles", printer="sv08", loaded="PolyTerra PLA @E3K")
+        user = server.user_presets_for("sv08", [{"filament_type": "PLA"}, {"filament_type": "PETG"}])
+        self.assertEqual(user["parent"], "MyKlipper 0.6 nozzle")
+        self.assertNotIn("post_process", user["machine"])
+        self.assertEqual(list(user["processes"]), ["0.20mm Standard @E3K 0.6"])
+        f = user["filaments"][0]
+        self.assertEqual((f["inherits"], f["filament_flow_ratio"], f["_type"], len(user["filaments"])),
+                         ("Generic PLA @System", ["0.95"], "PLA", 2))
+        self.assertIsNotNone(call("orca_profiles", printer="alpha")[1])  # not app-added / not Klipper
+        self.assertIn("preset bundle", call("orca_profiles", printer="sv08", bundle_b64=base64.b64encode(b"nope").decode())[1])
+        call("orca_profiles", printer="sv08", remove=True)
+        self.assertIsNone(server.user_presets_for("sv08", [{}]))

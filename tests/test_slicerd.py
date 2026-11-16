@@ -398,3 +398,41 @@ class OrcaSuggestedValues(unittest.TestCase):
             with zipfile.ZipFile(path) as z:
                 self.assertIn('value="ensure_all"', z.read("Metadata/model_settings.config").decode())
 
+
+
+class MachineOverrides(unittest.TestCase):
+    def test_printer_cfg_on_top_of_the_preset(self):
+        import slicerd as sd
+        base = {"printable_height": "250", "gcode_flavor": "klipper", "name": "Generic Klipper Printer 0.4 nozzle"}
+        got = sd.with_overrides(base, {"printable_height": "230", "nozzle_diameter": ["0.6"]})
+        self.assertEqual((got["printable_height"], got["nozzle_diameter"], got["name"]), ("230", ["0.6"], base["name"]))
+        self.assertIs(sd.with_overrides(base, {}), base)
+        for bad in ({"post_process": ["rm -rf /"]}, {"printable_height": 230}, ["x"]):
+            with self.assertRaises(ValueError):
+                sd.with_overrides(base, bad)
+
+
+class UserPresets(unittest.TestCase):
+    def test_resolve_on_system_presets(self):
+        import slicerd as sd
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(sd, "PROFILES", Path(d)):
+            for name, body in {"m.json": {"name": "MyKlipper 0.6 nozzle", "printable_height": "250", "nozzle_diameter": ["0.6"]},
+                               "p.json": {"name": "0.20mm Standard @MyKlipper", "layer_height": "0.2", "wall_loops": "2"},
+                               "f.json": {"name": "Generic PLA @System", "filament_type": ["PLA"], "nozzle_temperature": ["220"]}}.items():
+                (Path(d) / name).write_text(json.dumps(body))
+            entry = {"file": "m.json", "process": {"0.20mm Standard @MyKlipper": "p.json"}, "filament": {"Generic PLA @System": "f.json"}}
+            user = {"machine": {"name": "E3K 0.6 nozzle", "inherits": "MyKlipper 0.6 nozzle", "printable_height": "230", "post_process": ["x"]},
+                    "processes": {"0.20mm Standard @E3K 0.6": {"inherits": "0.20mm Standard @MyKlipper", "wall_loops": "3"},
+                                  "0.20mm X @BBL": {"inherits": "0.20mm Standard @BBL X1C"}},
+                    "filaments": [{"name": "PolyTerra PLA @E3K", "inherits": "PolyTerra PLA @System", "_type": "PLA", "nozzle_temperature": ["210"]}]}
+            got = sd.resolve_user(entry, user, "normal")
+            with self.assertRaises(ValueError):
+                sd.resolve_user(entry, {"machine": {}, "processes": {}, "filaments": []}, "normal")
+        self.assertEqual((got["machine"]["name"], got["machine"]["printable_height"]), ("E3K 0.6 nozzle", "230"))
+        self.assertNotIn("post_process", got["machine"])
+        self.assertEqual((got["process"]["wall_loops"], got["process"]["layer_height"], got["process"]["compatible_printers"]),
+                         ("3", "0.2", ["E3K 0.6 nozzle"]))
+        fil = got["filaments"][0]  # parent not shipped: the Generic of its type, the user's values on top
+        self.assertEqual((fil["name"], fil["nozzle_temperature"], fil["filament_type"], fil["compatible_printers"]),
+                         ("PolyTerra PLA @E3K", ["210"], ["PLA"], []))
+        self.assertNotIn("_type", fil)

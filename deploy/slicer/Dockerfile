@@ -17,7 +17,7 @@ COPY tools/slicer/slicerd.py tools/slicer/flatten_profiles.py /opt/slicer/
 RUN git clone -q --depth 1 --branch "v${ORCA_VERSION}" --filter=blob:none --sparse \
       https://github.com/SoftFever/OrcaSlicer.git /tmp/orca-src \
     && cd /tmp/orca-src && git sparse-checkout set --no-cone /resources/profiles/BBL/ /resources/profiles/BBL.json \
-         /resources/profiles/Sovol/ /resources/profiles/Sovol.json \
+         /resources/profiles/Sovol/ /resources/profiles/Sovol.json /resources/profiles/Custom/ /resources/profiles/Custom.json \
          /resources/profiles/OrcaFilamentLibrary/ /resources/profiles/OrcaFilamentLibrary.json \
     && python3 /opt/slicer/flatten_profiles.py resources/profiles /opt/slicer/profiles \
     && rm -rf /tmp/orca-src && chmod -R a+rX /opt/slicer \

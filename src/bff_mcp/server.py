@@ -1160,7 +1160,143 @@ def slot_filament(alias, raw, slot):
 def tool_list_printers(_args):
     """The printers BFF manages, for the app's picker: aliases, display names, models. No access codes."""
     names, models = app_names_models()
-    return as_text({"printers": sorted(CFG["printers"]), "names": names, "models": models})
+    try:
+        store = onboard.load_store(store_path())
+    except KeyError:  # no STATE_DIRECTORY
+        store = {}
+    custom = sorted(a for a, e in store.items() if model_from_cfg(e.get("model")))
+    klipper = sorted(a for a, e in store.items() if onboard.is_klipper(e.get("model")))
+    return as_text({"printers": sorted(CFG["printers"]), "names": names, "models": models, "custom": custom,
+                    "klipper": klipper})
+
+
+def tool_rename_printer(args):
+    """New display name; for an Other Klipper printer also what it is (label). The alias stays."""
+    alias, name = args["printer"], (args.get("name") or "").strip()
+    if not name or len(name) > 40:
+        raise ToolError("The name is 1 to 40 characters")
+    with ADD_LOCK:
+        store = app_added(alias)
+        entry = store[alias]
+        entry["name"] = name
+        if model_from_cfg(entry.get("model")) and "label" in args:
+            label = (args.get("label") or "").strip()[:60]
+            entry.pop("label", None) if not label else entry.update(label=label)
+        onboard.save_store(store_path(), store)
+    if HA is not None:
+        HA.add_alias(alias, name)
+    return as_text({"ok": True})
+
+
+def orca_file(alias):
+    return Path(os.environ["STATE_DIRECTORY"]) / "orca" / f"{alias}.json"
+
+
+def user_chain(name, pool, seen=()):
+    """A user preset with the user presets it inherits from merged in; `inherits` ends on a system preset."""
+    preset = pool[name]
+    parent = preset.get("inherits")
+    if parent in pool and parent != name and parent not in seen:
+        base = user_chain(parent, pool, seen + (name,))
+        return {**base, **{k: v for k, v in preset.items() if k != "inherits"}, "inherits": base.get("inherits")}
+    return dict(preset)
+
+
+FILAMENT_TYPE = re.compile(r"\b(PLA|PETG|ABS|ASA|TPU|PA|PC|PVA|HIPS|PET)\b", re.I)
+
+
+def filament_type_of(preset):
+    ft = preset.get("filament_type")
+    if ft:
+        return str(ft[0] if isinstance(ft, list) else ft).upper()
+    m = FILAMENT_TYPE.search(f"{preset.get('name', '')} {preset.get('inherits', '')}")
+    return m.group(1).upper() if m else None
+
+
+def pick_user_machine(machines, nozzle):
+    names = sorted(machines)
+    if nozzle:
+        want = f"{float(nozzle):g}"
+        hit = [n for n in names if want in (user_chain(n, machines).get("nozzle_diameter") or []) or f"{want} nozzle" in n]
+        if hit:
+            return hit[0]
+    return names[0]
+
+
+def user_presets_for(printer, filaments):
+    """The user's Orca presets for this Klipper printer, or None (then the built-in profile slices)."""
+    try:
+        data = json.loads(orca_file(printer).read_text())
+    except (KeyError, OSError, ValueError):
+        return None
+    machines, procs, fils = data.get("machines") or {}, data.get("processes") or {}, data.get("filaments") or {}
+    name = data.get("machine")
+    if name not in machines:
+        return None
+    machine = user_chain(name, machines)
+    if not machine.get("inherits"):
+        return None
+    processes = {n: user_chain(n, procs) for n, p in procs.items() if name in (p.get("compatible_printers") or [])}
+    loaded = data.get("loaded")
+    if loaded in fils:  # one extruder: the spool on the printer prints every colour
+        flat = user_chain(loaded, fils)
+        chosen = [{**flat, "_type": filament_type_of(flat) or "PLA"}] * len(filaments)
+    else:
+        chosen = [{"_type": f.get("filament_type") or "PLA"} for f in filaments]
+    return {"parent": machine["inherits"], "machine": machine, "processes": processes, "filaments": chosen}
+
+
+def tool_orca_profiles(args):
+    """Upload (bundle_b64), pick the loaded filament (loaded), or just read the state. Klipper printers only."""
+    import base64
+    alias = args["printer"]
+    store = app_added(alias)
+    if not onboard.is_klipper(store[alias].get("model")):
+        raise ToolError("Your own Orca profiles are for Klipper printers")
+    path = orca_file(alias)
+    with ADD_LOCK:
+        if args.get("bundle_b64"):
+            try:
+                raw = base64.b64decode(args["bundle_b64"], validate=True)
+            except (ValueError, TypeError):
+                raise ToolError("Not an Orca preset bundle") from None
+            if len(raw) > 20_000_000:
+                raise ToolError("The file is over 20 MB")
+            try:
+                bundle = slicer.user_bundle(raw)
+            except slicer.SliceError as err:
+                raise ToolError(str(err)) from None
+            bundle["machine"] = pick_user_machine(bundle["machines"], cfg_nozzle(alias))
+            path.parent.mkdir(exist_ok=True)
+            path.write_text(json.dumps(bundle))
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, ValueError):
+            return as_text({"machine": None, "filaments": [], "loaded": None})
+        if "loaded" in args:
+            name = args.get("loaded") or None
+            if name and name not in data["filaments"]:
+                raise ToolError("Unknown filament profile")
+            data["loaded"] = name
+            path.write_text(json.dumps(data))
+        if args.get("remove"):
+            path.unlink()
+            return as_text({"machine": None, "filaments": [], "loaded": None})
+    return as_text({"machine": data["machine"], "filaments": sorted(data["filaments"]), "loaded": data.get("loaded")})
+
+
+def cfg_nozzle(printer):
+    nozzle = (cfg_machine_of(printer) or {}).get("nozzle_diameter") or [None]
+    return float(nozzle[0]) if nozzle[0] else None
+
+
+def cfg_machine_of(printer):
+    """printer.cfg overrides for the slicer, only for an Other Klipper printer."""
+    try:
+        entry = onboard.load_store(store_path()).get(printer) or {}
+    except KeyError:
+        return None
+    return entry.get("machine") if model_from_cfg(entry.get("model")) else None
 
 
 def tool_printer_info(args):
@@ -2365,7 +2501,10 @@ def _slice_request(rid, printer, source, file_name, choices_json, slots, copies,
     else:
         name, data, others, _ = _fetch_link(rid, source)
     profile = load_profile(printer)
-    machine = slicer.machine_preset(profile.get("model"), _nozzle_diameter(raw))
+    machine = slicer.machine_preset(profile.get("model"), cfg_nozzle(printer) or _nozzle_diameter(raw))
+    user = user_presets_for(printer, filaments) if klipper else None
+    if user:  # the user's own Orca presets win over the built-in profile
+        machine = user.pop("parent")
     choices = json.loads(choices_json) if choices_json else {}
     if not klipper and "plate" not in choices and (mounted := plate_type(printer)):
         choices["plate"] = mounted  # Orca falls back to Cool Plate, which refuses PLA
@@ -2373,7 +2512,8 @@ def _slice_request(rid, printer, source, file_name, choices_json, slots, copies,
     try:
         plates = slicer.slice(data, name, machine, filaments,
                               choices, bool(choices.get("reorient")), copies or 1,
-                              other_machines=list(machines))
+                              other_machines=list(machines), machine_overrides=None if user else cfg_machine_of(printer),
+                              user_presets=user)
     except slicer.SliceError as exc:
         exc.other_machines = machines  # preset -> alias, for the "Fits on" note
         raise
@@ -3157,7 +3297,8 @@ def app_names_models():
     except KeyError:  # no STATE_DIRECTORY
         return {}, {}
     return ({alias: e["name"] for alias, e in store.items()},
-            {alias: onboard.model_name(e["model"], e.get("enclosure"), profile_of(alias)) for alias, e in store.items()})
+            {alias: e.get("label") or onboard.model_name(e["model"], e.get("enclosure"), profile_of(alias))
+             for alias, e in store.items()})
 
 
 def tool_discover_printers(args):
@@ -3193,6 +3334,10 @@ def tool_identify_printer(args):
     return as_text({"kind": "bambu", "ip": host, "name": "", "model_name": "Bambu Lab printer"})  # nominative use only
 
 
+def model_from_cfg(model):
+    return bool(onboard.MODELS.get(model, {}).get("from_cfg"))
+
+
 def add_klipper(args, alias):
     host = (args.get("ip") or "").strip()
     if not host:
@@ -3216,13 +3361,19 @@ def add_klipper(args, alias):
     except onboard.ProbeError as err:
         raise ToolError(REASONS.get(err.reason, err.reason)) from None
     entry = {"host": host, "port": port, "api_key": api_key, "name": args.get("name").strip(), "model": model}
+    if model_from_cfg(model) and (set(probed["limits"]) != {"nozzle_max_c", "bed_max_c"} or not probed["machine"]):
+        raise ToolError("Klipper is not ready, so its printer.cfg could not be read: try again with the printer on")
     if probed["limits"]:
         entry["limits"] = probed["limits"]
+    if model_from_cfg(model):
+        entry["machine"] = probed["machine"]
+        if (label := (args.get("label") or "").strip()[:60]):
+            entry["label"] = label
     store[alias] = entry
     onboard.save_store(store_path(), store)
     add_link(alias, entry)
     print(f"{alias}: Klipper aggiunta dall'app", file=sys.stderr)
-    return as_text({"printer": alias, "model_name": onboard.model_name(model)})
+    return as_text({"printer": alias, "model_name": entry.get("label") or onboard.model_name(model)})
 
 
 def tool_add_printer(args):
@@ -3389,6 +3540,8 @@ APP_TOOLS = {
                        "required": ["id", "plate"]}, True),
     "add_printer": (tool_add_printer, "", {}, True),
     "identify_printer": (tool_identify_printer, "", {}, True),
+    "rename_printer": (tool_rename_printer, "", {}, True),
+    "orca_profiles": (tool_orca_profiles, "", {}, True),
     "set_access_code": (tool_set_access_code, "", {}, True),
     "remove_printer": (tool_remove_printer, "", {}, True),
     "set_expert": (tool_set_expert, "", {}, True),

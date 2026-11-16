@@ -41,7 +41,7 @@ pct push "$CTID" "$HERE/flatten_profiles.py" /opt/slicer/flatten_profiles.py
 in_ct "chmod -R a+rX /opt/slicer"
 in_ct "rm -rf /tmp/orca-src && git clone -q --depth 1 --branch v$ORCA_VERSION --filter=blob:none --sparse \
   https://github.com/SoftFever/OrcaSlicer.git /tmp/orca-src && cd /tmp/orca-src \
-  && git sparse-checkout set --no-cone /resources/profiles/BBL/ /resources/profiles/BBL.json /resources/profiles/Sovol/ /resources/profiles/Sovol.json /resources/profiles/OrcaFilamentLibrary/ /resources/profiles/OrcaFilamentLibrary.json \
+  && git sparse-checkout set --no-cone /resources/profiles/BBL/ /resources/profiles/BBL.json /resources/profiles/Sovol/ /resources/profiles/Sovol.json /resources/profiles/Custom/ /resources/profiles/Custom.json /resources/profiles/OrcaFilamentLibrary/ /resources/profiles/OrcaFilamentLibrary.json \
   && rm -rf /opt/slicer/profiles && python3 /opt/slicer/flatten_profiles.py resources/profiles /opt/slicer/profiles \
   && rm -rf /tmp/orca-src"
 

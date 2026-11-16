@@ -30,6 +30,9 @@ MODELS = {
     # Klipper printers (Moonraker, see moonraker_link.py). Not in TESTED_MODELS: Expert mode stays locked.
     "KLIPPER-SV08": {"name": "Sovol SV08", "supported": True, "enclosed": None, "camera": "jpeg", "kind": "moonraker"},
     "KLIPPER-IR3V2": {"name": "IdeaFormer IR3 V2", "supported": True, "enclosed": None, "camera": "jpeg", "kind": "moonraker"},
+    # Any other Klipper printer (a modded Ender 3...): limits and slicer machine come from its printer.cfg.
+    "KLIPPER-GENERIC": {"name": "Other Klipper printer", "supported": True, "enclosed": None, "camera": "jpeg",
+                        "kind": "moonraker", "from_cfg": True},
 }
 
 
@@ -96,6 +99,8 @@ def _klipper_profile(name, nozzle_max, bed_max, nozzle_confirm, bed_confirm, src
 MODEL_PROFILES["KLIPPER-SV08"] = _klipper_profile("Sovol SV08", 300, 100, 260, 90,
                                                   "printer.cfg of an SV08 (2026-11-15): extruder max_temp 305, heater_bed max_temp 105")
 MODEL_PROFILES["KLIPPER-IR3V2"] = _klipper_profile("IdeaFormer IR3 V2", 300, 110, 260, 90)
+# Placeholder until printer.cfg is read; adding refuses a generic printer whose printer.cfg gave no limits.
+MODEL_PROFILES["KLIPPER-GENERIC"] = _klipper_profile("Other Klipper printer", 250, 80, 250, 80, "placeholder: printer.cfg not read")
 
 
 def is_klipper(model_code):
@@ -461,7 +466,7 @@ def klipper_models():
 def guess_klipper_model(hostname):
     # ponytail: hostname guess only; the user picks the model when it is wrong or empty
     low = (hostname or "").lower()
-    return next((code for key, code in KLIPPER_HOSTNAMES.items() if key in low), "")
+    return next((code for key, code in KLIPPER_HOSTNAMES.items() if key in low), "KLIPPER-GENERIC")
 
 
 def moonraker_get(host, port, path, api_key="", timeout=5, opener=None):
@@ -486,12 +491,12 @@ def moonraker_refusal(err):
 
 
 def cfg_limits(settings):
-    """Max temperatures from printer.cfg as Moonraker parses it, 5 C under Klipper's own max_temp."""
+    """Max temperatures from printer.cfg as Moonraker parses it: Klipper's own max_temp, as is (the user)."""
     limits = {}
     for section, key in (("extruder", "nozzle_max_c"), ("heater_bed", "bed_max_c")):
         value = (settings.get(section) or {}).get("max_temp")
-        if isinstance(value, (int, float)) and value > 5:
-            limits[key] = value - 5
+        if isinstance(value, (int, float)) and value > 0:
+            limits[key] = value
     return limits
 
 
@@ -504,7 +509,7 @@ def probe_moonraker(host, port=MOONRAKER_PORT, api_key="", timeout=5, opener=Non
         settings = status.get("status", {}).get("configfile", {}).get("settings", {})
     except ProbeError:
         settings = {}  # Klippy not ready yet: the model's limits stay
-    return {"hostname": info.get("hostname", ""), "limits": cfg_limits(settings)}
+    return {"hostname": info.get("hostname", ""), "limits": cfg_limits(settings), "machine": cfg_machine(settings)}
 
 
 def apply_cfg_limits(profile, limits):
@@ -515,7 +520,7 @@ def apply_cfg_limits(profile, limits):
     for kind in ("nozzle", "bed"):
         if f"{kind}_max_c" in limits:
             value = limits[f"{kind}_max_c"]
-            out["limits"][f"{kind}_max_c"] = {"value": value, "source": "printer.cfg max_temp - 5"}
+            out["limits"][f"{kind}_max_c"] = {"value": value, "source": "printer.cfg max_temp"}
             confirm = out["limits"].get(f"{kind}_confirm_above_c")
             if confirm and confirm["value"] > value:
                 confirm["value"] = value
@@ -571,3 +576,53 @@ def klipper_heard(prefixes, clock=time.monotonic, ttl=60.0, scan=None):
         if KLIPPER_SEEN["at"] is None or clock() - KLIPPER_SEEN["at"] > ttl:
             KLIPPER_SEEN["rows"], KLIPPER_SEEN["at"] = (scan or scan_moonraker)(prefixes), clock()
         return list(KLIPPER_SEEN["rows"])
+
+
+BED_PARAMS = ("BED", "BED_TEMP", "BEDTEMP", "BED_TEMPERATURE")
+NOZZLE_PARAMS = ("EXTRUDER", "EXTRUDER_TEMP", "EXTRUDERTEMP", "HOTEND", "HOTEND_TEMP", "NOZZLE", "NOZZLE_TEMP")
+
+
+def start_gcode(settings):
+    """PRINT_START with the temperatures its macro reads; M190/M109 first for the ones it does not."""
+    macro = next((k for k in ("gcode_macro print_start", "gcode_macro start_print") if k in settings), None)
+    text = str((settings.get(macro) or {}).get("gcode", "")) if macro else ""
+    params = {p.upper() for pair in re.findall(r"params\.(\w+)|params\[[\'\"](\w+)", text) for p in pair if p}
+    bed = next((p for p in BED_PARAMS if p in params), None)
+    nozzle = next((p for p in NOZZLE_PARAMS if p in params), None)
+    lines = [] if bed else ["M190 S[bed_temperature_initial_layer_single]"]
+    lines += [] if nozzle else ["M109 S[nozzle_temperature_initial_layer]"]
+    if not macro:
+        return "\n".join(["G28"] + lines)
+    call = macro.split(" ", 1)[1].upper()
+    call += f" {bed}=[bed_temperature_initial_layer_single]" if bed else ""
+    call += f" {nozzle}=[nozzle_temperature_initial_layer]" if nozzle else ""
+    return "\n".join(lines + [call])
+
+
+def end_gcode(settings):
+    macro = next((k for k in ("gcode_macro end_print", "gcode_macro print_end") if k in settings), None)
+    return macro.split(" ", 1)[1].upper() if macro else "M104 S0\nM140 S0\nM84"
+
+
+def cfg_machine(settings):
+    """OrcaSlicer machine settings from printer.cfg; {} when the axes are not there (Klippy not ready)."""
+    sx, sy, sz = (settings.get(f"stepper_{a}") or {} for a in "xyz")
+    if not all(isinstance(s.get("position_max"), (int, float)) for s in (sx, sy, sz)):
+        return {}
+    pr, ex = settings.get("printer") or {}, settings.get("extruder") or {}
+    g = lambda v: f"{float(v):g}"  # noqa: E731
+    # ponytail: rectangle from 0 (or position_min if higher) to position_max; a bed smaller than the travel prints off-centre
+    x0, y0 = max(0.0, float(sx.get("position_min", 0))), max(0.0, float(sy.get("position_min", 0)))
+    x1, y1 = float(sx["position_max"]), float(sy["position_max"])
+    out = {"printable_area": [f"{g(x0)}x{g(y0)}", f"{g(x1)}x{g(y0)}", f"{g(x1)}x{g(y1)}", f"{g(x0)}x{g(y1)}"],
+           "printable_height": g(sz["position_max"]), "gcode_flavor": "klipper",
+           "machine_start_gcode": start_gcode(settings), "machine_end_gcode": end_gcode(settings)}
+    if ex.get("nozzle_diameter"):
+        out["nozzle_diameter"] = [g(ex["nozzle_diameter"])]
+    for key, names in (("max_velocity", ("machine_max_speed_x", "machine_max_speed_y")), ("max_z_velocity", ("machine_max_speed_z",)),
+                       ("max_accel", ("machine_max_acceleration_x", "machine_max_acceleration_y", "machine_max_acceleration_extruding"))):
+        if isinstance(pr.get(key), (int, float)):
+            out.update({n: [g(pr[key]), g(pr[key])] for n in names})  # normal and silent mode
+    if "firmware_retraction" in settings:
+        out["use_firmware_retraction"] = "1"
+    return out

@@ -25,7 +25,11 @@ from pathlib import Path
 KINDS = ("machine_model_list", "machine_list", "process_list", "filament_list")
 # vendor index name -> machines kept (0.4 nozzle). Klipper printers: only the models BFF supports.
 VENDORS = {"BBL": re.compile(r"^Bambu Lab (.+) 0\.4 nozzle$"),
-           "Sovol": re.compile(r"^Sovol (SV08) 0\.4 nozzle$")}
+           "Sovol": re.compile(r"^Sovol (SV08) 0\.4 nozzle$"),
+           "Custom": re.compile(r"^(MyKlipper) 0\.[2468] nozzle$")}  # Other Klipper printer, printer.cfg on top
+# Vendors whose machines take every preset that names no printer (Orca's own rule for an empty
+# compatible_printers): the generic Klipper machines would get no filament at all otherwise.
+OPEN_VENDORS = {"Custom"}
 UNSAFE = re.compile(r"[^A-Za-z0-9 ._@()+-]")
 
 
@@ -92,6 +96,11 @@ def flatten(root: Path, name: str, seen=(), vendor="BBL") -> dict:
     return profile
 
 
+def fits_any(flat, vendor):
+    return (vendor in OPEN_VENDORS and not flat.get("compatible_printers")
+            and not flat.get("compatible_printers_condition"))
+
+
 def presets(root, vendor="BBL"):
     """Kept machines plus the process / filament presets compatible with at least one of them.
 
@@ -111,7 +120,7 @@ def presets(root, vendor="BBL"):
         flat = flatten(root, name, vendor=vendor)
         if flat.get("instantiation") in ("false", False):
             continue
-        if machine_set & set(flat.get("compatible_printers") or ()):
+        if machine_set & set(flat.get("compatible_printers") or ()) or fits_any(flat, vendor):
             kept[name] = (kind, flat)
     return machines, kept
 
@@ -137,7 +146,7 @@ def main(argv):
             compatible = set(flat.get("compatible_printers") or ())
             section = "process" if kind == "process_list" else "filament"
             for machine in machines:
-                if machine in compatible:
+                if machine in compatible or fits_any(flat, vendor):
                     catalog[machine][section][name] = file_name(name)
         count += len(machines) + len(kept)
     if not catalog:
