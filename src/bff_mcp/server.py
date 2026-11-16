@@ -377,7 +377,8 @@ def feed_of(alias):
     with FEEDS_LOCK:
         if alias not in FEEDS:
             if isinstance(LINKS.get(alias), MoonrakerLink):  # Klipper: the webcam Moonraker knows about
-                FEEDS[alias] = camera.SnapshotFeed(LINKS[alias].snapshot_url)
+                link = LINKS[alias]
+                FEEDS[alias] = camera.SnapshotFeed(link.snapshot_url, lambda link=link: camera.exif_orientation(*link.cam_flip))
             elif onboard.camera_kind(model_code(alias)) == "rtsp":
                 FEEDS[alias] = camera.Go2rtcFeed(alias)  # no JPEG feed on this firmware: ask go2rtc
             else:
@@ -3307,7 +3308,8 @@ def tool_discover_printers(args):
              "managed": p["serial"] in managed} for p in onboard.heard()]
     hosts = {(getattr(link, "host", None), getattr(link, "port", None)) for link in LINKS.values()}
     prefixes = onboard.lan_prefixes([p["ip"] for p in rows] + [h for h, _ in hosts])
-    for k in onboard.klipper_heard(prefixes):
+    klippers = onboard.klipper_heard(prefixes, force=True) if args.get("scan") else onboard.klipper_cached()
+    for k in klippers:
         rows.append({**k, "kind": "klipper", "serial": f"{k['ip']}:{k['port']}", "supported": True,
                      "model_name": onboard.model_name(k["model"]) if k["model"] else "Klipper printer",
                      "managed": (k["ip"], k["port"]) in hosts})
@@ -3336,6 +3338,17 @@ def tool_identify_printer(args):
 
 def model_from_cfg(model):
     return bool(onboard.MODELS.get(model, {}).get("from_cfg"))
+
+
+def keep_scanning_klipper():
+    """Moonraker announces nothing by default: look at the LAN each minute so the app lists Klipper printers at once."""
+    while True:
+        try:
+            ips = [p["ip"] for p in onboard.heard()] + [getattr(link, "host", None) for link in LINKS.values()]
+            onboard.klipper_heard(onboard.lan_prefixes([ip for ip in ips if ip]), force=True)
+        except Exception as err:
+            print(f"klipper scan: {type(err).__name__}", file=sys.stderr, flush=True)
+        time.sleep(60)
 
 
 def add_klipper(args, alias):
@@ -3615,6 +3628,7 @@ def main():
     start_ha()
     start_notify()
     threading.Thread(target=onboard.keep_listening, daemon=True).start()
+    threading.Thread(target=keep_scanning_klipper, daemon=True).start()
     threading.Thread(target=watch_profiles, daemon=True).start()
     slicer.setup(env.get("BFF_SLICER_URL"), env.get("BFF_SLICER_SECRET"))
     fetch.setup_thingiverse(env.get("BFF_THINGIVERSE_TOKEN"))

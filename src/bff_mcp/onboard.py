@@ -570,10 +570,10 @@ def scan_moonraker(prefixes, ports=SCAN_PORTS, timeout=0.4, get=moonraker_get, c
         return [row for row in pool.map(one, ips) if row]
 
 
-def klipper_heard(prefixes, clock=time.monotonic, ttl=60.0, scan=None):
-    """At most one LAN scan a minute, however often the app asks."""
+def klipper_heard(prefixes, clock=time.monotonic, ttl=60.0, scan=None, force=False):
+    """At most one LAN scan a minute, however often the app asks (force: the Scan button, the background loop)."""
     with KLIPPER_LOCK:
-        if KLIPPER_SEEN["at"] is None or clock() - KLIPPER_SEEN["at"] > ttl:
+        if force or KLIPPER_SEEN["at"] is None or clock() - KLIPPER_SEEN["at"] > ttl:
             KLIPPER_SEEN["rows"], KLIPPER_SEEN["at"] = (scan or scan_moonraker)(prefixes), clock()
         return list(KLIPPER_SEEN["rows"])
 
@@ -626,3 +626,8 @@ def cfg_machine(settings):
     if "firmware_retraction" in settings:
         out["use_firmware_retraction"] = "1"
     return out
+
+
+def klipper_cached():
+    """The last scan, without waiting for one in progress."""
+    return list(KLIPPER_SEEN["rows"])

@@ -1694,7 +1694,7 @@ async function showPrinters() {
   }));
   const bar = selecting
     ? `<div class="acts">${picked.size === 1 ? '<button class="btn" data-act="rename">Rename</button>' : ""}${picked.size === 1 && KLIPPERS.has([...picked][0]) ? '<button class="btn" data-act="orca">Orca profiles</button>' : ""}${picked.size === 1 && !CUSTOM.has([...picked][0]) ? '<button class="btn" data-act="code">Change access code</button>' : ""}<button class="btn stop" data-act="remove"${picked.size ? "" : " disabled"}>Remove${picked.size ? ` (${picked.size})` : ""}</button><button class="btn" data-act="done">Done</button></div><div class="acts" id="pcode"></div>`
-    : `<div id="pfound"></div><button class="btn primary" id="apopen">+ Add printer</button>`;
+    : `<div id="pfound"></div><div class="acts"><button class="btn primary" id="apopen">+ Add printer</button><button class="btn" id="pscan">Scan</button></div>`;
   $("plist").innerHTML = `<div style="text-align: right">${selecting ? "" : '<button class="btn" data-act="select">Select</button>'}</div>` + rows.join("") + bar;
   $("printers").hidden = false;
   // Filled after the list: discovery can take a few seconds when nothing was heard yet.
@@ -1771,6 +1771,11 @@ $("printers").onclick = async e => {
   }
   if (selecting) return;  // rows are not switched while selecting
   if (e.target.id === "apopen") return openAdd();
+  if (e.target.id === "pscan") {
+    e.target.disabled = true; e.target.textContent = "Scanning…";
+    try { await rpc("discover_printers", { scan: true }); } catch (err) { toast(err.message); }
+    return showPrinters();
+  }
   if (act === "addfound") { const p = FOUND[+e.target.dataset.i]; await openAdd(); apRow = p; apManual = false; return apFill(); }
   const row = e.target.closest(".prn");
   if (row && row.dataset.a !== PRINTER) selectPrinter(row.dataset.a);

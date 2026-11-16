@@ -122,11 +122,30 @@ class Go2rtcFeed:
         return self.frame
 
 
+def exif_orientation(flip_h=False, flip_v=False, rotation=0):
+    """EXIF Orientation (1..8) for Moonraker's webcam fields: flips first, then rotation clockwise."""
+    mirror = bool(flip_h) != bool(flip_v)  # a vertical flip is a horizontal one turned 180
+    quarter = ((int(rotation or 0) // 90) + (2 if flip_v else 0)) % 4
+    return (2, 7, 4, 5)[quarter] if mirror else (1, 6, 3, 8)[quarter]
+
+
+def with_orientation(jpeg, code):
+    """The same JPEG with an EXIF Orientation tag: browsers and Home Assistant turn it, no re-encode."""
+    if code == 1 or jpeg[:2] != b"\xff\xd8":
+        return jpeg
+    tiff = (b"MM\x00\x2a\x00\x00\x00\x08" + b"\x00\x01"            # big-endian, one IFD entry
+            + b"\x01\x12\x00\x03\x00\x00\x00\x01" + bytes([0, code, 0, 0])  # 0x0112 Orientation, SHORT
+            + b"\x00\x00\x00\x00")
+    body = b"Exif\x00\x00" + tiff
+    return jpeg[:2] + b"\xff\xe1" + (len(body) + 2).to_bytes(2, "big") + body + jpeg[2:]
+
+
 class SnapshotFeed:
     """A webcam that serves one JPEG per HTTP GET (Moonraker's mjpg-streamer snapshot_url)."""
 
-    def __init__(self, url_of):
+    def __init__(self, url_of, orientation_of=None):
         self.url_of = url_of  # called on every read: the webcam list can change
+        self.orientation_of = orientation_of  # EXIF code, read after url_of (same webcam list)
 
     def latest(self, max_age_s=2.0, wait_s=12.0):
         import urllib.request
@@ -137,4 +156,4 @@ class SnapshotFeed:
             raise CameraError(str(err)) from None
         if jpeg[:2] != b"\xff\xd8":
             raise CameraError("not a JPEG")
-        return jpeg
+        return with_orientation(jpeg, self.orientation_of()) if self.orientation_of else jpeg

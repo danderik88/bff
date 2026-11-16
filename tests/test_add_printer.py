@@ -274,7 +274,8 @@ class Klipper(AddPrinter):
         self.mprobe.start()
 
     def test_discover_lists_klipper(self):
-        got, _ = call("discover_printers")
+        self.assertEqual([r for r in call("discover_printers")[0]["printers"] if r.get("kind")], [])  # nothing scanned yet
+        got, _ = call("discover_printers", scan=True)
         row = [r for r in got["printers"] if r.get("kind") == "klipper"][0]
         self.assertEqual((row["ip"], row["model_name"], row["managed"]), ("192.168.0.60", "Sovol SV08", False))
         self.assertIn({"code": "KLIPPER-SV08", "name": "Sovol SV08"}, got["klipper_models"])
@@ -433,3 +434,16 @@ class Klipper(AddPrinter):
         self.assertIn("preset bundle", call("orca_profiles", printer="sv08", bundle_b64=base64.b64encode(b"nope").decode())[1])
         call("orca_profiles", printer="sv08", remove=True)
         self.assertIsNone(server.user_presets_for("sv08", [{}]))
+
+    def test_webcam_orientation(self):
+        import camera
+        table = {(False, False, 0): 1, (True, True, 0): 3, (True, False, 0): 2, (False, True, 0): 4,
+                 (False, False, 90): 6, (False, False, 270): 8, (True, False, 90): 7, (True, False, 270): 5}
+        for args, code in table.items():
+            self.assertEqual(camera.exif_orientation(*args), code, args)
+        jpeg = b"\xff\xd8\xff\xe0\x00\x10JFIF" + b"\x00" * 11 + b"\xff\xd9"
+        self.assertIs(camera.with_orientation(jpeg, 1), jpeg)
+        out = camera.with_orientation(jpeg, 3)
+        self.assertEqual((out[:4], out[6:12], out.endswith(jpeg[2:])), (b"\xff\xd8\xff\xe1", b"Exif\x00\x00", True))
+        self.assertEqual(out[4:6], (len(out) - len(jpeg) - 2).to_bytes(2, "big"))
+        self.assertIn(b"\x01\x12\x00\x03\x00\x00\x00\x01\x00\x03", out)

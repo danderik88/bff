@@ -152,6 +152,7 @@ class MoonrakerLink:
         self.firmware_version = None
         self.light = light  # {"led","on","off"}: given by the printer entry, else found on the first poll
         self._light_searched = light is not None
+        self.cam_flip = (False, False, 0)  # Moonraker's flip_horizontal, flip_vertical, rotation of the webcam used
         self._connected = None
         self._stop = False
 
@@ -180,6 +181,7 @@ class MoonrakerLink:
         """URL of the first enabled webcam's still image, from Moonraker's webcam list."""
         for cam in self._request("GET", "/server/webcams/list").get("result", {}).get("webcams", []):
             if cam.get("enabled") and cam.get("snapshot_url"):
+                self.cam_flip = (bool(cam.get("flip_horizontal")), bool(cam.get("flip_vertical")), int(cam.get("rotation") or 0))
                 url = cam["snapshot_url"]
                 return url if "://" in url else f"http://{self.host}{url if url.startswith('/') else '/' + url}"
         raise OSError("no enabled webcam in Moonraker")
