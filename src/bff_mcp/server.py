@@ -3205,9 +3205,21 @@ def bff_base():
     return f"http://127.0.0.1:{CFG.get('loopback_port', 8767)}"
 
 
+def cam_orientation(alias):
+    """EXIF Orientation of a Klipper webcam (Moonraker's flip/rotation); 1 for every other printer."""
+    link = LINKS.get(alias)
+    if not isinstance(link, MoonrakerLink):
+        return 1
+    try:
+        link.snapshot_url()  # reads the webcam list, flips included
+    except (OSError, ValueError):
+        pass
+    return camera.exif_orientation(*link.cam_flip)
+
+
 def register_stream(alias, entry):
     """Tell go2rtc about the printer in the background: BFF starts at once even when go2rtc is down."""
-    src = go2rtc.source_for(alias, entry, bff_base(), CFG.get("stream_token"))
+    src = go2rtc.source_for(alias, entry, bff_base(), CFG.get("stream_token"), cam_orientation(alias))
     if src is None:  # jpeg printers need BFF_STREAM_TOKEN: nothing to register without it
         return
     threading.Thread(target=go2rtc.add_stream, args=(alias, src), daemon=True).start()
@@ -3218,7 +3230,7 @@ def keep_streams():
     while True:
         try:
             for alias, entry in onboard.load_store(store_path()).items():
-                src = go2rtc.source_for(alias, entry, bff_base(), CFG.get("stream_token"))
+                src = go2rtc.source_for(alias, entry, bff_base(), CFG.get("stream_token"), cam_orientation(alias))
                 if src is not None:
                     go2rtc.add_stream(alias, src)
         except Exception as err:  # never the sources: they hold the access codes

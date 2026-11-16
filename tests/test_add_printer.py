@@ -447,3 +447,10 @@ class Klipper(AddPrinter):
         self.assertEqual((out[:4], out[6:12], out.endswith(jpeg[2:])), (b"\xff\xd8\xff\xe1", b"Exif\x00\x00", True))
         self.assertEqual(out[4:6], (len(out) - len(jpeg) - 2).to_bytes(2, "big"))
         self.assertIn(b"\x01\x12\x00\x03\x00\x00\x00\x01\x00\x03", out)
+
+    def test_go2rtc_turns_klipper_webcam(self):
+        import go2rtc
+        entry = {"model": "KLIPPER-GENERIC"}
+        self.assertEqual(go2rtc.source_for("e3k", entry, "http://bff", "tok"), "ffmpeg:http://bff/stream/e3k/tok#video=h264")
+        self.assertEqual(go2rtc.source_for("e3k", entry, "http://bff", "tok", 3),
+                         "ffmpeg:http://bff/stream/e3k/tok#video=h264_o3")

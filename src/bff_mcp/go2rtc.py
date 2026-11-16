@@ -27,14 +27,18 @@ def camera_kind(model):
     return onboard.camera_kind(model)
 
 
-def source_for(alias, entry, bff_base, stream_token):
+# EXIF Orientation 2..8 -> the h264_o<N> templates in deploy/go2rtc.yaml (ffmpeg -vf, then the usual H.264).
+
+
+def source_for(alias, entry, bff_base, stream_token, orientation=1):
     """What go2rtc reads for this printer: its own RTSP, or BFF's /stream/ MJPEG when it has no RTSP."""
     if camera_kind(entry.get("model")) == "rtsp":
         return f"rtspx://bblp:{entry['access_code']}@{entry['host']}:322/streaming/live/1"
     if not stream_token:
         return None
     # H.264, because Home Assistant's stream player takes no MJPEG. The encoder runs only while someone watches.
-    return f"ffmpeg:{bff_base}/stream/{alias}/{stream_token}#video=h264"
+    video = f"h264_o{orientation}" if orientation in range(2, 9) else "h264"
+    return f"ffmpeg:{bff_base}/stream/{alias}/{stream_token}#video={video}"
 
 
 def _request(method, endpoint, query, data=None, headers=None, timeout=CALL_TIMEOUT_S):

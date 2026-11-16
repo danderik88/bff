@@ -14,3 +14,12 @@ log:
 ffmpeg:
   http: "-fflags nobuffer -flags low_delay -use_wallclock_as_timestamps 1 -i {input}"
   h264: "-c:v libx264 -r:v 10 -g:v 20 -profile:v high -level:v 4.1 -preset:v superfast -tune:v zerolatency -pix_fmt:v yuv420p"
+  # Klipper webcams mounted turned or mirrored (Moonraker's flip/rotation as EXIF Orientation 2..8).
+  # go2rtc refuses #raw from its API, so the filters live here.
+  h264_o2: "-vf hflip -c:v libx264 -r:v 10 -g:v 20 -profile:v high -level:v 4.1 -preset:v superfast -tune:v zerolatency -pix_fmt:v yuv420p"
+  h264_o3: "-vf hflip,vflip -c:v libx264 -r:v 10 -g:v 20 -profile:v high -level:v 4.1 -preset:v superfast -tune:v zerolatency -pix_fmt:v yuv420p"
+  h264_o4: "-vf vflip -c:v libx264 -r:v 10 -g:v 20 -profile:v high -level:v 4.1 -preset:v superfast -tune:v zerolatency -pix_fmt:v yuv420p"
+  h264_o5: "-vf transpose=0 -c:v libx264 -r:v 10 -g:v 20 -profile:v high -level:v 4.1 -preset:v superfast -tune:v zerolatency -pix_fmt:v yuv420p"
+  h264_o6: "-vf transpose=1 -c:v libx264 -r:v 10 -g:v 20 -profile:v high -level:v 4.1 -preset:v superfast -tune:v zerolatency -pix_fmt:v yuv420p"
+  h264_o7: "-vf transpose=3 -c:v libx264 -r:v 10 -g:v 20 -profile:v high -level:v 4.1 -preset:v superfast -tune:v zerolatency -pix_fmt:v yuv420p"
+  h264_o8: "-vf transpose=2 -c:v libx264 -r:v 10 -g:v 20 -profile:v high -level:v 4.1 -preset:v superfast -tune:v zerolatency -pix_fmt:v yuv420p"
