@@ -905,6 +905,23 @@ const HEAD = (() => {
       + nozzle(80, 188, "#26272a") + extrude(80, 199),
 
     h2d: h2(false), h2c: h2(true),
+
+    // Any other printer (Klipper and the rest): a generic open toolhead. Dark carriage on the rails, front
+    // heatsink fan, fins, heat break, silver heater block with its red wires, part-cooling duct on the left.
+    klipper: `<rect x="0" y="96" width="160" height="7" rx="3.5" fill="${RAIL}"/><rect x="0" y="130" width="160" height="7" rx="3.5" fill="${RAIL}"/>
+      ` + tube("M80 0C80 14 80 22 80 36") + `
+      <rect x="36" y="36" width="88" height="118" rx="8" fill="#2b2c30"/>
+      <rect x="46" y="46" width="68" height="68" rx="6" fill="#1d1e21"/>
+      <circle cx="80" cy="80" r="29" fill="#131416"/>
+      <circle cx="80" cy="80" r="26" fill="none" stroke="#36383c" stroke-width="2.5" stroke-dasharray="1.2 2.1"/>
+      <circle cx="80" cy="80" r="21" fill="#202124"/><circle cx="80" cy="80" r="2.5" fill="#3c3d41"/>
+      <g fill="#b9bcc0"><rect x="58" y="122" width="44" height="3" rx="1"/><rect x="58" y="128" width="44" height="3" rx="1"/>
+        <rect x="58" y="134" width="44" height="3" rx="1"/><rect x="58" y="140" width="44" height="3" rx="1"/></g>
+      <rect x="76" y="154" width="8" height="12" fill="#9fa3a8"/>
+      <path d="M24 118h14v46l-10 16h-12z" fill="#1d1e21"/>
+      <rect x="62" y="166" width="36" height="16" rx="2" fill="#c3c6ca"/>
+      <path d="M98 171h18M98 177h18" stroke="#c0392b" stroke-width="2" stroke-linecap="round"/>
+      ` + nozzle(80, 182, "#b8913f") + extrude(80, 193),
   };
   // P1P / P1S: the user says it is the P2S head with a slightly smaller fan.
   const p2sFan = fan(80, 106, "#f2f1ed", "#d6d4ce");
@@ -969,15 +986,16 @@ const HEAD = (() => {
       ${xs.map(hotend).join("")}` + extrude(xs[0], 211);
   }
 
-  // Model name from printer_info → drawing. Unknown models fall back to the A1 drawing.
+  // Model name from printer_info → drawing. Unknown models (Klipper...) get the generic toolhead.
   function headFor(model) {
     const m = String(model || "").toUpperCase().replace(/\s+/g, "");
     for (const [p, k] of [["H2C","h2c"],["H2D","h2d"],["H2S","h2s"],["P2S","p2s"],["X1","x1"],["P1","p1"]]) if (m.includes(p)) return k;
-    return "a1head";
+    return m.startsWith("A1") ? "a1head" : "klipper";  // anything not from that list: the generic toolhead
   }
   // self-check
     console.assert(headFor("A1 mini") === "a1head" && headFor("P1S") === "p1" && headFor("X1 Carbon") === "x1"
-    && headFor("P2S") === "p2s" && headFor("H2D Pro") === "h2d" && headFor("H2C") === "h2c");
+    && headFor("P2S") === "p2s" && headFor("H2D Pro") === "h2d" && headFor("H2C") === "h2c"
+    && headFor("Sovol SV08") === "klipper" && headFor("Ender 3, modded") === "klipper");
   return { HEADS, headFor };
 })();
 function paintHead(info) {
