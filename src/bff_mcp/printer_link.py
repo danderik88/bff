@@ -8,7 +8,7 @@ import threading
 import time
 from pathlib import Path
 
-STALE_S = 10  # No report for this long means the printer is considered disconnected.
+STALE_S = 30  # No report for this long means the printer is considered disconnected. P1/A1 firmware stalls its MQTT stream for up to ~10 s with the link healthy (measured: 0% ping loss, reports 4-10 s apart); a dead TCP link is caught by the MQTT keepalive instead.
 STALE_PUSH_S = 5  # Ask for a fresh report after this much silence, and at most this often.
 STALE_AFTER_S = STALE_S  # Alias kept for tests that import it.
 USER_ACTION_CODES = {(0x0300, 0x400C), (0x0500, 0x400E)}  # Cancel echoes, not faults.
@@ -355,7 +355,7 @@ class PrinterLink:
             snapshot["error"] = self.error
         else:
             snapshot["connected"] = fresh
-        reason = self.error if self.cert_refused else ("nessun dato da 10 s" if not fresh else None)
+        reason = self.error if self.cert_refused else (f"nessun dato da {STALE_S} s" if not fresh else None)
         self._set_connected(snapshot["connected"], reason)
         return snapshot
 
