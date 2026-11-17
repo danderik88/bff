@@ -1,5 +1,6 @@
 """slicerd: process builder, slice job with a fake OrcaSlicer, HTTP auth."""
 import base64
+import io
 import json
 import os
 import sys
@@ -8,6 +9,7 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
+import zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -38,6 +40,8 @@ FAKE_ORCA = f"""#!{sys.executable}
 import json, os, sys, time, zipfile
 from pathlib import Path
 Path(os.environ["FAKE_ORCA_ARGV"]).write_text(json.dumps(sys.argv[1:]))
+Path(os.environ["FAKE_ORCA_FILAMENTS"]).write_text(json.dumps(
+    [json.loads(Path(p).read_text()) for p in sys.argv[sys.argv.index("--load-filaments") + 1].split(";")]))
 time.sleep(float(os.environ.get("FAKE_ORCA_SLEEP", "0")))
 out = Path(sys.argv[sys.argv.index("--outputdir") + 1])
 (out / "plate_1.gcode").write_text("G28\\n")
@@ -78,11 +82,13 @@ class Base(unittest.TestCase):
         orca.write_text(FAKE_ORCA)
         orca.chmod(0o755)
         self.argv_file = self.tmp / "argv.json"
+        self.filaments_file = self.tmp / "filaments.json"
         for name, value in (("PROFILES", profiles), ("ORCA_BIN", str(orca)), ("SECRET", "s3cret")):
             patcher = mock.patch.object(slicerd, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)
-        env = mock.patch.dict(os.environ, {"FAKE_ORCA_ARGV": str(self.argv_file)})
+        env = mock.patch.dict(os.environ, {"FAKE_ORCA_ARGV": str(self.argv_file),
+                                           "FAKE_ORCA_FILAMENTS": str(self.filaments_file)})
         env.start()
         self.addCleanup(env.stop)
 
@@ -170,6 +176,27 @@ class SliceJob(Base):
                                      {"filament_id": "GFB61", "filament_type": "PLA"}])
         self.assertEqual([f"{FILAMENT}.json", f"{FILAMENT2}.json"], self.load_filaments())
 
+    def bundle(self, *members):
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            for name, data in members:
+                z.writestr(name, data)
+        return buf.getvalue()
+
+    def test_zip_bundle_slices_every_member_copies_times(self):
+        data = self.bundle(("a.stl", b"solid a"), ("b.step", b"STEP b"))
+        slicerd.slice_job(data, "page.bundle.zip", MACHINE, "normal", FILAMENT, {}, False, 2)
+        argv = self.argv()
+        self.assertIn("--orient", argv)  # treated like STLs
+        models = [Path(p).name for p in argv[argv.index("--export-3mf") + 2:]]
+        self.assertEqual(["model_0.stl", "model_1.step"], models[:2])
+        self.assertEqual(models, ["model_0.stl", "model_1.step"] * 2)
+
+    def test_zip_bundle_with_a_non_mesh_is_refused(self):
+        data = self.bundle(("a.stl", b"solid a"), ("evil.exe", b"MZ"))
+        with self.assertRaisesRegex(ValueError, "every file in the zip"):
+            slicerd.slice_job(data, "page.bundle.zip", MACHINE, "normal", FILAMENT, {}, False, 1)
+
     def test_quality_and_filament_checked(self):
         self.assertEqual("0.24mm Draft @BBL A1", slicerd.pick_quality(["0.24mm Draft @BBL A1"], "fast"))
         self.assertEqual("0.24mm Standard @BBL A1",
@@ -195,6 +222,50 @@ class SliceJob(Base):
             code, body = server.post({"Authorization": "Bearer s3cret"}, self.request())
         self.assertEqual(422, code)
         self.assertIn("timed out", body["error"])
+
+class KlipperTexturedBed(Base):
+    KLI = "MyKlipper 0.4 nozzle"
+    PLA = "Generic PLA @MyKlipper"
+    PETG = "Generic PETG @MyKlipper"
+
+    def setUp(self):
+        super().setUp()
+        profiles = self.tmp / "profiles"
+        (profiles / "klipper.json").write_text(json.dumps({
+            "name": self.KLI, "gcode_flavor": "klipper",
+            "printable_area": ["0x0", "220x0", "220x220", "0x220"], "printable_height": "250"}))
+        (profiles / "generic-pla.json").write_text(json.dumps({
+            "name": self.PLA, "filament_type": ["PLA"], "filament_id": "GFA00",
+            "textured_plate_temp": "55", "textured_plate_temp_initial_layer": "55"}))
+        (profiles / "generic-petg.json").write_text(json.dumps({
+            "name": self.PETG, "filament_type": ["PETG"], "filament_id": "GFA01",
+            "textured_plate_temp": ["70"], "textured_plate_temp_initial_layer": ["70"]}))
+        index = json.loads((profiles / "index.json").read_text())
+        index[self.KLI] = dict(index[MACHINE], file="klipper.json")
+        for machine in (MACHINE, self.KLI):
+            index[machine]["filament"].update({self.PLA: "generic-pla.json", self.PETG: "generic-petg.json"})
+        (profiles / "index.json").write_text(json.dumps(index))
+
+    def filament(self, machine, name, plate):
+        slicerd.slice_job(b"solid x", "cube.stl", machine, "normal", name, {"plate": plate})
+        return json.loads(self.filaments_file.read_text())[0]
+
+    def test_textured_raises_generic_pla_to_60(self):
+        fil = self.filament(self.KLI, self.PLA, "Textured PEI Plate")
+        self.assertEqual(("60", "60"), (fil["textured_plate_temp"], fil["textured_plate_temp_initial_layer"]))
+
+    def test_textured_petg_70_stays(self):
+        fil = self.filament(self.KLI, self.PETG, "Textured PEI Plate")
+        self.assertEqual((["70"], ["70"]), (fil["textured_plate_temp"], fil["textured_plate_temp_initial_layer"]))
+
+    def test_bambu_machine_unchanged(self):
+        fil = self.filament(MACHINE, self.PLA, "Textured PEI Plate")
+        self.assertEqual(("55", "55"), (fil["textured_plate_temp"], fil["textured_plate_temp_initial_layer"]))
+
+    def test_cool_plate_unchanged(self):
+        fil = self.filament(self.KLI, self.PLA, "Cool Plate")
+        self.assertEqual(("55", "55"), (fil["textured_plate_temp"], fil["textured_plate_temp_initial_layer"]))
+
 
 class TooBigPlate(Base):
     def setUp(self):

@@ -1,8 +1,8 @@
 <h1 align="center">Pygmy</h1>
 
 <p align="center">
-  Your Bambu Lab printers on your phone, <b>without the cloud</b>.<br>
-  Live camera, controls, notifications and one-tap printing. Everything stays on your network.
+  Your Bambu Lab and Klipper printers on your phone, <b>without the cloud</b>.<br>
+  Live camera, controls, notifications, spaghetti detection and one-tap printing. Everything stays on your network.
 </p>
 
 <p align="center">
@@ -14,6 +14,7 @@
 
 <p align="center">
   <a href="#-quick-start">Quick start</a> ·
+  <a href="#-whats-new">What's new</a> ·
   <a href="#-a-quick-tour">Tour</a> ·
   <a href="#-whats-in-the-box">Features</a> ·
   <a href="#-good-to-know">Good to know</a> ·
@@ -23,6 +24,45 @@
 > [!NOTE]
 > **Work in progress.** Pygmy is young and changes often, Print now most of all. Watch the first layers of
 > every print and [open an issue](https://github.com/danderik88/pygmy/issues) when something looks off.
+
+## 🚀 Quick start
+
+On an always-on Linux box with [Docker](https://docs.docker.com/engine/install/) (mini PC, NAS, VM, Raspberry Pi):
+
+```sh
+git clone https://github.com/danderik88/pygmy && cd pygmy && ./install.sh
+```
+
+It prints a link. Open it on your phone, tap **+ Add printer**, pick your printer from the list. That's it.
+Add the app to your home screen (Share, Add to Home Screen) and try **Print now** with a small STL.
+
+**Before you start, on each printer:**
+
+- **Bambu Lab:** LAN-only mode with Developer Mode on (printer screen: Settings, Network), and a **USB stick or SD card
+  (FAT32)** inside: Pygmy sends prints to it. You type the access code from the same screen in the app.
+- **Klipper:** nothing. Pygmy finds it through Moonraker (Mainsail or Fluidd running means it is there).
+
+Update: `git pull && ./install.sh` · Logs: `docker compose logs -f bff` · Data lives in the `bff-data` volume.
+On a Raspberry Pi everything works except Print now (OrcaSlicer has no Linux ARM build).
+
+> [!WARNING]
+> Developer Mode turns off the vendor's cloud authentication. Keep the printers and Pygmy on a trusted network and
+> **never expose Pygmy's port to the internet**. For remote access use Tailscale (below).
+
+## ✨ What's new
+
+- **Any Klipper printer.** Pygmy finds Klipper printers on your network by itself and slices for them from their own
+  `printer.cfg` (bed, nozzle, speeds, `PRINT_START` parameters), or from your own OrcaSlicer profiles.
+- **Motion for Klipper**, Mobileraker style: axes, limits and live position, step jog, home, motors off.
+- **More Klipper:** filament runout sensors on/off, lights (`output_pin`, LED chains, WLED as an extra), webcam rotation
+  and flip as Moonraker says, a toolhead drawing, print speed and part fan.
+- **Pause on spaghetti.** With the Obico ML API, a failed print pauses once by itself (per printer, on by default).
+  Pygmy never resumes on its own.
+- **Photos in notifications.** Finished and failed prints come with a camera photo (Telegram and Web Push).
+- **Several files from one link.** A Printables page with many STL/STEP parts slices them together on one plate;
+  untick the ones you don't want.
+- **Pause and Stop always work**, even while another action is still waiting for an answer.
+- **One-command install** with `./install.sh`.
 
 ## 👀 A quick tour
 
@@ -78,9 +118,41 @@ Want the app on another phone too? Show a QR code from the first one.
 
 </td>
 </tr>
+<tr>
+<td width="62%">
+
+### Klipper printers
+
+Found on the network like the others, no access code. Motion with live position and step jog, runout sensors,
+lights and webcam. Print now slices for them from their own `printer.cfg`.
+
+</td>
+<td width="38%" align="center"><img src="assets/klipper.gif" width="240" alt="Klipper printer"></td>
+</tr>
+<tr>
+<td width="38%" align="center"><img src="assets/multifile.gif" width="240" alt="Several files from one link"></td>
+<td width="62%">
+
+### Several files from one link
+
+Paste a Printables page with many parts: they all go on one plate. Untick the ones you don't need, then Slice.
+
+</td>
+</tr>
+<tr>
+<td width="62%">
+
+### Pause on spaghetti
+
+Pygmy watches the camera during every print. When the print turns into spaghetti it pauses once and tells you,
+with a photo. It never resumes by itself. Setup below.
+
+</td>
+<td width="38%" align="center"><img src="assets/spaghetti.gif" width="240" alt="Pause on spaghetti"></td>
+</tr>
 </table>
 
-<sub>Recorded in the built-in simulator (`tools/sim`) with sample printers; the camera frames are real.</sub>
+<sub>Recorded in the built-in simulator (`tools/sim`, `node tools/sim/record.mjs`) with sample printers; the camera frames are real.</sub>
 
 ## 📦 What's in the box
 
@@ -91,39 +163,24 @@ Want the app on another phone too? Show a QR code from the first one.
 | 🔔 **Notifications** | Web Push and Telegram: print done, failed, errors, low spool, printer offline. |
 | 🏠 **Home Assistant** | Entities and events through MQTT discovery, camera as RTSP. |
 | 🤖 **AI agents** | An MCP server: an agent can read your printers and, with your OK, start or stop prints. |
-| 🧩 **Klipper too** | Sovol SV08 and IdeaFormer IR3 V2 through Moonraker (work in progress, see below). |
+| 🧩 **Klipper too** | Any Klipper printer through Moonraker's documented API, found on your network by itself. |
 
-## 🚀 Quick start
+## 🔧 Good to know
 
-**You need:**
-
-- Printers in **LAN-only mode with Developer Mode on** (printer screen: Settings, Network), and each printer's **access code** (same screen).
-- **A USB stick or SD card (FAT32) in every printer.** Pygmy sends prints to it. P2S and H2 keep files in internal memory that only the vendor software can reach, so they need one too.
-- An always-on **Linux x86_64** box on the same network (mini PC, NAS, VM) with [Docker](https://docs.docker.com/engine/install/).
-  A Raspberry Pi works too, without Print now (OrcaSlicer has no Linux ARM build).
-
-**Then:**
+<details>
+<summary><b>Install by hand</b> (what <code>install.sh</code> does)</summary>
 
 ```sh
-git clone https://github.com/danderik88/pygmy && cd pygmy
 cp .env.example .env
 sed -i "s/CHANGE_ME_IP/192.168.1.50/" .env          # <- this machine's IP (or its Tailscale IP)
 for k in TOKEN SLICER RTSP; do sed -i "s/CHANGE_ME_$k/$(openssl rand -hex 24)/" .env; done
 docker compose up -d --build                         # first build ~5 min (downloads OrcaSlicer)
-echo "http://$(grep ^BFF_MCP_BIND= .env | cut -d= -f2):8765/app#k=$(grep ^BFF_MCP_TOKENS= .env | cut -d= -f3)"
 ```
 
-Open the printed link on your phone, tap **Add printer**, then add the app to your home screen
-(Share, Add to Home Screen). Try **Print now** with a small STL.
+`./install.sh 192.168.1.50` picks the IP for you if the first one it finds is wrong. It never overwrites an
+existing `.env`.
 
-Update: `git pull && docker compose up -d --build` · Logs: `docker compose logs -f bff` ·
-Data (printers, queue, files) lives in the `bff-data` volume · ARM / no Print now: `docker compose up -d --build bff go2rtc`
-
-> [!WARNING]
-> Developer Mode turns off the vendor's cloud authentication. Keep the printers and Pygmy on a trusted network and
-> **never expose Pygmy's port to the internet**. For remote access use Tailscale or a VPN (below).
-
-## 🔧 Good to know
+</details>
 
 <details>
 <summary><b>Remote access and notifications</b> (Tailscale)</summary>
@@ -187,9 +244,12 @@ Coming next: pick a model in the app and your own agent slices it instantly with
 <summary><b>Klipper printers</b> (work in progress)</summary>
 
 Pygmy drives Klipper printers through Moonraker's documented HTTP API: status, pause / resume / cancel,
-temperatures, chamber light, webcam still, Print now with OrcaSlicer's own profile. An ACE Pro shows up as a spool unit.
-Supported so far: Sovol SV08 (`KLIPPER-SV08`) and IdeaFormer IR3 V2 (`KLIPPER-IR3V2`, conservative temperature limits).
-One filament per print.
+temperatures, lights, webcam (rotation and flip as Moonraker says), Motion, runout sensors and Print now.
+An ACE Pro shows up as a spool unit. One filament per print.
+
+Any Klipper printer works: Print now slices for it from its own `printer.cfg` (bed, nozzle, speeds, `PRINT_START`
+parameters), or from your own OrcaSlicer profiles (upload the preset bundle in the app). Sovol SV08 and IdeaFormer
+IR3 V2 also have OrcaSlicer's official profiles.
 
 They show up by themselves under **+ Add printer** when Moonraker answers on port 7125 (Mainsail or Fluidd running means it does); otherwise **Enter IP** recognises it. Temperature limits come from the printer's own printer.cfg. Manual alternative: add an entry to `printers.json` in the data volume and restart Pygmy:
 

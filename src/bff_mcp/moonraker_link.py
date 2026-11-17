@@ -35,6 +35,18 @@ def pct(fraction):
     return None if fraction is None else round(float(fraction) * 100)
 
 
+def pause_state(homed_axes, idle_state, timeout_s, paused_for_s):
+    """(resume_blocked, seconds_left) for a paused print.
+
+    Past Klipper's idle_timeout the motors and heaters are off, so RESUME reheats and then fails
+    "Must home axis first": the app must refuse it and show how long the pause has left.
+    """
+    blocked = any(axis not in (homed_axes or "") for axis in "xyz") or idle_state == "Idle"
+    if blocked or timeout_s is None or paused_for_s is None:
+        return blocked, None
+    return False, max(0, int(timeout_s - paused_for_s))
+
+
 def to_snapshot(raw, klippy="ready", light=None, strips=None, direct=None):
     """Moonraker object status (merged `printer/objects/query` result) -> BFF snapshot."""
     stats = raw.get("print_stats") or {}
@@ -145,6 +157,47 @@ def led_on(raw, light, strips=None, direct=None):
     return None
 
 
+LED_KINDS = ("led", "neopixel", "dotstar", "pca9533", "pca9632")  # Klipper's documented LED chains
+LIGHT_WORDS = ("light", "led", "lamp")
+
+
+def standard_lights(objects):
+    """Klipper's own lights, as object names: LED chains and output_pins whose name says light/led/lamp.
+
+    The name filter keeps display backlights and status pixels (e.g. `neopixel btt_mini12864`) out.
+    ponytail: name heuristic; a printers.json override if a light has an odd name.
+    """
+    found = []
+    for obj in objects:
+        kind, _, name = obj.partition(" ")
+        if name and (kind in LED_KINDS or kind == "output_pin") and any(w in name.lower() for w in LIGHT_WORDS):
+            found.append(obj)
+    return found
+
+
+def light_states(raw, lights):
+    """[{"id": object, "name", "on": bool|None}] for the standard lights."""
+    out = []
+    for obj in lights or []:
+        status = raw.get(obj) or {}
+        if "value" in status:
+            on = (status["value"] or 0) > 0
+        elif status.get("color_data"):
+            on = any(c > 0 for px in status["color_data"] for c in px)
+        else:
+            on = None
+        out.append({"id": obj, "name": obj.split(" ", 1)[1], "on": on})
+    return out
+
+
+def light_gcode(obj, on):
+    kind, name = obj.split(" ", 1)
+    v = 1 if on else 0
+    if kind == "output_pin":
+        return f"SET_PIN PIN={name} VALUE={v}"
+    return f"SET_LED LED={name} RED={v} GREEN={v} BLUE={v} WHITE={v}"
+
+
 def macro_arg(text, key):
     """Value of `KEY=value` in a macro's gcode, or None."""
     found = re.search(rf"\b{key}=(\S+)", text or "", re.IGNORECASE)
@@ -217,11 +270,14 @@ class MoonrakerLink:
         self.wled_address = None  # the strip's own address, read once from Moonraker's config
         self.wled_direct = None  # {"on","ps"} from WLED's /json/state; None = use Moonraker's strips
         self._wled_checked = False
+        self.lights = []  # standard Klipper lights (object names); WLED is only an extra next to them
         self.fans = []  # fan_generic names, for aux/chamber fans
         self.sensors = None  # filament_switch_sensor / filament_motion_sensor objects, found on the first poll
         self.cam_flip = (False, False, 0)  # Moonraker's flip_horizontal, flip_vertical, rotation of the webcam used
         self._connected = None
         self._stop = False
+        self._paused_since = None  # clock() when the print entered "paused"; None otherwise
+        self.idle_timeout_s = None  # printer.cfg [idle_timeout] timeout, read once (600 is Klipper's default)
 
     # --- HTTP -----------------------------------------------------------------------------------
     def _url(self, path, **query):
@@ -295,6 +351,9 @@ class MoonrakerLink:
         """One round trip; the result feeds snapshot(). Returns whether Moonraker answered."""
         try:
             info = self._request("GET", "/printer/info").get("result", {})
+            if self.idle_timeout_s is None:  # once: printer.cfg does not change for the life of the connection
+                timeout = (self._config().get("idle_timeout") or {}).get("timeout")
+                self.idle_timeout_s = float(timeout) if timeout is not None else 600
             if not self._light_searched or self.sensors is None:
                 objects = self._request("GET", "/printer/objects/list").get("result", {}).get("objects", [])
                 if not self._light_searched:
@@ -302,12 +361,13 @@ class MoonrakerLink:
                     self._light_searched = True
                 self.sensors = [o for o in objects if o.split(" ")[0] in SENSOR_KINDS and " " in o]
                 self.fans = [o.split(" ", 1)[1] for o in objects if o.startswith("fan_generic ")]
+                self.lights = standard_lights(objects)
             if not self._wled_checked:  # once: the light does not change for the life of the connection
                 self._wled_checked = True
                 self.wled_address = self._wled_address()
             strips = self._wled_strips() if self.light and self.light.get("wled") else None
             led = f"&led%20{urllib.parse.quote(self.light['led'])}" if self.light and self.light.get("led") else ""
-            led += "".join(f"&{urllib.parse.quote(s)}" for s in self.sensors)
+            led += "".join(f"&{urllib.parse.quote(s)}" for s in self.sensors + self.lights)
             status = self._request("GET", "/printer/objects/query?" + OBJECTS + led).get("result", {}).get("status", {})
         except (urllib.error.URLError, OSError, ValueError):
             self.online = False
@@ -315,6 +375,11 @@ class MoonrakerLink:
         direct = self._wled_state()
         with self.lock:
             merge(self.raw, status)
+            paused = (self.raw.get("print_stats") or {}).get("state") == "paused"
+            if paused and self._paused_since is None:
+                self._paused_since = self.clock()
+            elif not paused:
+                self._paused_since = None
             if strips is not None:
                 self.wled = strips
             self.wled_direct = direct
@@ -331,6 +396,20 @@ class MoonrakerLink:
             # Runout sensors pass through untouched: status_dict turns them into Options switches
             snapshot.update({k: dict(v) for k, v in self.raw.items() if k.split(" ")[0] in SENSOR_KINDS and isinstance(v, dict)})
             snapshot["firmware_version"] = self.firmware_version
+            if snapshot["state"] == "PAUSE":  # only while paused: the app shows the pause expiring
+                head, idle = self.raw.get("toolhead") or {}, self.raw.get("idle_timeout") or {}
+                paused_for = None if self._paused_since is None else self.clock() - self._paused_since
+                blocked, left = pause_state(head.get("homed_axes"), idle.get("state"), self.idle_timeout_s, paused_for)
+                snapshot["resume_blocked"], snapshot["pause_left_s"] = blocked, left
+            # Standard lights are the main light: the one toggle drives them all; WLED becomes an extra.
+            lights = light_states(self.raw, self.lights)
+            if lights:
+                known = [l["on"] for l in lights if l["on"] is not None]
+                wled = snapshot["chamber_light"] if self.light and self.light.get("wled") else None
+                snapshot["chamber_light"] = any(known) if known else None
+                if self.light and self.light.get("wled"):
+                    lights.append({"id": "wled", "name": "WLED", "on": wled, "extra": True})
+            snapshot["lights"] = lights
             fresh = self.last_report is not None and self.clock() - self.last_report <= STALE_S
         snapshot["connected"] = fresh
         self._set_connected(fresh, "no data for 10 s")
@@ -361,7 +440,14 @@ class MoonrakerLink:
         """Bambu MQTT payloads have no meaning here: refused, so a Bambu-only tool fails closed."""
         return False
 
-    def command(self, action, heater=None, target=None, on=None, level=None, fan=None, percent=None, **_unused):
+    def command(self, action, heater=None, target=None, on=None, level=None, fan=None, percent=None, light=None,
+                **_unused):
+        own_macros = self.light and self.light.get("on") and not self.light.get("wled")  # user's LED macros win
+        if action == "light" and self.lights and light != "wled" and not (light is None and own_macros):
+            targets = self.lights if light is None else [light]
+            if not set(targets) <= set(self.lights):
+                return False
+            return self.gcode("\n".join(light_gcode(t, on) for t in targets))
         if action == "pause":
             return self._send("POST", "/printer/print/pause")
         if action == "resume":

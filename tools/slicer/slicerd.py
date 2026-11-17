@@ -12,6 +12,7 @@ Profiles come from flatten_profiles.py (`index.json` + one JSON per preset). Std
 """
 import base64
 import hmac
+import io
 import json
 import os
 import re
@@ -32,7 +33,11 @@ BIND = os.environ.get("SLICER_BIND", "0.0.0.0")  # 127.0.0.1 when BFF runs on th
 MAX_UPLOAD = 100 * 1024 * 1024
 TIMEOUT = 300
 MODEL_EXT = (".stl", ".step", ".stp", ".3mf")
+BUNDLE_EXT = ".zip"  # several meshes from one page, sliced together (2026-11-17)
+BUNDLE_EXTS = (".stl", ".step", ".stp", ".obj")
+BUNDLE_MAX = 200 * 1024 * 1024
 PATTERNS = ("grid", "gyroid", "cubic", "honeycomb", "line")
+KLIPPER_TEXTURED_MIN_BED = 60  # the user's E3K: Generic PLA's 55 C does not stick on a textured PEI plate
 SUPPORTS = {
     "off": {"enable_support": "0"},
     "auto": {"enable_support": "1", "support_type": "tree(auto)", "support_on_build_plate_only": "1"},
@@ -90,6 +95,28 @@ def fits(size, bed):
     x, y, z = size
     bx, by, bz = bed
     return z <= bz and ((x <= bx and y <= by) or (y <= bx and x <= by))
+
+
+def bundle_members(data, tmp):
+    """A bundle's meshes written to tmp as model_0.stl, model_1.step... (member names never touch disk)."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            members = [m for m in z.infolist() if not m.is_dir()]
+            if not members:
+                raise ValueError("the zip has no files")
+            if sum(m.file_size for m in members) > BUNDLE_MAX:
+                raise ValueError("the files in the zip are over 200 MB in all")
+            paths = []
+            for i, member in enumerate(members):
+                member_ext = Path(member.filename).suffix.lower()
+                if member_ext not in BUNDLE_EXTS:
+                    raise ValueError("every file in the zip must be .stl, .step, .stp or .obj")
+                path = tmp / f"model_{i}{member_ext}"
+                path.write_bytes(z.read(member))
+                paths.append(path)
+            return paths
+    except zipfile.BadZipFile:
+        raise ValueError("the model is not a readable zip") from None
 
 
 def _json_file(path):
@@ -170,6 +197,27 @@ def resolve_filament(entry, filament=None, filament_id=None, filament_type=None)
 
 def load_index() -> dict:
     return json.loads((PROFILES / "index.json").read_text())
+
+
+def is_klipper(machine_json: dict) -> bool:
+    """Klipper and Custom-vendor machines (MyKlipper, the user's presets on top of it) say so here."""
+    return str(machine_json.get("gcode_flavor") or "").lower() == "klipper" \
+        or "klipper" in str(machine_json.get("name") or "").lower()
+
+
+def klipper_textured_bed(filament: dict) -> dict:
+    """Textured PEI on Klipper: no bed temperature below KLIPPER_TEXTURED_MIN_BED, Orca's shape kept."""
+    def bump(value):
+        try:
+            return f"{max(float(value), KLIPPER_TEXTURED_MIN_BED):g}"
+        except (TypeError, ValueError):
+            return value
+    out = dict(filament)
+    for key in ("textured_plate_temp", "textured_plate_temp_initial_layer"):
+        value = out.get(key)
+        if value is not None:  # a string or a one-item list of strings
+            out[key] = [bump(v) for v in value] if isinstance(value, list) else bump(value)
+    return out
 
 
 def pick_quality(processes, quality: str) -> str:
@@ -386,7 +434,7 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
         raise ValueError("model empty or over 100 MB")
     name = Path(filename or "").name
     ext = Path(name).suffix.lower()
-    if ext not in MODEL_EXT:
+    if ext not in MODEL_EXT + (BUNDLE_EXT,):
         raise ValueError("model must be .stl, .step, .stp or .3mf")
     if isinstance(copies, bool) or not isinstance(copies, int) or not 1 <= copies <= 20:
         raise ValueError("copies must be an integer 1-20")
@@ -420,7 +468,11 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
     with LOCK, tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         model_path = tmp / f"model{ext}"  # ponytail: user file name never reaches the shell or disk
-        model_path.write_bytes(model)
+        if ext == BUNDLE_EXT:
+            model_paths = bundle_members(model, tmp)
+        else:
+            model_path.write_bytes(model)
+            model_paths = [model_path]
         process_path = tmp / "process.json"
         process_path.write_text(json.dumps(process))
         machine_path = PROFILES / entry["file"]
@@ -434,6 +486,12 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
             machine_path.write_text(json.dumps(user["machine"]))
             filament_paths = []
             for i, flat in enumerate(user["filaments"]):
+                filament_paths.append(tmp / f"filament_{i}.json")
+                filament_paths[-1].write_text(json.dumps(flat))
+        if choices.get("plate") == "Textured PEI Plate" and is_klipper(json.loads(machine_path.read_text())):
+            flats = [klipper_textured_bed(json.loads(Path(p).read_text())) for p in filament_paths]
+            filament_paths = []
+            for i, flat in enumerate(flats):
                 filament_paths.append(tmp / f"filament_{i}.json")
                 filament_paths[-1].write_text(json.dumps(flat))
         outdir = tmp / "out"
@@ -451,7 +509,7 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
         elif copies > 1 or fresh:
             cmd += ["--arrange", "1", "--allow-rotations"]
         cmd += ["--slice", str(plate_no), "--export-statistics", "--outputdir", str(outdir),
-                "--export-3mf", "out.gcode.3mf"] + [str(model_path)] * (1 if ext == ".3mf" else copies)
+                "--export-3mf", "out.gcode.3mf"] + [str(p) for p in model_paths] * (1 if ext == ".3mf" else copies)
         seen_fixes, stripped = [], fresh
         for attempt in range(3):
             try:
@@ -483,7 +541,7 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
                     str(result.get("return_code")) == "-50"
                     or str(result.get("error_string") or "").startswith(
                         "No object is fully inside the print volume")):
-                size = model_size(model_path)
+                size = model_size(model_paths[0])
                 index = load_index()
                 bed = bed_size(json.loads(machine_path.read_text()))
                 fits_on = [other for other in other_machines or []

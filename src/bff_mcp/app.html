@@ -207,6 +207,7 @@ select { font: 16px var(--sans); color: var(--fg); background: var(--panel2); bo
       <button class="btn" id="pause" disabled>Pause</button>
       <button class="btn stop" id="stop" disabled>Stop…</button>
     </div>
+    <p class="note" id="pausenote" hidden></p>
   </div>
 
   <div class="sect"><h2>Device Control</h2></div>
@@ -316,6 +317,7 @@ select { font: 16px var(--sans); color: var(--fg); background: var(--panel2); bo
         <button class="btn" id="porca" hidden>Send to Orca-Cad</button>
         <div id="mwrows"></div>
         <div class="row" id="s1file" hidden><span class="fname" id="s1name"></span><span class="opts" id="s1cols"></span></div>
+        <div class="fld" id="s1files" hidden></div>
         <p class="note" id="s1status" hidden></p>
       </div>
     </div>
@@ -680,7 +682,14 @@ function render(s) {
     $("left").textContent = `−${s.remaining_time} min`; $("eta").textContent = "done " + end.toTimeString().slice(0, 5);
   } else { $("left").textContent = st; $("eta").textContent = ""; }
   $("pause").textContent = s.state === "PAUSE" ? "Resume" : "Pause";
-  $("pause").disabled = busy || !s.connected || !["RUNNING", "PAUSE"].includes(s.state);
+  $("pause").disabled = busy || !s.connected || !["RUNNING", "PAUSE"].includes(s.state)
+    || (s.state === "PAUSE" && !!s.resume_blocked);
+  // Past Klipper's idle_timeout the motors are off: RESUME would reheat and then fail to home.
+  const pnote = s.resume_blocked ? "Pause expired: motors and heaters are off. This print can't be resumed."
+    : typeof s.pause_left_s === "number"
+      ? `Pause times out in ${s.pause_left_s < 60 ? Math.ceil(s.pause_left_s) + " s" : Math.ceil(s.pause_left_s / 60) + " min"}`
+      : "";
+  $("pausenote").hidden = !pnote; $("pausenote").textContent = pnote;
   $("stop").disabled = busy || !s.connected || !active;
   // The server refuses motion in these states (MOTION_BLOCKED); the tile says so instead of opening.
   const moving = ["RUNNING", "PAUSE", "PREPARE", "SLICING"].includes(s.state);
@@ -1356,9 +1365,10 @@ const copiesNow = () => Math.min(20, Math.max(1, Math.round(Number($("mwcopies")
 // Step 1: upload or link, then a draft request carrying the model's plates and colours.
 function pnNewModel() {
   PN.id = null; PN.reqPrinter = null; PN.facts = null; PN.name = ""; PN.status = "";
-  PN.sliced = false; PN.fileId = null; PN.meta = null; PN.slots = [];
+  PN.sliced = false; PN.fileId = null; PN.meta = null; PN.slots = []; PN.files = null;
   pnEdit = 1;
   $("s1file").hidden = true; $("s1status").hidden = true; $("s1cols").innerHTML = "";
+  $("s1files").hidden = true; $("s1files").textContent = "";
   $("pnresult").hidden = true; $("pnsliceprog").hidden = true; $("pnwarn").hidden = true; $("pnmeta").textContent = "";
   paintSteps();
 }
@@ -1366,12 +1376,30 @@ function pnProgress(text) {
   const el = PN.sliced ? $("pnsliceprog") : $("s1status");
   el.hidden = !text; el.textContent = text;
 }
+function pnFilePicker() {
+  // Several meshes from one link: one checkbox per file, all checked (names come from the web: text only).
+  const box = $("s1files"), names = (PN.facts && PN.facts.files) || null;
+  box.textContent = ""; box.hidden = !names;
+  PN.files = names ? names.map((_, i) => i) : null;
+  for (const [i, name] of (names || []).entries()) {
+    const label = document.createElement("label");
+    label.className = "note";
+    const tick = document.createElement("input");
+    tick.type = "checkbox"; tick.checked = true; tick.dataset.i = String(i);
+    label.append(tick, " ", name);
+    box.append(label);
+  }
+}
+$("s1files").onchange = () => {
+  PN.files = [...$("s1files").querySelectorAll("input:checked")].map(t => Number(t.dataset.i));
+};
 function pnModelReady() {
   PN.sliced = false;
   $("s1status").hidden = true;
   $("s1name").textContent = PN.name.replace(/\.gcode\.3mf$/, "");
   $("s1cols").innerHTML = colourSquares(usedColors());
   $("s1file").hidden = false;
+  pnFilePicker();
   pnEdit = 0;
   paintSteps();
   loadPnInfo();
@@ -1580,12 +1608,14 @@ function openPlatePicker() {
 $("pnslice").onclick = async () => {
   if (!PN.id || !PN.facts) return toast("Add a model first");
   if ((PN.facts.plates || 1) > 1 && !pnPlate()) return openPlatePicker();
+  if (PN.facts.files && !(PN.files || []).length) return toast("Pick at least one file");
   if (!PN.info || PN.slots.some(s => !s)) return toast("Pick a spool for every colour");
   try {
     // One slot per model colour; a printer without AMS sends its one spool for every colour.
     const ncol = Math.max(1, ((PN.facts || {}).colors || []).length);
     const slots = Array.from({ length: ncol }, (_, i) => PN.slots[i] || PN.slots[0]);
-    await rpc("slice_request", { id: PN.id, slots, choices: printChoices(/\.3mf$/i.test(PN.name)),
+    await rpc("slice_request", { id: PN.id, slots, choices: { ...printChoices(/\.3mf$/i.test(PN.name)),
+      ...(PN.facts.files ? { files: PN.files } : {}) },
       copies: copiesNow(), standard: !$("pcustom").checked, printer: PN.printer,
       ...((PN.facts.plates || 1) > 1 ? { plate_no: pnPlate() } : {}) });
     PN.sliced = true; PN.reqPrinter = PN.printer; PN.fileId = null;
@@ -1632,6 +1662,7 @@ function pnReset() {
   PN = { id: null, reqPrinter: null, facts: null, name: "", status: "", sliced: false, fileId: null, meta: null, slots: [], printer };
   pnEdit = 0;
   $("s1file").hidden = true; $("s1status").hidden = true; $("s1cols").innerHTML = "";
+  $("s1files").hidden = true; $("s1files").textContent = "";
   $("pnresult").hidden = true; $("pnsliceprog").hidden = true; $("pnwarn").hidden = true; $("pnmeta").textContent = "";
   $("pnbusy").hidden = true;
   $("mwurl").value = ""; $("mwcopies").value = 1; paintPorca();

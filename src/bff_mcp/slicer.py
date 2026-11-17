@@ -203,7 +203,7 @@ def slice(model, filename, machine, filaments, choices, reorient, copies,
         "user_presets": user_presets,
         "quality": choices.get("quality", "normal"),
         "filaments": filaments,
-        "choices": {k: v for k, v in choices.items() if k not in ("quality", "plate_no")},
+        "choices": {k: v for k, v in choices.items() if k not in ("quality", "plate_no", "files")},
         "plate_no": int(choices.get("plate_no") or 0),  # 0 = every plate; a multi-plate project picks one
         "reorient": reorient,
         "copies": copies,

@@ -143,6 +143,35 @@ class TestDownload(FetchBase):
             fetch.MAX_BYTES = 100 * 1024 * 1024
 
 
+class TestBundle(unittest.TestCase):
+    def test_one_file_stays_as_it_is(self):
+        self.assertEqual(fetch.bundle([("a.stl", b"x")]), ("a.stl", b"x"))
+
+    def test_two_files_become_a_bundle(self):
+        name, data = fetch.bundle([("a.stl", b"aa"), ("b.step", b"bb")])
+        self.assertTrue(name.endswith(fetch.BUNDLE_EXT))
+        self.assertEqual(fetch.bundle_names(data), ["a.stl", "b.step"])
+
+    def test_pick_keeps_the_chosen_ones(self):
+        name, data = fetch.bundle([("a.stl", b"aa"), ("b.stl", b"bb")])
+        self.assertEqual(fetch.bundle_pick(data, [1]), ("b.stl", b"bb"))
+        picked_name, picked = fetch.bundle_pick(data, [0, 1])
+        self.assertTrue(picked_name.endswith(fetch.BUNDLE_EXT))
+        self.assertEqual(fetch.bundle_names(picked), ["a.stl", "b.stl"])
+
+    def test_pick_nothing_is_refused(self):
+        _, data = fetch.bundle([("a.stl", b"aa"), ("b.stl", b"bb")])
+        with self.assertRaisesRegex(fetch.FetchError, "Pick at least one file"):
+            fetch.bundle_pick(data, [])
+
+    def test_download_all_bundles_every_mesh_but_the_3mf(self):
+        rows = [{"name": "a.stl"}, {"name": "b.stl"}, {"name": "p.3mf"}]
+        name, data, others = fetch._download_all(rows, lambda row: b"<" + row["name"].encode() + b">")
+        self.assertTrue(name.endswith(fetch.BUNDLE_EXT))
+        self.assertEqual(fetch.bundle_names(data), ["a.stl", "b.stl"])
+        self.assertEqual(others, ["p.3mf"])
+
+
 class TestPrintables(FetchBase):
     def test_printables_link(self):
         q1 = {"data": {"model": {"id": "123456", "name": "Cute Frog",

@@ -353,6 +353,34 @@ class SlicerBase(unittest.TestCase):
         self.assertEqual(self.row(rid, "status")[0], "draft")
         self.assertEqual(self.state.requests, [])
 
+    def test_bundle_draft_picks_the_files(self):
+        name, data = server.fetch.bundle([("a.stl", b"solid a"), ("b.stl", b"solid b")])
+        with mock.patch.object(server.fetch, "fetch_model", return_value=(name, data, [])):
+            reply = server.tool_request_print({"printer": "a1", "url": "https://www.printables.com/model/1-x",
+                                               "draft": True})
+            rid = json.loads(reply[0]["text"])["request_id"]
+            self.assertTrue(server.slice_once())
+        self.assertEqual(json.loads(self.row(rid, "facts")[0])["files"], ["a.stl", "b.stl"])
+        args = {"printer": "a1", "id": rid, "slots": ["external"], "choices": {}, "copies": 1, "standard": True}
+        for bad in ([], [2], [0, 0], ["0"], True):
+            with self.assertRaisesRegex(server.ToolError, "Pick at least one file"):
+                server.tool_slice_request({**args, "choices": {"files": bad}})
+        server.tool_slice_request({**args, "choices": {"files": [1], "infill": 30}})
+        self.assertEqual(json.loads(self.row(rid, "choices")[0]), {"files": [1]})  # Standard keeps files
+        while server.slice_once():
+            pass
+        self.assertEqual(self.row(rid, "status")[0], "ready")
+        self.assertEqual(self.state.requests[-1]["filename"], "b.stl")
+
+    def test_bundle_missing_files_slices_them_all(self):
+        name, data = server.fetch.bundle([("a.stl", b"solid a"), ("b.stl", b"solid b")])
+        with mock.patch.object(server.fetch, "fetch_model", return_value=(name, data, [])):
+            rid = json.loads(server.tool_request_print({"printer": "a1", "url": "https://www.printables.com/model/1-x",
+                                                        "draft": True})[0]["text"])["request_id"]
+            self.assertTrue(server.slice_once())
+        server.tool_slice_request({"printer": "a1", "id": rid, "slots": ["external"], "choices": {}, "copies": 1})
+        self.assertEqual(json.loads(self.row(rid, "choices")[0]), {"files": [0, 1]})
+
     def test_standard_keeps_reorient(self):
         did = server.upload_model("a1", "cube.stl", b"solid x", draft=True)["id"]
         server.tool_slice_request({"printer": "a1", "id": did, "slots": ["external"],

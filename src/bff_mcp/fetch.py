@@ -10,12 +10,14 @@ Endpoints (checked 2026-11-14):
 - Thingiverse API: GET https://api.thingiverse.com/things/<id>/files with a
   Bearer app token; anonymous calls are 403 behind the site's bot challenge.
 """
+import io
 import ipaddress
 import json
 import re
 import socket
 import urllib.parse
 import urllib.request
+import zipfile
 
 FetchError = type("FetchError", (Exception,), {})
 
@@ -112,6 +114,52 @@ def _pick_printable(files):
     return primary, pair, others
 
 
+BUNDLE_EXT = ".bundle.zip"  # several meshes from one page, sliced together (2026-11-17)
+
+
+def bundle(files):
+    """Zip of [(name, bytes)] meshes; one file stays as it is."""
+    if len(files) == 1:
+        return files[0]
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for i, (name, data) in enumerate(files):
+            z.writestr(f"{i:03d}_{_sanitize(name)}", data)
+    return files[0][0].rsplit(".", 1)[0] + BUNDLE_EXT, buf.getvalue()
+
+
+def bundle_names(data):
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        return [n[4:] for n in z.namelist()]
+
+
+def bundle_pick(data, keep):
+    """The bundle with only the files at indexes `keep` (a single file comes back bare)."""
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        names = z.namelist()
+        chosen = [(names[i][4:], z.read(names[i])) for i in sorted(set(keep)) if 0 <= i < len(names)]
+    if not chosen:
+        raise FetchError("Pick at least one file")
+    return bundle(chosen)
+
+
+def _download_all(rows, link_of):
+    """Every mesh on the page, 100 MB in all; a 3MF there is a project: it goes alone, as before."""
+    meshes = [f for f in rows if _printable(f["name"]) and not f["name"].lower().endswith(".3mf")]
+    if len(meshes) < 2:
+        name, row, others = _pick_printable(rows)
+        return name, link_of(row), others
+    files, total = [], 0
+    for row in meshes:
+        data = link_of(row)
+        total += len(data)
+        if total > MAX_BYTES:
+            raise FetchError("Files are over 100 MB in all")
+        files.append((row["name"], data))
+    others = [f["name"] for f in rows if _printable(f["name"]) and f not in meshes]
+    return (*bundle(files), others)
+
+
 def _graphql(query, variables):
     body = json.dumps({"query": query, "variables": variables}).encode()
     with open_url(GRAPHQL, data=body, headers={"Content-Type": "application/json"}) as resp:
@@ -126,13 +174,13 @@ def printables(url):
     data = _graphql(
         "query($id:ID!){model:print(id:$id){id name stls{id name fileSize}}}",
         {"id": model_id})
-    name, file_row, others = _pick_printable(data["data"]["model"]["stls"])
-    dl = _graphql(
-        "mutation($id:ID!,$m:ID!){getDownloadLink(id:$id,printId:$m,fileType:stl,source:model_detail){ok output{link}}}",
-        {"id": file_row["id"], "m": model_id})
-    link = dl["data"]["getDownloadLink"]["output"]["link"]
-    with open_url(link) as resp:
-        return name, read_capped(resp), others
+    def download(file_row):
+        dl = _graphql(
+            "mutation($id:ID!,$m:ID!){getDownloadLink(id:$id,printId:$m,fileType:stl,source:model_detail){ok output{link}}}",
+            {"id": file_row["id"], "m": model_id})
+        with open_url(dl["data"]["getDownloadLink"]["output"]["link"]) as resp:
+            return read_capped(resp)
+    return _download_all(data["data"]["model"]["stls"], download)
 
 
 def thingiverse(url):
@@ -145,10 +193,10 @@ def thingiverse(url):
     files_url = f"https://api.thingiverse.com/things/{m.group(1)}/files"
     with open_url(files_url, headers=headers) as resp:
         files = json.loads(read_capped(resp))
-    name, entry, others = _pick_printable(files)
-    # ponytail: untested against the live API, no token yet.
-    with open_url(entry["download_url"], headers=headers) as resp:
-        return name, read_capped(resp), others
+    def download(entry):  # ponytail: untested against the live API, no token yet.
+        with open_url(entry["download_url"], headers=headers) as resp:
+            return read_capped(resp)
+    return _download_all(files, download)
 
 
 def _sanitize(name):

@@ -832,6 +832,8 @@ def execute(alias, action, params, key, token=None):
         elif params is None and action in ("start", "stop", "temperature"):
             raise ToolError("token mancante o scaduto: rifai prepare_...")
         raw = read_status(alias)
+        if action == "resume" and raw.get("resume_blocked"):
+            raise ToolError("Pause expired: Klipper turned off the motors and heaters, this print can't be resumed. Cancel it.")
         reason = blocked_reason(action, raw)
         if reason:
             with DB:
@@ -1410,7 +1412,8 @@ def tool_printer_info(args):
         "model": model,
         "slicer_model": slicer_model,
         "tested": tested_model(alias),
-        "nozzle": {"diameter": nozzle.get("nozzle_diameter") or None, "type": nozzle.get("nozzle_type") or None},
+        # Klipper reports no nozzle: the one in its machine config (what the slicer uses) is shown instead.
+        "nozzle": {"diameter": nozzle.get("nozzle_diameter") or cfg_nozzle(alias), "type": nozzle.get("nozzle_type") or None},
         "ams_present": bool(raw.get("ams")),
         "filaments": filaments,
         "slicer": slicer.available(),
@@ -2619,6 +2622,16 @@ def tool_slice_request(args):
         raise ToolError("Pick one spool per colour")
     if not isinstance(choices, dict):
         raise ToolError("Could not read the print settings")
+    files = None
+    if facts.get("files"):  # a bundle: which meshes to slice (missing = all of them)
+        picked = choices.get("files")
+        if picked is None:
+            picked = list(range(len(facts["files"])))
+        if (not isinstance(picked, list) or not picked
+                or not all(type(i) is int and 0 <= i < len(facts["files"]) for i in picked)
+                or len(set(picked)) != len(picked)):
+            raise ToolError("Pick at least one file")
+        files = picked
     if type(copies) is not int or not 1 <= copies <= 20:
         raise ToolError("Copies: from 1 to 20")
     raw = read_status(printer)
@@ -2626,6 +2639,10 @@ def tool_slice_request(args):
         slot_filament(printer, raw, slot)
     if args.get("standard") is True:  # Standard drops the custom settings, not Re-orient or "fresh"
         choices = {k: True for k in ("reorient", "fresh") if choices.get(k) is True}
+    if files is None:
+        choices.pop("files", None)
+    else:
+        choices["files"] = files
     choices.pop("plate_no", None)
     if facts.get("plates", 1) > 1:
         choices["plate_no"] = plate_no
@@ -2691,6 +2708,8 @@ def _fetch_request(rid, source):
     """stage='fetch': download the model, keep it, stop at draft with its facts. Never slices."""
     name, data, others, profile = _fetch_link(rid, source)
     facts = slicer.model_facts(name, data)  # several plates: the app asks which one
+    if name.endswith(fetch.BUNDLE_EXT):  # several meshes from one page: the app asks which files
+        facts["files"] = fetch.bundle_names(data)
     if profile:
         facts["profile"] = profile  # the MakerWorld print profile, shown in step 1
     note = ("Also on this page: " + ", ".join(others))[:300] if others else None
@@ -2740,7 +2759,9 @@ def _slice_request(rid, printer, source, file_name, choices_json, slots, copies,
     if user:  # the user's own Orca presets win over the built-in profile
         machine = user.pop("parent")
     choices = json.loads(choices_json) if choices_json else {}
-    if not klipper and "plate" not in choices and (mounted := plate_type(printer)):
+    if name.endswith(fetch.BUNDLE_EXT) and choices.get("files") is not None:
+        name, data = fetch.bundle_pick(data, choices["files"])  # the meshes picked in step 1
+    if "plate" not in choices and (mounted := plate_type(printer)):  # Klipper too (E3K, 2026-11-17)
         choices["plate"] = mounted  # Orca falls back to Cool Plate, which refuses PLA
     machines = _other_machines(printer)
     try:
