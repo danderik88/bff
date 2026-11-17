@@ -135,6 +135,37 @@ from anywhere, and Web Push notifications work (they need HTTPS).
 </details>
 
 <details>
+<summary><b>Spaghetti detection</b> (Obico ML API)</summary>
+
+Pygmy watches every printer's camera during a print (Bambu and Klipper alike) and asks the Obico ML API about a
+frame every 10 s, scoring it with Obico's own logic (rising score, a baseline per printer, a warmup at the start of a
+print).
+
+A warning sends a notification. A failure also pauses the print once, if **Pause on spaghetti** is on for that printer
+(on by default: Options on the printer page, or the Home Assistant switch). Pygmy never resumes a print by itself.
+
+Setup: run only the `ml_api` container from [obico-server](https://github.com/TheSpaghettiDetective/obico-server)
+(the Obico web server and the printer agent are not needed; do not run the `moonraker-obico` agent next to Pygmy, or
+two detectors will pause the same print). Then set in the env:
+
+```sh
+BFF_OBICO_URL=http://<ml_api host>:3333
+BFF_OBICO_TOKEN=<ML_API_TOKEN of the container, if set>
+# optional
+BFF_OBICO_SENSITIVITY=low|medium|high   # default medium
+BFF_OBICO_INTERVAL_S=10                 # default 10
+```
+
+The `ml_api` fetches each frame from Pygmy's LAN listener (`BFF_LAN_BIND`, port 8766 by default), so that address must
+be reachable from the `ml_api` host. Without `BFF_OBICO_URL` the feature is off and nothing changes.
+
+To try the pause without a real failure: put a spaghetti photo at
+`<state dir>/spaghetti/test-<printer alias>.jpg` while a print is running; Pygmy uses it instead of the camera until
+the file is deleted.
+
+</details>
+
+<details>
 <summary><b>Printing with an AI agent</b> (Claude Code or any MCP client)</summary>
 
 | You have | How you print |
