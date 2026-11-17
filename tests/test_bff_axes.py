@@ -103,6 +103,99 @@ class Axes(unittest.TestCase):
         self.assertRaises(server.ToolError, self.home, "all")
         self.assertFalse(server.AXES["a1"]["homed"])
 
+    def klipper(self, homed="xyz", pos=(10.0, 20.0, 30.0), **extra):
+        """A Klipper printer in the app: its own envelope and its own home G-code."""
+        store = onboard.load_store(server.store_path())
+        store["klip"] = {"host": "127.0.0.1", "port": 1, "name": "SV08", "model": "KLIPPER-SV08"}
+        onboard.save_store(server.store_path(), store)
+        server.CFG["printers"].update({"klip": 2})
+        link = server.MoonrakerLink("klip", "127.0.0.1", port=1)
+        snap = {"connected": True, "state": "IDLE", "home_flag": None,
+                "axes": {"homed": homed, "min": [-5, -5, -2], "max": [300, 300, 260], "pos": list(pos)}}
+        snap.update(extra)
+        link.snapshot = lambda: dict(snap)
+        sent = []
+        link.gcode = lambda text: sent.append(text) or True
+        server.LINKS["klip"] = link
+        return sent
+
+    def test_klipper_home_xy_is_g28_xy(self):
+        sent = self.klipper()
+        text = json.loads(server.tool_prepare_home({"printer": "klip", "axes": "xy"})[-1]["text"])
+        self.assertIn("'G28 X Y'", text["summary"])
+        server.tool_confirm_home({"printer": "klip", "token": text["confirm_token"],
+                                  "idempotency_key": self.key()})
+        self.assertEqual(sent, ["G28 X Y"])
+
+    def jog(self, axis="x", distance=10):
+        return server.tool_jog({"printer": "klip", "axis": axis, "distance": distance,
+                                "idempotency_key": self.key()})
+
+    def test_klipper_jog_is_relative_gcode(self):
+        sent = self.klipper()
+        reply = json.loads(self.jog("y", 10)[0]["text"])
+        self.assertEqual(reply["outcome"], "sent")
+        self.assertEqual(sent, ["G91\nG1 Y10 F3000\nG90"])
+        self.jog("x", -1)
+        self.jog("z", 1)
+        self.assertEqual(sent[1:], ["G91\nG1 X-1 F3000\nG90", "G91\nG1 Z1 F600\nG90"])
+
+    def test_klipper_jog_refused_when_axis_not_homed(self):
+        sent = self.klipper(homed="xy")
+        with self.assertRaisesRegex(server.ToolError, "Asse Z non azzerato"):
+            self.jog("z", 1)
+        self.assertEqual(sent, [])
+        self.jog("x", 1)  # the homed axes still jog
+        self.assertEqual(sent, ["G91\nG1 X1 F3000\nG90"])
+
+    def test_klipper_jog_refused_below_1mm(self):
+        sent = self.klipper(pos=(10, 20, 1.5))
+        with self.assertRaisesRegex(server.ToolError, "Z sotto 1 mm"):
+            self.jog("z", -1)
+        self.assertEqual(sent, [])
+
+    def test_klipper_jog_out_of_range_refused(self):
+        self.klipper(pos=(10, 20, 30))
+        with self.assertRaisesRegex(server.ToolError, "fuori area"):
+            self.jog("x", -100)  # 10 - 100 = -90, the minimum is -5
+        for bad in (200, -101, "10", True, float("nan")):
+            with self.subTest(distance=bad):
+                self.assertRaises(server.ToolError, self.jog, "x", bad)
+
+    def test_jog_only_for_klipper(self):
+        with self.assertRaisesRegex(server.ToolError, "jog solo per stampanti Klipper"):
+            server.tool_jog({"printer": "a1", "axis": "x", "distance": 1, "idempotency_key": self.key()})
+
+    def test_klipper_motion_refused_while_printing(self):
+        for state in ("RUNNING", "PAUSE", "PREPARE", "SLICING", None):
+            with self.subTest(state=state):
+                sent = self.klipper(state=state)
+                self.assertRaises(server.ToolError, self.jog)
+                self.assertRaises(server.ToolError, server.tool_home,
+                                  {"printer": "klip", "axes": "xy", "idempotency_key": self.key()})
+                self.assertRaises(server.ToolError, server.tool_motors_off,
+                                  {"printer": "klip", "idempotency_key": self.key()})
+                self.assertEqual(sent, [])
+
+    def test_klipper_home_direct_sends_the_gcode(self):
+        sent = self.klipper()
+        server.tool_home({"printer": "klip", "axes": "xy", "idempotency_key": self.key()})
+        server.tool_home({"printer": "klip", "axes": "all", "idempotency_key": self.key()})
+        self.assertEqual(sent, ["G28 X Y", "G28"])
+        self.assertRaises(server.ToolError, server.tool_home,
+                          {"printer": "klip", "axes": "z", "idempotency_key": self.key()})
+        self.assertRaises(server.ToolError, server.tool_home,
+                          {"printer": "a1", "axes": "xy", "idempotency_key": self.key()})
+
+    def test_klipper_motors_off_sends_m84_and_forgets_the_position(self):
+        sent = self.klipper()
+        server.axes_of("klip")
+        server.tool_motors_off({"printer": "klip", "idempotency_key": self.key()})
+        self.assertEqual(sent, ["M84"])
+        self.assertNotIn("klip", server.AXES)
+        self.assertRaises(server.ToolError, server.tool_motors_off,
+                          {"printer": "a1", "idempotency_key": self.key()})
+
     def test_move_refused_when_not_homed(self):
         self.assertRaises(server.ToolError, self.move, x=-48, y=0, z=10)
         self.assertEqual(self.gcodes(), [])

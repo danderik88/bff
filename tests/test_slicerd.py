@@ -411,6 +411,16 @@ class MachineOverrides(unittest.TestCase):
             with self.assertRaises(ValueError):
                 sd.with_overrides(base, bad)
 
+    def test_firmware_retraction_drops_wipe(self):
+        import slicerd as sd
+        got = sd.with_overrides({"wipe": ["1", "1", "1"]}, {"use_firmware_retraction": "1"})
+        self.assertEqual(got["wipe"], ["0", "0", "0"])
+
+    def test_wipe_untouched_without_firmware_retraction(self):
+        import slicerd as sd
+        got = sd.with_overrides({"wipe": ["1", "1", "1"]}, {"printable_height": "230"})
+        self.assertEqual(got["wipe"], ["1", "1", "1"])
+
 
 class UserPresets(unittest.TestCase):
     def test_resolve_on_system_presets(self):

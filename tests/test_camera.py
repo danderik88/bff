@@ -1,5 +1,8 @@
+import shutil
 import struct
+import subprocess
 import sys
+import tempfile
 import threading
 import unittest
 from pathlib import Path
@@ -74,6 +77,30 @@ class Camera(unittest.TestCase):
 
         with self.assertRaisesRegex(camera.CameraError, "refused"):
             camera.CameraFeed("h", "code", connect=connect).latest(wait_s=2)
+
+
+class UprightTest(unittest.TestCase):
+    def test_orientation_1_is_unchanged(self):
+        self.assertIs(camera.upright(JPEG, 1), JPEG)
+        self.assertIs(camera.upright(JPEG, None), JPEG)
+
+    def test_a_bad_frame_is_unchanged(self):
+        bad = b"nope"
+        self.assertIs(camera.upright(bad, 3), bad)
+        self.assertEqual(camera.upright(JPEG, 3), JPEG)
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg non installato")
+    def test_orientation_3_turns_the_frame(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "frame.jpg"
+            subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=red:s=32x16",
+                            "-frames:v", "1", str(path)], check=True)
+            frame = path.read_bytes()
+        self.assertEqual(frame[:2], b"\xff\xd8")
+        turned = camera.upright(frame, 3)
+        self.assertEqual(turned[:2], b"\xff\xd8")
+        self.assertIn(b"\xff\xd9", turned[-2:])
+        self.assertNotEqual(turned, frame)
 
 
 if __name__ == "__main__":

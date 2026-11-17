@@ -9,7 +9,7 @@ AVAILABILITY = "bff/availability"
 DISCOVERY = "homeassistant"
 PUBLISH_S = 5
 SPEEDS = ("silent", "standard", "sport", "ludicrous")
-OPTIONS = ("auto_recovery", "sound_enable", "filament_tangle_detect", "bff_spaghetti")
+OPTIONS = ("auto_recovery", "sound_enable", "filament_tangle_detect", "bff_spaghetti", "bff_spaghetti_pause")
 FANS = ("fan_part", "fan_aux", "fan_chamber")
 READABLE_SLOTS = frozenset(f"{unit}{n}" for unit in "abcd" for n in "1234")
 # AMS units with a heater: the highest drying temperature each one accepts.
@@ -175,6 +175,7 @@ def flat_state(status):
     flat["plate_pending"] = bool(status.get("awaiting_plate_clear"))
     flat["spaghetti"] = (status.get("spaghetti") or {}).get("verdict")
     flat["spaghetti_score"] = (status.get("spaghetti") or {}).get("score")
+    flat["spaghetti_paused"] = (status.get("spaghetti") or {}).get("paused")
     flat["options"] = dict(status.get("options") or {})
     flat["ams"], flat["ams_humidity"] = {}, {}
     for unit in status.get("ams_units") or []:
@@ -256,14 +257,16 @@ TEXT = {
     "en": {"print": "Print", "finished": "✅ {file} finished{dur}{facts}. Clear the plate.",
            "failed": "❌ {file} failed at {progress} %{layer}.", "layer": " (layer {n} of {t})",
            "error_paused": "⚠️ {alarm}. Print paused: it needs a hand.", "error": "⚠️ {alarm}. It needs a hand.",
-           "spaghetti": "🍝 Possible spaghetti on {file}{at}: check the camera. Pygmy does not pause.",
+           "spaghetti": "🍝 Possible spaghetti on {file}{at}: check the camera.",
+           "spaghetti_paused": "🍝 Possible spaghetti on {file}{at}: the print is paused. Check the camera.",
            "at": " at layer {n}", "in": " in {d}", "layers": "{t} layers",
            "low_spool": "🧵 {slot} at {remain} %{name}. Have the next spool ready.",
            "offline": "📴 Offline for 2 min.", "online": "✅ Back online."},
     "it": {"print": "La stampa", "finished": "✅ {file} finita{dur}{facts}. Libera il piatto.",
            "failed": "❌ {file} fallita al {progress} %{layer}.", "layer": " (layer {n} di {t})",
            "error_paused": "⚠️ {alarm}. Stampa in pausa: serve una mano.", "error": "⚠️ {alarm}. Serve una mano.",
-           "spaghetti": "🍝 Possibili spaghetti su {file}{at}: guarda la camera. Pygmy non mette in pausa.",
+           "spaghetti": "🍝 Possibili spaghetti su {file}{at}: guarda la camera.",
+           "spaghetti_paused": "🍝 Possibili spaghetti su {file}{at}: la stampa è in pausa. Guarda la camera.",
            "at": " al layer {n}", "in": " in {d}", "layers": "{t} layer",
            "low_spool": "🧵 {slot} al {remain} %{name}. Prepara la prossima bobina.",
            "offline": "📴 Offline da 2 min.", "online": "✅ Di nuovo online."},
@@ -296,8 +299,10 @@ def events(prev, cur, lang="en", minutes=None):
     if cur.get("alarm") and cur.get("alarm") != prev.get("alarm"):
         out.append(("error", t["error_paused" if now == "PAUSE" else "error"].format(alarm=cur["alarm"])))
     bad = ("warning", "failure")
-    if cur.get("spaghetti") in bad and prev.get("spaghetti") not in bad:
-        out.append(("spaghetti", t["spaghetti"].format(file=file, at=t["at"].format(n=n) if n else "")))
+    # A new alarm, or one that has just paused the print (warning, then failure + pause: tell again).
+    if (cur.get("spaghetti") in bad and prev.get("spaghetti") not in bad) or (cur.get("spaghetti_paused") and not prev.get("spaghetti_paused")):
+        key = "spaghetti_paused" if cur.get("spaghetti_paused") else "spaghetti"
+        out.append(("spaghetti", t[key].format(file=file, at=t["at"].format(n=n) if n else "")))
     return out
 
 
@@ -374,8 +379,9 @@ def discovery(alias, name=None, slots=(), units=(), profile=None):
                                     "step": 10, "unit_of_measurement": "%", "mode": "slider"}))
     for key, name in (("auto_recovery", "Step loss recovery"), ("sound_enable", "Printer sounds"),
                       ("filament_tangle_detect", "Tangle detection"),
-                      ("bff_spaghetti", "Spaghetti alarm (Pygmy)")):
-        if options is not None and key not in options and key != "bff_spaghetti":
+                      ("bff_spaghetti", "Spaghetti alarm (Pygmy)"),
+                      ("bff_spaghetti_pause", "Pause on spaghetti (Pygmy)")):
+        if options is not None and key not in options and not key.startswith("bff_"):
             continue
         out.append(("switch", f"opt_{key}", {"name": name, "state_topic": state,
                                              "value_template": f"{{{{ 'ON' if value_json.options.{key} else 'OFF' }}}}",

@@ -359,6 +359,20 @@ class SlicerBase(unittest.TestCase):
                                    "choices": {"infill": 15, "reorient": True}, "copies": 1, "standard": True})
         self.assertEqual(self.row(did, "choices")[0], json.dumps({"reorient": True}))
 
+    def test_klipper_slices_with_the_spool_set_in_the_app(self):
+        """No AMS on Klipper: the slice uses the material (and profile) set with set_spool, not PLA."""
+        (Path(server.CFG["profiles"]) / "sv08.json").write_text(json.dumps({"model": "Sovol SV08"}))
+        link = server.MoonrakerLink("sv08", "127.0.0.1", port=1)
+        link.snapshot = lambda: {"connected": True, "state": "IDLE", "ams": [], "vt_tray": []}
+        server.LINKS["sv08"] = link
+        self.addCleanup(server.LINKS.pop, "sv08", None)
+        with mock.patch.dict(server.CFG["printers"], {"sv08": 2}):
+            server.tool_set_spool({"printer": "sv08", "profile_id": "GFG99", "color": "FF0000FF"})
+            did = server.upload_model("a1", "cube.stl", b"solid x", draft=True)["id"]
+            server.tool_slice_request({"printer": "sv08", "id": did, "slots": ["external"], "choices": {}, "copies": 1})
+            self.assertTrue(server.slice_once())
+        self.assertEqual(self.state.requests[-1]["filaments"], [{"filament_id": "GFG99", "filament_type": "PETG"}])
+
     def test_standard_sends_printer_plate(self):
         """Orca defaults to Cool Plate and refuses PLA: the printer's plate always goes along."""
         server.DB.execute("INSERT OR REPLACE INTO settings VALUES ('a1', 'plate_type', 'Textured PEI Plate')")

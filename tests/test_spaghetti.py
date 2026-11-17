@@ -66,6 +66,18 @@ class WatchTest(unittest.TestCase):
         self.w.tick()
         self.assertIsNone(self.w.print)
 
+    def test_paused_flag_belongs_to_the_print(self):
+        self.run_ticks(1)
+        self.w.paused = True
+        self.run_ticks(1)
+        self.assertIs(self.w.paused, True)  # still the same print
+        self.state = "FINISH"
+        self.w.tick()
+        self.assertIsNone(self.w.paused)  # the next print may pause again
+        self.state = "RUNNING"
+        self.w.tick()
+        self.assertIsNone(self.w.paused)
+
 
 class FrameTest(unittest.TestCase):
     def test_frame_served_once_and_expires(self):

@@ -81,7 +81,7 @@ class Direct(unittest.TestCase):
         self.assertEqual(self.link.published, [])
         self.assertEqual(self.outcome("key-00002"), "unknown")
         self.assertTrue(self.locked())
-        self.assertRaises(server.ToolError, server.execute, "a1", "pause", None, "key-00003")
+        self.assertRaises(server.ToolError, server.execute, "a1", "resume", None, "key-00003")
         self.assertEqual(self.link.published, [])
 
     def test_sent_but_never_confirmed_keeps_the_lock_and_sends_once(self):

@@ -125,7 +125,7 @@ class ControlTest(unittest.TestCase):
         err, res = self.call("pause", idempotency_key=self.key())
         self.assertTrue(err)
         self.assertIn("unknown", res["errore"])
-        err, res = self.call("pause", idempotency_key=self.key())
+        err, res = self.call("resume", idempotency_key=self.key())
         self.assertTrue(err)
         self.assertIn("recheck", res["errore"])
         self.assertEqual(len(Fake.posts), 1)

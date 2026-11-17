@@ -12,7 +12,10 @@ log:
 # 30-70 s before the first frame. Wall-clock timestamps and a steady 10 fps bring it under 5 s.
 # Only http sources (BFF's /stream/) use these; RTSP printers pass through untouched.
 ffmpeg:
-  http: "-fflags nobuffer -flags low_delay -use_wallclock_as_timestamps 1 -i {input}"
+  # -noautorotate: BFF already puts Moonraker's flip/rotation on each JPEG as an EXIF Orientation tag,
+  # and ffmpeg applies that tag by itself; without this the h264_o<N> filters below turn a second time
+  # (hflip+vflip twice = no turn at all, the "unflipped" Klipper webcam).
+  http: "-noautorotate -fflags nobuffer -flags low_delay -use_wallclock_as_timestamps 1 -i {input}"
   h264: "-c:v libx264 -r:v 10 -g:v 20 -profile:v high -level:v 4.1 -preset:v superfast -tune:v zerolatency -pix_fmt:v yuv420p"
   # Klipper webcams mounted turned or mirrored (Moonraker's flip/rotation as EXIF Orientation 2..8).
   # go2rtc refuses #raw from its API, so the filters live here.

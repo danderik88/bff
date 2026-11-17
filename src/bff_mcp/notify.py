@@ -116,13 +116,17 @@ def vapid_public(db):
     return _vapid(db)["public_b64"]
 
 
-def send_push(db, title, body, url):
-    """Deliver to every registered device; drop the ones the push service says are gone. Returns how many got it."""
+def send_push(db, title, body, url, image=None):
+    """Deliver to every registered device; drop the ones the push service says are gone. Returns how many got it.
+    image: a URL the phone opens without a token (the /photo/ ids are unguessable and short-lived)."""
     subs = get(db, "push_subs") or []
     if not subs or webpush is None:
         return 0
     vapid = Vapid02.from_pem(_vapid(db)["private_pem"].encode()) if Vapid02 else _vapid(db)["private_pem"]
-    data = json.dumps({"title": title, "body": body, "url": url})
+    payload = {"title": title, "body": body, "url": url}
+    if image:
+        payload["image"] = image
+    data = json.dumps(payload)
     # Apple refuses a localhost subject; BFF_PUSH_CONTACT lets an install name its own.
     claims = {"sub": os.environ.get("BFF_PUSH_CONTACT") or "mailto:bff@example.com"}
     sent, gone = 0, set()
@@ -149,11 +153,34 @@ def send_push(db, title, body, url):
     return sent
 
 
-def send_telegram(db, text):
+def _field(boundary, name, value, filename=None):
+    """One multipart/form-data part."""
+    disp = f'name="{name}"' + (f'; filename="{filename}"' if filename else "")
+    return (f"--{boundary}\r\nContent-Disposition: form-data; {disp}\r\n".encode()
+            + (b"Content-Type: image/jpeg\r\n" if filename else b"")
+            + b"\r\n" + value + b"\r\n")
+
+
+def send_telegram(db, text, photo=None):
+    """The text, with the print's last frame as a photo when there is one; any photo trouble falls back to text."""
     conf = get(db, "telegram") or {}
     if not conf.get("token") or not conf.get("chat"):
         return False
-    req = urllib.request.Request(f"https://api.telegram.org/bot{conf['token']}/sendMessage",
+    api = f"https://api.telegram.org/bot{conf['token']}"
+    if photo:
+        boundary = f"----bff{secrets.token_hex(8)}"
+        body = (_field(boundary, "chat_id", str(conf["chat"]).encode())
+                + _field(boundary, "caption", text.encode())
+                + _field(boundary, "photo", photo, "photo.jpg")
+                + f"--{boundary}--\r\n".encode())
+        try:
+            urllib.request.urlopen(urllib.request.Request(
+                f"{api}/sendPhoto", data=body,
+                headers={"Content-Type": f"multipart/form-data; boundary={boundary}"}), timeout=20).close()
+            return True
+        except Exception as err:  # the error text can carry the URL, so the token: never print it
+            print(f"notify: telegram photo failed ({type(err).__name__})", file=sys.stderr)
+    req = urllib.request.Request(f"{api}/sendMessage",
                                  data=json.dumps({"chat_id": conf["chat"], "text": text}).encode(),
                                  headers={"Content-Type": "application/json"})
     try:
@@ -228,33 +255,41 @@ def app_call(db, name, args):
     raise ValueError(f"unknown call {name}")
 
 
-def dispatch(db, title, message, url):
-    """Every enabled channel. Home Assistant is not one: it has every entity, the Alert event included."""
+def dispatch(db, title, message, url, photo=None, photo_url=None):
+    """Every enabled channel. Home Assistant is not one: it has every entity, the Alert event included.
+    photo: the print's last frame; photo_url turns it into a link for the push image."""
     on = channels(db)
+    image = None
+    if photo and photo_url:
+        try:
+            image = photo_url(photo)
+        except Exception as err:  # a photo is a bonus: the notification still goes
+            print(f"notify: photo {type(err).__name__}", file=sys.stderr)
     if on["push"]:
         try:
-            send_push(db, title, message, url)
+            send_push(db, title, message, url, image)
         except Exception as err:  # never let one channel stop the other
             print(f"notify: push {type(err).__name__}", file=sys.stderr)
-    if on["telegram"] and get(db, "telegram") and not send_telegram(db, f"{title}: {message}"):
-        send_telegram(db, f"{title}: {message}")  # one retry
+    if on["telegram"] and get(db, "telegram") and not send_telegram(db, f"{title}: {message}", photo):
+        send_telegram(db, f"{title}: {message}", photo)  # one retry
 
 
 class Notifier:
     """Polls every printer like the HA bridge does, and runs without HA."""
     POLL_S = 5
 
-    def __init__(self, db_path, aliases, read_status, names, lang="en", base_url=""):
+    def __init__(self, db_path, aliases, read_status, names, lang="en", base_url="", photo=None, photo_url=None):
         self.db_path, self.aliases, self.read_status, self.names = db_path, aliases, read_status, names
         self.lang, self.base_url = lang, base_url
+        self.photo, self.photo_url = photo, photo_url  # alias -> JPEG, and JPEG -> URL for the push image
         self.background = True
         self.last, self.presence, self.warned, self.started = {}, {}, {}, {}
 
-    def _send(self, title, message, url):
+    def _send(self, title, message, url, photo=None):
         def run():
             db = sqlite3.connect(self.db_path)
             try:
-                dispatch(db, title, message, url)
+                dispatch(db, title, message, url, photo, self.photo_url)
             except Exception as err:
                 print(f"notify: {type(err).__name__}", file=sys.stderr)
             finally:
@@ -284,16 +319,24 @@ class Notifier:
             if cur is not None:
                 prev = self.last.get(alias)
                 running = str(cur.get("state") or "").upper() in PRINTING
-                if running and alias not in self.started:
+                was = str((prev or {}).get("state") or "").upper()
+                # Only a start seen happening: after a restart the real start is unknown, so no "in N min".
+                if prev is not None and running and was not in PRINTING:
                     self.started[alias] = now
-                minutes = (now - self.started[alias]) / 60 if alias in self.started else None
-                found += alerts(prev, cur, self.lang, minutes if prev else None, self.warned.setdefault(alias, set()))
+                minutes = round((now - self.started[alias]) / 60) if alias in self.started else None
+                found += alerts(prev, cur, self.lang, minutes, self.warned.setdefault(alias, set()))
                 if not running:
                     self.started.pop(alias, None)
                 self.last[alias] = cur
             title = self.names(alias) or alias.upper()
             for kind, message in found:
-                self._send(title, message, f"{self.base_url}/app?printer={alias}")
+                photo = None
+                if kind in ("finished", "failed") and self.photo is not None:
+                    try:
+                        photo = self.photo(alias)
+                    except Exception as err:  # the frame is a bonus, never a reason to skip the alert
+                        print(f"notify: foto {alias}: {type(err).__name__}", file=sys.stderr)
+                self._send(title, message, f"{self.base_url}/app?printer={alias}", photo)
                 out.append((alias, kind, message))
         return out
 

@@ -48,6 +48,7 @@ class PrintState:
 
     def __init__(self, baseline):
         self.baseline, self.short, self.frames, self.ewm = baseline, Rolling(ROLLING_SHORT), 0, 0.0
+        self.warmup = WARMUP_FRAMES
 
     def update(self, p):
         self.frames += 1
@@ -55,7 +56,7 @@ class PrintState:
         self.short.add(p)
         self.baseline.add(p)
         base = min(self.baseline.mean, BASELINE_CAP)
-        return self.ewm - base, self.short.mean - base, self.frames <= WARMUP_FRAMES
+        return self.ewm - base, self.short.mean - base, self.frames <= self.warmup
 
 
 def failing(score, short_rise, warmup, sensitivity, factor):
@@ -126,19 +127,27 @@ class Watch:
     self.verdict: None (not checking), 'safe', 'warning', 'failure', 'unknown' (engine or camera down).
     """
 
-    def __init__(self, state_of, frame, detect, sensitivity="medium"):
+    def __init__(self, state_of, frame, detect, sensitivity="medium", progress_of=lambda: 0):
         self.state_of, self.frame, self.detect, self.sensitivity = state_of, frame, detect, sensitivity
+        self.progress_of = progress_of  # print progress in %, to tell a fresh print from one joined midway
         self.baseline, self.print, self.verdict, self.score, self.error = Rolling(ROLLING_LONG), None, None, None, None
         self.last_jpeg = None
         self.muted = False  # the user said "not spaghetti" for this print: keep scoring, stop alarming
+        # None: the failure has not paused this print; True/False: it tried (and whether it worked).
+        self.paused = None
 
     def tick(self):
         if self.state_of() != "RUNNING":
             if self.state_of() not in ("PAUSE",):  # a pause keeps the print's state; anything else ends it
                 self.print, self.verdict, self.score, self.error, self.muted = None, None, None, None, False
+                self.paused = None
             return
         if self.print is None:
-            self.print = PrintState(self.baseline)
+            self.print, self.paused = PrintState(self.baseline), None
+            # Joined a print already under way (Pygmy restarted mid-print): the warmup is for the first
+            # layers, so skipping it here keeps the watch from going blind for 5 minutes (2026-11-17, E3K).
+            if (self.progress_of() or 0) >= 5:
+                self.print.warmup = 0
         jpeg = self.last_jpeg = self.frame()
         if not jpeg:
             self.verdict, self.error = "unknown", "camera"

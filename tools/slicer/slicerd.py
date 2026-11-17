@@ -334,7 +334,11 @@ def with_overrides(machine_json: dict, overrides) -> dict:
     if not isinstance(overrides, dict) or set(overrides) - OVERRIDE_KEYS or not all(
             isinstance(v, str) or (isinstance(v, list) and all(isinstance(x, str) for x in v)) for v in overrides.values()):
         raise ValueError("machine_overrides: unknown key or value type")
-    return {**machine_json, **overrides}
+    merged = {**machine_json, **overrides}
+    # OrcaSlicer rejects firmware retraction together with wipe (exit -18).
+    if merged.get("use_firmware_retraction") == "1":
+        merged["wipe"] = ["0"] * len(machine_json.get("wipe") or ["1"])
+    return merged
 
 
 UNSAFE_PRESET_KEYS = ("post_process",)  # never run a script that came with a user preset

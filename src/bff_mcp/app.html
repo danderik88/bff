@@ -265,14 +265,29 @@ select { font: 16px var(--sans); color: var(--fg); background: var(--panel2); bo
   <div class="sheet" id="xyz" hidden><div style="max-height: 92vh; overflow: auto">
     <h3>XYZ</h3>
     <img id="xyzcam" alt="Printer camera" style="width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 12px; background: #000">
-    <div class="acts"><button class="btn" id="homexy">Home XY</button><button class="btn" id="homeall">Home all</button></div>
-    <div class="pos" id="pos">–</div>
-    <div class="jstep" id="jstep"></div>
-    <p class="note" style="margin-top: 10px">Pygmy can't see where the head is: the printer doesn't report its position. Moves are checked against the model's limits, but a move made from the printer screen is invisible to Pygmy. Watch the camera while moving.</p>
-    <div class="jog" id="jog">
-      <i></i><button class="btn" data-a="y" data-d="1">Y+</button><i></i><button class="btn" id="zup" data-a="z" data-d="1">Z ↑</button>
-      <button class="btn" data-a="x" data-d="-1">X−</button><i></i><button class="btn" data-a="x" data-d="1">X+</button><i></i>
-      <i></i><button class="btn" data-a="y" data-d="-1">Y−</button><i></i><button class="btn" id="zdn" data-a="z" data-d="-1">Z ↓</button>
+    <!-- Printers that don't report their position: absolute moves checked against the model's limits. -->
+    <div id="xyzabs">
+      <div class="acts"><button class="btn" id="homexy">Home XY</button><button class="btn" id="homeall">Home all</button></div>
+      <div class="pos" id="pos">–</div>
+      <div class="jstep" id="jstep"></div>
+      <p class="note" style="margin-top: 10px">Pygmy can't see where the head is: the printer doesn't report its position. Moves are checked against the model's limits, but a move made from the printer screen is invisible to Pygmy. Watch the camera while moving.</p>
+      <div class="jog" id="jog">
+        <i></i><button class="btn" data-a="y" data-d="1">Y+</button><i></i><button class="btn" id="zup" data-a="z" data-d="1">Z ↑</button>
+        <button class="btn" data-a="x" data-d="-1">X−</button><i></i><button class="btn" data-a="x" data-d="1">X+</button><i></i>
+        <i></i><button class="btn" data-a="y" data-d="-1">Y−</button><i></i><button class="btn" id="zdn" data-a="z" data-d="-1">Z ↓</button>
+      </div>
+    </div>
+    <!-- Klipper: relative jog from the printer's own position, like Mobileraker. -->
+    <div id="xyzjog" hidden>
+      <div class="acts"><button class="btn" id="khomexy">Home XY</button><button class="btn" id="khomeall">Home all</button></div>
+      <button class="btn" id="kmotors" style="margin-top: 12px">Motors off</button>
+      <div class="pos" id="kpos">–</div>
+      <div class="jstep" id="kstep"></div>
+      <div class="jog" id="kjog">
+        <i></i><button class="btn" data-a="y" data-d="1">Y+</button><i></i><button class="btn" data-a="z" data-d="1">Z+</button>
+        <button class="btn" data-a="x" data-d="-1">X−</button><i></i><button class="btn" data-a="x" data-d="1">X+</button><i></i>
+        <i></i><button class="btn" data-a="y" data-d="-1">Y−</button><i></i><button class="btn" data-a="z" data-d="-1">Z−</button>
+      </div>
     </div>
     <button class="btn" onclick="document.getElementById('xyz').hidden = true">Done</button>
   </div></div>
@@ -557,6 +572,9 @@ const EN = [
   [/choices deve/, "Invalid print settings"],
   [/non connessa|disconnessa|Collegamento diretto|non risponde/, "Printer offline"],
   [/Z sotto 1 mm/, "Z can't go below 1 mm"],
+  [/Asse .* non azzerato/, "That axis is not homed: Home first"],
+  [/fuori area/, "Out of range"],
+  [/solo per stampanti Klipper/, "Only on Klipper printers"],
   [/Alza Z ad almeno 10 mm/, "Raise Z to at least 10 mm before moving X/Y"],
   [/Piatto da liberare|Piatto non liberato/, "Clear the plate first"],
   [/Movimento precedente ancora in corso/, "Previous move still running"],
@@ -615,6 +633,10 @@ function render(s) {
   const st = STATE[s.state] || (s.state || "–").toLowerCase();
   $("pname").textContent = nameOf(PRINTER);
   posLine(s);
+  // Klipper printers report their own position: relative jog instead of the absolute move UI.
+  const jogStyle = s.motion_style === "jog";
+  $("xyzabs").hidden = jogStyle; $("xyzjog").hidden = !jogStyle;
+  if (jogStyle) { kposLine(s); kstepOpts(); }
   $("online").style.setProperty("--dot", s.connected ? "var(--accent)" : "var(--bad)");
   $("online").innerHTML = lineOf(s);
   const t = { ...(s.temperatures || {}) };
@@ -668,9 +690,10 @@ function render(s) {
   const bedZ = !!(s.motion && s.motion.bed_z);
   $("zup").textContent = bedZ ? "Bed ↑" : "Z ↑"; $("zup").dataset.d = bedZ ? -1 : 1;
   $("zdn").textContent = bedZ ? "Bed ↓" : "Z ↓"; $("zdn").dataset.d = bedZ ? 1 : -1;
-  $("xyzbtn").disabled = moving || unmeasured; $("xyzbtn").hidden = !expert;
+  jogFree = s.motion_style === "jog";  // Klipper guards its own moves: Motion needs no Expert mode there
+  $("xyzbtn").disabled = moving || unmeasured; $("xyzbtn").hidden = !(expert || jogFree);
   $("xyzbtn").querySelector(".val").innerHTML = unmeasured ? '<small style="font-size:14px;font-weight:500">Not measured</small>' : moving ? "Locked" : "XYZ";
-  if (moving || unmeasured || !expert) $("xyz").hidden = true;
+  if (moving || unmeasured || !(expert || jogFree)) $("xyz").hidden = true;
 }
 
 async function poll() {
@@ -1941,6 +1964,30 @@ $("jog").onclick = e => {
   busyUntil = Date.now() + dt;
   act(() => rpc("move", { [a]: v, idempotency_key: key() }));
 };
+// Klipper jog: relative moves from the position the printer reports. An axis shown green is homed.
+let kstep = 10;
+const kstepOpts = () => opts("kstep", [0.1, 1, 10, 100], kstep, x => x + " mm");
+kstepOpts();
+$("kstep").onclick = e => { const b = e.target.closest(".opt"); if (b) { kstep = +b.dataset.v; kstepOpts(); } };
+function kposLine(s) {
+  const ax = s.axes || {}, p = ax.pos || {}, homed = new Set((ax.homed_axes || "").split(""));
+  $("kpos").innerHTML = ["x", "y", "z"].map(a =>
+    `<span style="color:${homed.has(a) ? "var(--accent)" : "var(--muted)"}">${a.toUpperCase()} ${p[a] ?? "–"}</span>`).join("  ");
+}
+const khome = axes => act(() => rpc("home", { axes, idempotency_key: crypto.randomUUID() }), "Homing");
+$("khomexy").onclick = () => khome("xy");
+$("khomeall").onclick = () => ask("Home all axes?", { text: "Z probes the bed: it must be clear." }, "Home", false,
+  () => khome("all"));
+$("kmotors").onclick = () => ask("Release the motors?", { text: "The printer forgets where the head is: Home again before moving." },
+  "Release", true, () => act(() => rpc("motors_off", { idempotency_key: crypto.randomUUID() }), "Motors released"));
+$("kjog").onclick = e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  const a = b.dataset.a, name = a.toUpperCase(), d = b.dataset.d * kstep;
+  if (!((last.axes || {}).homed_axes || "").includes(a)) return toast(`Axis ${name} is not homed: Home first`);
+  act(() => rpc("jog", { axis: a, distance: d, idempotency_key: crypto.randomUUID() }),
+    `Jog ${name} ${d > 0 ? "+" : ""}${d} mm`);
+};
 // Fullscreen camera (the user): pinch to zoom, drag to move, double tap back to 1x, one tap leaves.
 const camBox = document.querySelector(".cam");
 const camIsFull = () => camBox.classList.contains("full") || matchMedia("(orientation: landscape) and (max-height: 500px)").matches;
@@ -1976,7 +2023,7 @@ camBox.onclick = () => {
 const OPT_NAMES = { spaghetti_detector: "Spaghetti detection", first_layer_inspector: "First layer inspection",
   buildplate_marker_detector: "Plate marker check", printing_monitor: "AI print monitor", allow_skip_parts: "Skip objects",
   pileup_detector: "Pile-up detection", clump_detector: "Nozzle clump detection", airprint_detector: "Air printing detection",
-  auto_recovery: "Recover from step loss", sound_enable: "Printer sounds", filament_tangle_detect: "Filament tangle detection", bff_spaghetti: "Spaghetti alarm (Pygmy)" };
+  auto_recovery: "Recover from step loss", sound_enable: "Printer sounds", filament_tangle_detect: "Filament tangle detection", bff_spaghetti: "Spaghetti alarm (Pygmy)", bff_spaghetti_pause: "Pause on spaghetti" };
 let extra = {};
 function optLabel(k) {  // Klipper runout sensors carry their own name and say whether filament is in
   if (!k.startsWith("filament_sensor:")) return OPT_NAMES[k] || k;
@@ -2142,9 +2189,10 @@ function paintOpts() {
         `<div class="row"><span>${optLabel(k)}</span><button class="sw ${v ? "on" : ""}" data-k="${k}" data-tool="${tool}" data-arg="${arg}" data-v="${v}"></button></div>`).join("")
       || "<p>The printer has not reported its options yet.</p>")
     + (camUrls ? sec("ha", "Home Assistant", "", camOptions()) : "")
-    + sec("adv", "Advanced", expert ? "Expert mode on" : "",
+    // jog-capable (Klipper) printers don't need Expert mode; hide the whole Advanced section there
+    + (jogFree ? "" : sec("adv", "Advanced", expert ? "Expert mode on" : "",
       `<div class="row"><span>Expert mode</span>${info && info.tested === false ? `<span class="note">Not tested on this model yet</span>` : ""}`
-      + `<button class="sw ${expert && !(info && info.tested === false) ? "on" : ""}" data-k="__expert" data-v="${expert}"${info && info.tested === false ? " disabled" : ""}></button></div>`);
+      + `<button class="sw ${expert && !(info && info.tested === false) ? "on" : ""}" data-k="__expert" data-v="${expert}"${info && info.tested === false ? " disabled" : ""}></button></div>`));
   $("setrows").innerHTML = sec("notif", "Notifications", notif ? [ch.push && "Web Push on", ch.telegram && "Telegram on"].filter(Boolean).join(" · ") || "off" : "", notifOptions())
     + sec("devs", "Devices", devs ? String(devs.filter(d => !d.builtin).length) : "", devOptions());
   // A build without MakerWorld sign-in says available: false; the comment keeps the box "painted"
@@ -2179,9 +2227,10 @@ const EXPERT_TEXT = "Expert mode shows Motion: home and move the axes by hand. D
   + "Pygmy refuses moves before homing, Z below 1 mm, X/Y below Z 10 mm, the filament cutter corner, and moves while printing. It still can't see objects left on the plate or a head moved by hand.\n"
   + "Moves are G-code sent straight to your printer: a wrong move can damage it. Watch the camera while moving. You use this at your own risk.";
 let expert = false;
+let jogFree = false;
 function applyExpert() {
-  $("xyzbtn").hidden = !expert;
-  if (!expert) $("xyz").hidden = true;
+  $("xyzbtn").hidden = !(expert || jogFree);
+  if (!(expert || jogFree)) $("xyz").hidden = true;
   if (!$("opts").hidden || !$("sets").hidden) paintOpts();
 }
 function setExpert(on) {

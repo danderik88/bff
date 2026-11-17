@@ -30,7 +30,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))  # Sibling modules, on the CT and in tests.
 from printer_link import PUSHALL, PrinterLink, check_fingerprint, with_sequence  # noqa: E402
-from moonraker_link import MoonrakerLink  # noqa: E402
+from moonraker_link import MoonrakerLink, SPEED_PERCENT  # noqa: E402
 import camera  # noqa: E402
 import spaghetti  # noqa: E402
 import devices  # noqa: E402
@@ -186,34 +186,75 @@ def watch_plates():
 WATCHES = {}
 
 
-def spaghetti_watch_on(alias):
-    """BFF's own spaghetti alarm (Obico), per printer; on unless the user switched it off in the app."""
+def _switch_on(alias, key):
+    """A per-printer BFF switch kept in settings; on unless the user switched it off in the app."""
     try:
-        row = DB.execute("SELECT value FROM settings WHERE printer=? AND key='bff_spaghetti'", (alias,)).fetchone()
-    except (AttributeError, sqlite3.Error):  # no database (status read in tests): the alarm stays on
+        row = DB.execute("SELECT value FROM settings WHERE printer=? AND key=?", (alias, key)).fetchone()
+    except (AttributeError, sqlite3.Error):  # no database (status read in tests): the switch stays on
         return True
     return not row or row[0] != "off"
 
 
+def spaghetti_watch_on(alias):
+    """BFF's own spaghetti alarm (Obico), per printer; on unless the user switched it off in the app."""
+    return _switch_on(alias, "bff_spaghetti")
+
+
+def spaghetti_pause_on(alias):
+    """Pause the print when the alarm turns to failure, per printer; on by default."""
+    return _switch_on(alias, "bff_spaghetti_pause")
+
+
 def note_spaghetti(alias, watch):
-    """Log every verdict change; keep the frame of each alarm to look at afterwards."""
+    """Log every verdict change; keep the frame of each alarm to look at afterwards.
+    A failure pauses the print once, when the printer's Pause on spaghetti option is on."""
     print(f"spaghetti {alias}: {watch.verdict} score={watch.score} error={watch.error}", file=sys.stderr, flush=True)
     if watch.verdict in ("warning", "failure") and watch.last_jpeg:
         folder = Path(os.environ.get("STATE_DIRECTORY") or ".") / "spaghetti"
         folder.mkdir(exist_ok=True)
         (folder / f"{alias}-{time.strftime('%Y%m%d-%H%M%S')}-{watch.verdict}.jpg").write_bytes(watch.last_jpeg)
+    # watch.paused: None (not tried this print), True (paused), False (tried, the pause did not go through).
+    if (watch.verdict == "failure" and not watch.muted and watch.state_of() == "RUNNING"
+            and spaghetti_pause_on(alias) and getattr(watch, "paused", None) is None):
+        watch.paused = True  # at once to the notifier, so its spaghetti alert says the print was paused
+        try:  # the same path as the pause tool: Bambu MQTT and Moonraker both
+            require_support(alias, "pause")
+            reply = execute(alias, "pause", {}, secrets.token_urlsafe(16))
+            watch.paused = reply.get("outcome") == "confirmed"
+            if not watch.paused:
+                print(f"spaghetti {alias}: pause {reply.get('outcome')}: {reply.get('detail')}", file=sys.stderr, flush=True)
+        except Exception as err:  # a failed pause is logged; the alarm still notifies
+            watch.paused = False
+            print(f"spaghetti {alias}: pause failed: {err}", file=sys.stderr, flush=True)
+
+
+def latest_frame(alias, max_age_s=5.0):
+    """The camera's latest frame, pixels already upright for consumers that ignore EXIF (Obico, phones)."""
+    try:
+        jpeg = feed_of(alias).latest(max_age_s=max_age_s)
+    except (ToolError, camera.CameraError):
+        return None
+    # Obico ignores the EXIF Orientation tag: hand it the pixels already turned. Same bytes go to
+    # Obico, to spaghetti.stash and to the saved warning frame.
+    link = LINKS.get(alias)  # the feed just read the webcam list: its cached flip is current, no extra request
+    return camera.upright(jpeg, camera.exif_orientation(*link.cam_flip) if isinstance(link, MoonrakerLink) else 1)
+
+
+def test_frame(alias):
+    """spaghetti/test-<alias>.jpg in the state folder stands in for the camera while it exists:
+    a way to try Pause on spaghetti from afar. Delete the file to go back to the camera."""
+    path = Path(os.environ.get("STATE_DIRECTORY") or ".") / "spaghetti" / f"test-{alias}.jpg"
+    try:
+        return path.read_bytes()
+    except OSError:
+        return None
 
 
 def watch_spaghetti():
-    """During prints, ask Obico about the latest frame every BFF_OBICO_INTERVAL_S. Report only, never pause."""
+    """During prints, ask Obico about the latest frame every BFF_OBICO_INTERVAL_S. Report, and pause
+    on a failure when the printer's Pause on spaghetti option is on. Never resume."""
     def state_of(alias):
         return str(link_of(alias).snapshot().get("state") or "").upper()
-
-    def frame(alias):
-        try:
-            return feed_of(alias).latest(max_age_s=5.0)
-        except (ToolError, camera.CameraError):
-            return None
 
     def detect(jpeg):
         url = f"{CFG['obico_frame_base']}/obico/{spaghetti.stash(jpeg)}.jpg"
@@ -225,7 +266,8 @@ def watch_spaghetti():
                 WATCHES.pop(alias, None)
                 continue
             watch = WATCHES.setdefault(alias, spaghetti.Watch(
-                lambda a=alias: state_of(a), lambda a=alias: frame(a), detect, CFG["obico_sensitivity"]))
+                lambda a=alias: state_of(a), lambda a=alias: test_frame(a) or latest_frame(a), detect, CFG["obico_sensitivity"],
+                lambda a=alias: link_of(a).snapshot().get("progress")))
             before = watch.verdict
             try:
                 watch.tick()
@@ -293,7 +335,8 @@ def status_dict(args):
     units = onboard.ams_units(raw.get("ams"), raw.get("tray_now"), raw.get("ams_exist_bits"))
     if units:
         result["ams_units"] = units
-    result["options"] = {**(result.get("options") or {}), "bff_spaghetti": spaghetti_watch_on(args["printer"])}
+    result["options"] = {**(result.get("options") or {}), "bff_spaghetti": spaghetti_watch_on(args["printer"]),
+                         "bff_spaghetti_pause": spaghetti_pause_on(args["printer"])}
     for key, val in raw.items():  # Klipper runout sensors: a switch in Options, filament in or out beside it
         kind, _, name = key.partition(" ")
         if kind in ("filament_switch_sensor", "filament_motion_sensor") and isinstance(val, dict) and "enabled" in val:
@@ -303,14 +346,24 @@ def status_dict(args):
         # Only these models report a real chamber temperature; A1/P1 echo a constant 5 and never publish it.
         result["chamber_temp"] = raw.get("chamber_temp")
         result["door"] = "ON" if raw.get("door_open") else "OFF"
-    result["motion"] = envelope_of(args["printer"]) or False  # the app's limits; False greys Motion
+    result["motion_style"] = "jog" if envelope_name_of(args["printer"]) == "KLIPPER" else "absolute"
+    try:  # a Klipper printer that has not answered toolhead yet has no limits: greys Motion, no error
+        result["motion"] = envelope_of(args["printer"]) or False  # the app's limits; False greys Motion
+    except ToolError:
+        result["motion"] = False
     watch = WATCHES.get(args["printer"])
     if watch:
-        result["spaghetti"] = {"verdict": watch.verdict, "score": watch.score, "error": watch.error}
+        result["spaghetti"] = {"verdict": watch.verdict, "score": watch.score, "error": watch.error,
+                               "paused": getattr(watch, "paused", None) is True}
     # ponytail: no link (tests, printer not configured) shows "not homed"
     try:
         axes = axes_of(args["printer"], raw)
         result["axes"] = {"homed": axes["homed"], "pos": axes["pos"]}
+        live = raw.get("axes") or {}  # Klipper: per-axis homing and a real position, even when only one axis is homed
+        if live:
+            result["axes"]["homed_axes"] = live.get("homed") or ""
+            if len(live.get("pos") or []) >= 3:
+                result["axes"]["pos"] = {axis: round(live["pos"][i], 2) for i, axis in enumerate("xyz")}
     except Exception:
         result["axes"] = {"homed": False, "pos": dict.fromkeys("xyz")}
     return result
@@ -370,7 +423,8 @@ def model_code(alias):
 def tested_model(alias):
     """Whether the user tested this model by hand: Expert mode stays locked on anything else."""
     code = model_code(alias)
-    if code in onboard.TESTED_MODELS:
+    # Klipper refuses unhomed and out-of-range moves itself, from printer.cfg: nothing to map by hand.
+    if code in onboard.TESTED_MODELS or envelope_name_of(alias) == "KLIPPER":
         return True
     # BFF_EXPERT_MODELS lets a tester unlock Expert mode on a model whose safe area is being mapped.
     expert = os.environ.get("BFF_EXPERT_MODELS") or ""
@@ -613,7 +667,10 @@ def check_temperature(alias, heater, target):
     return ceiling
 
 
-def assert_unlocked(alias):
+def assert_unlocked(alias, action=None):
+    """Pause and stop are safety commands: an unknown last outcome must never refuse them."""
+    if action in ("pause", "stop"):
+        return
     if DB.execute("SELECT 1 FROM locks WHERE printer=?", (alias,)).fetchone():
         raise ToolError(f"Esito dell'ultimo comando su {alias} sconosciuto: usa recheck prima di altri comandi")
 
@@ -769,7 +826,7 @@ def execute(alias, action, params, key, token=None):
         previous = replay_of(key, alias, action, params)
         if previous:
             return previous
-        assert_unlocked(alias)
+        assert_unlocked(alias, action)
         if token is not None:
             params = consume_token(token, alias, action)
         elif params is None and action in ("start", "stop", "temperature"):
@@ -832,7 +889,7 @@ def tool_prepare_stop(args):
     alias = args["printer"]
     require_support(alias, "stop")
     with COMMAND_LOCK:
-        assert_unlocked(alias)
+        assert_unlocked(alias, "stop")
         raw = read_status(alias)
         reason = blocked_reason("stop", raw)
         if reason:
@@ -1088,7 +1145,9 @@ def filaments_feed(filaments, raw):
 
 def check_compatible(profile, upload, raw, color=None, file_id=None):
     expected = profile.get("slicer_model")
-    if not expected or upload["model"] != expected:
+    # OrcaSlicer's MyKlipper presets write "Generic Klipper Printer" in the file for our "Other Klipper printer"
+    same = upload["model"] == expected or (expected, upload["model"]) == ("Other Klipper printer", "Generic Klipper Printer")
+    if not expected or not same:
         return f"file affettato per il modello {upload['model']}, serve {expected}"
     if profile.get("kind") == "moonraker":
         return None  # Klipper: no AMS feed or MQTT nozzle to compare; the ACE tool mapping is the user's macro
@@ -1128,8 +1187,25 @@ def filament_note(alias, upload):
     return "Residuo bobina non noto: controlla la bobina."
 
 
+def stored_spool(alias):
+    """The external spool set in the app for a printer that cannot store it (Klipper)."""
+    if DB is None:
+        return {}
+    row = DB.execute("SELECT value FROM settings WHERE printer=? AND key='spool'", (alias,)).fetchone()
+    try:
+        stored = json.loads(row[0]) if row else {}
+    except (TypeError, ValueError):
+        return {}
+    return stored if isinstance(stored, dict) else {}
+
+
 def external_filament(alias, raw):
     tray = (raw.get("vt_tray") or [{}])[0]
+    if not tray.get("tray_type") and isinstance(LINKS.get(alias), MoonrakerLink):
+        # Klipper has no tray: the spool is the one set in the app.
+        stored = stored_spool(alias)
+        tray = {"tray_type": stored.get("material"), "tray_color": stored.get("color"),
+                "tray_info_idx": stored.get("profile_id")}
     return {
         "slot": "external",
         "material": tray.get("tray_type") or None,
@@ -1360,13 +1436,13 @@ def plate_state(raw):
     return {"state": "unknown", "reason": "decidi dalla foto con plate_photo"}
 
 
-def store_photo(jpeg):
+def store_photo(jpeg, base=None):
     now = time.time()
     for photo_id in [k for k, v in PHOTOS.items() if v[0] <= now]:
         del PHOTOS[photo_id]
     photo_id = secrets.token_urlsafe(24)
     PHOTOS[photo_id] = (now + TOKEN_TTL_S, jpeg)
-    return f"{CFG['public_url']}/photo/{photo_id}"
+    return f"{base or CFG['public_url']}/photo/{photo_id}"
 
 
 def tool_prepare_print_start(args):
@@ -1422,6 +1498,12 @@ MODEL_ENVELOPE = {"N2S": "A1", "N1": "A1M", "C11": "P1", "C12": "P1"}
 HOME_FLAG_ENVELOPES = {"P1"}
 MOTION_BLOCKED = ("RUNNING", "PAUSE", "PREPARE", "SLICING")
 HOME_GCODE = {"xy": "G28 X", "all": "G28"}
+HOME_GCODE_KLIPPER = {"xy": "G28 X Y", "all": "G28"}  # `G28 X` alone is the Bambu quirk, not Klipper
+
+
+def home_gcode(alias, axes):
+    """The G-code that homes `axes` on this printer."""
+    return (HOME_GCODE_KLIPPER if isinstance(LINKS.get(alias), MoonrakerLink) else HOME_GCODE)[axes]
 # Feed rates, mm/min: the move duration the busy guard waits for follows from these.
 XY_FEED, Z_FEED = 3000, 600
 CLOCK = time.monotonic  # patched in tests
@@ -1435,9 +1517,20 @@ def axes_of(alias, raw=None):
     state = AXES.get(alias)
     if state is None or state["drops"] != drops:
         state = AXES[alias] = {"homed": False, "pos": dict.fromkeys("xyz"), "drops": drops}
-    if envelope_name_of(alias) in HOME_FLAG_ENVELOPES:
+    if raw is None:
+        raw = read_status(alias)
+    name = envelope_name_of(alias)
+    if name == "KLIPPER":
+        # The printer knows: homed_axes is "" until G28, and the position is real only when all three are homed.
+        axes = raw.get("axes") or {}
+        state["homed"] = set("xyz") <= set(axes.get("homed") or "")
+        pos = axes.get("pos") or []
+        known = state["homed"] and len(pos) >= 3 and None not in pos[:3]
+        # pos known from the printer: the first move can name any single axis, Z is not a guess.
+        state["pos"] = {axis: round(pos[i], 2) for i, axis in enumerate("xyz")} if known else dict.fromkeys("xyz")
+    elif name in HOME_FLAG_ENVELOPES:
         # The printer knows: bits off mean motors released, so the position is lost exactly like on a drop.
-        flag = (raw if raw is not None else read_status(alias)).get("home_flag")
+        flag = raw.get("home_flag")
         state["homed"] = isinstance(flag, int) and (flag & 7) == 7
         if not state["homed"]:
             state["pos"] = dict.fromkeys("xyz")
@@ -1449,11 +1542,21 @@ def envelope_name_of(alias):
     added = onboard.load_store(store_path()).get(alias) if os.environ.get("STATE_DIRECTORY") else None
     if added is None:  # not a printer added in the app: motion locked
         return None
+    if isinstance(LINKS.get(alias), MoonrakerLink):  # Klipper: the limits come from the printer, per printer
+        return "KLIPPER"
     return MODEL_ENVELOPE.get(added.get("model"))
 
 
 def envelope_of(alias):
     name = envelope_name_of(alias)
+    if name == "KLIPPER":
+        axes = read_status(alias).get("axes")
+        if not axes or len(axes.get("min") or []) < 3 or len(axes.get("max") or []) < 3:
+            raise ToolError(f"{alias}: limiti assi non letti dalla stampante")
+        (x0, y0, z0), (x1, y1, z1) = axes["min"], axes["max"]
+        # The bed is always under the nozzle, so Z never goes negative even when Klipper's min does.
+        return {"x": (x0, x1), "y": (y0, y1), "z": (max(0, z0), z1), "safe": None, "keep_out": None,
+                "first": {"x": (x0 + x1) / 2, "y": (y0 + y1) / 2, "z": 10}}
     return ENVELOPES[name] if name else None
 
 
@@ -1580,7 +1683,7 @@ def run_motion(name, args, action, params=None, confirmed=False):
             if params["axes"] == "all" and plate:
                 raise ToolError("Piatto da liberare: l'azzeramento di Z tocca il piatto. "
                                 "Premi Plate is clear o fai solo Home XY")
-            lines, after, seconds = [HOME_GCODE[params["axes"]]], dict.fromkeys("xyz"), 0
+            lines, after, seconds = [home_gcode(alias, params["axes"])], dict.fromkeys("xyz"), 0
         else:
             lines, after, seconds = plan_move(state, params, confirmed, envelope_of(alias), plate)
         text = "\n".join(lines)
@@ -1608,8 +1711,8 @@ def tool_prepare_home(args):
             raise ToolError("Piatto da liberare: l'azzeramento di Z tocca il piatto. "
                             "Premi Plate is clear o fai solo Home XY")
         summary = (
-            f"Azzeramento {axes} su {alias}: '{HOME_GCODE[axes]}'. Claude deve giudicare la foto prima di confermare. "
-            "axes='xy' esegue 'G28 X': solo X e Y, Z non si muove, il piatto scorre nel telaio e mostra oggetti nascosti. "
+            f"Azzeramento {axes} su {alias}: '{home_gcode(alias, axes)}'. Claude deve giudicare la foto prima di confermare. "
+            "axes='xy' azzera solo X e Y, Z non si muove, il piatto scorre nel telaio e mostra oggetti nascosti. "
             "axes='all' esegue 'G28': Z tasta il piatto, che deve essere libero."
         )
         parts, photo = shot_parts(pid)
@@ -1638,6 +1741,100 @@ def tool_prepare_move(args):
 
 def tool_confirm_move(args):
     return run_motion("confirm_move", args, "move", confirmed=True)
+
+
+# Jog: relative moves on a Klipper printer, which reports its own position. The app's buttons.
+JOG_FEED = {"x": XY_FEED, "y": XY_FEED, "z": Z_FEED}
+
+
+def tool_jog(args):
+    printer_id(args)
+    alias, key = args["printer"], args.get("idempotency_key")
+    axis, distance = args.get("axis"), args.get("distance")
+    if envelope_name_of(alias) != "KLIPPER":
+        raise ToolError("jog solo per stampanti Klipper")
+    if axis not in JOG_FEED:
+        raise ToolError("axis deve essere x, y o z")
+    if type(distance) not in (int, float) or not -100 <= distance <= 100:
+        raise ToolError("distance deve essere un numero tra -100 e 100 mm")
+    if not (isinstance(key, str) and 8 <= len(key) <= 128):
+        raise ToolError("idempotency_key mancante: stringa di 8-128 caratteri")
+    params = {"axis": axis, "distance": distance}
+    with COMMAND_LOCK:
+        previous = replay_of(key, alias, "jog", params)
+        if previous:
+            if previous["outcome"] != "sent":
+                raise ToolError(f"jog su {alias}: {previous['outcome']}, {previous['detail']}")
+            return as_text(previous)
+        assert_unlocked(alias)
+        raw = read_status(alias)
+        if raw.get("connected") is not True:
+            raise ToolError(f"{alias} non connessa: movimento rifiutato")
+        if raw.get("state") in MOTION_BLOCKED or raw.get("state") is None:
+            raise ToolError(f"{alias} nello stato {raw.get('state')}: niente movimenti durante una stampa")
+        state = axes_of(alias, raw)
+        if CLOCK() < state.get("busy_until", 0):
+            raise ToolError("Movimento precedente ancora in corso")
+        live = raw.get("axes") or {}
+        if axis not in set(live.get("homed") or ""):
+            raise ToolError(f"Asse {axis.upper()} non azzerato: fai Home")
+        pos = live.get("pos") or []
+        current = pos["xyz".index(axis)] if "xyz".index(axis) < len(pos) else 0
+        target = (current if type(current) in (int, float) else 0) + distance
+        if axis == "z" and target < 1:
+            raise ToolError("Z sotto 1 mm: Pygmy non scende cosi vicino al piatto")
+        low, high = envelope_of(alias)[axis]
+        if not low <= target <= high:
+            raise ToolError(f"{axis.upper()} fuori area: il limite e' {low} - {high} mm")
+        feed = JOG_FEED[axis]
+        text = f"G91\nG1 {axis.upper()}{mm(distance)} F{feed}\nG90"
+        sent = link_of(alias).gcode(text)
+        with DB:
+            save(key, alias, "jog", params, "sent" if sent else "not_sent", text)
+        if not sent:
+            raise ToolError("Comando non partito: nessun reinvio automatico, riprova con una chiave nuova")
+        state["busy_until"] = CLOCK() + abs(distance) / (feed / 60) + 0.5
+        return as_text({"printer": alias, "action": "jog", "outcome": "sent", "detail": text})
+
+
+def tool_home(args):
+    """Direct homing on a Klipper printer: no photo token, the app's tap is the human yes."""
+    printer_id(args)
+    alias, key = args["printer"], args.get("idempotency_key")
+    axes = args.get("axes")
+    if envelope_name_of(alias) != "KLIPPER":
+        raise ToolError("home solo per stampanti Klipper")
+    if axes not in HOME_GCODE:
+        raise ToolError("axes deve essere xy o all")
+    params = {"axes": axes}
+    with COMMAND_LOCK:
+        previous = replay_of(key, alias, "home", params)
+        if previous:
+            if previous["outcome"] != "sent":
+                raise ToolError(f"home su {alias}: {previous['outcome']}, {previous['detail']}")
+            return as_text(previous)
+        _, raw = motion_ready("home", alias)
+        if axes == "all" and plate_unclear(alias, raw):
+            raise ToolError("Piatto da liberare: l'azzeramento di Z tocca il piatto. "
+                            "Premi Plate is clear o fai solo Home XY")
+        text = home_gcode(alias, axes)
+        sent = link_of(alias).gcode(text)
+        with DB:
+            save(key, alias, "home", params, "sent" if sent else "not_sent", text)
+        if not sent:
+            raise ToolError("Comando non partito: nessun reinvio automatico, riprova con una chiave nuova")
+        return as_text({"printer": alias, "action": "home", "outcome": "sent", "detail": text})
+
+
+def tool_motors_off(args):
+    printer_id(args)
+    alias = args["printer"]
+    if envelope_name_of(alias) != "KLIPPER":
+        raise ToolError("motors_off solo per stampanti Klipper")
+    def send(_):
+        return link_of(alias).gcode("M84"), "M84"
+    return run_direct("motors_off", args, "motors_off", {}, parked, send,
+                      after_sent=lambda name: AXES.pop(name, None))
 
 
 def parked(s):
@@ -1710,8 +1907,11 @@ def tool_set_print_speed(args):
         raise ToolError("level deve essere un intero tra 1 e 4")
     params = {"level": level}
     def send(_):
+        link = link_of(args["printer"])
+        if isinstance(link, MoonrakerLink):
+            return link.command("speed", level=level), f"M220 S{SPEED_PERCENT[level]}"
         payload = {"print": {"command": "print_speed", "param": str(level)}}
-        return link_of(args["printer"]).publish(with_sequence(payload)), json.dumps(payload, ensure_ascii=False)
+        return link.publish(with_sequence(payload)), json.dumps(payload, ensure_ascii=False)
     return run_direct("set_print_speed", args, "print_speed", params, ("RUNNING", "PAUSE"), send)
 
 
@@ -1724,7 +1924,10 @@ def tool_set_fan(args):
     params = {"fan": fan, "percent": percent}
     gcode = f"M106 P{FAN_INDEX[fan]} S{round(percent * 255 / 100)}"
     def send(_):
-        return link_of(args["printer"]).gcode(gcode), gcode
+        link = link_of(args["printer"])
+        if isinstance(link, MoonrakerLink):
+            return link.command("fan", fan=fan, percent=percent), f"{fan} {percent}%"
+        return link.gcode(gcode), gcode
     return run_direct("set_fan", args, "set_fan", params, None, send)
 
 
@@ -1760,10 +1963,11 @@ def tool_set_print_option(args):
         if not link.gcode(f"SET_FILAMENT_SENSOR SENSOR={name} ENABLE={1 if enabled else 0}"):
             raise ToolError("The printer did not take the command")
         return as_text({"printer": args["printer"], "option": option, "enabled": enabled, "outcome": "sent"})
-    if option == "bff_spaghetti" and type(enabled) is bool:  # BFF's own alarm: kept in BFF, nothing goes to the printer
+    if option in ("bff_spaghetti", "bff_spaghetti_pause") and type(enabled) is bool:  # BFF's own switches
         printer_id(args)
         with DB:
-            DB.execute("INSERT OR REPLACE INTO settings VALUES (?, 'bff_spaghetti', ?)", (args["printer"], "on" if enabled else "off"))
+            DB.execute("INSERT OR REPLACE INTO settings VALUES (?, ?, ?)",
+                       (args["printer"], option, "on" if enabled else "off"))
         return as_text({"printer": args["printer"], "option": option, "enabled": enabled, "outcome": "saved"})
     if option not in PRINT_OPTIONS:
         raise ToolError("option deve essere un'opzione di stampa valida")
@@ -2008,6 +2212,14 @@ def tool_set_spool(args):
     direct = {"profile_id": profile, "color": color}
     if slot is not None:
         direct["slot"] = slot
+    if slot is None and isinstance(LINKS.get(args.get("printer")), MoonrakerLink):
+        # Klipper has no tray to write: BFF keeps the external spool for status, slicing and the app.
+        with DB:
+            DB.execute("INSERT OR REPLACE INTO settings VALUES (?, 'spool', ?)",
+                       (args["printer"], json.dumps({"profile_id": profile, "color": color,
+                                                     "material": material, "name": entry["name"]})))
+        return as_text({"printer": args["printer"], "action": "set_spool", "outcome": "sent",
+                        "detail": f"bobina esterna: {material} {color}"})
     # An AMS slot only stores what is in it, like Bambu Studio does mid-print; the external spool keeps the parked rule.
     return run_direct("set_spool", args, "set_spool", direct, None if slot else parked,
                       publish_send(args.get("printer"), payload), after_sent=pushall)
@@ -2489,10 +2701,16 @@ def _fetch_request(rid, source):
             store_model(rid, data)
 
 
-def klipper_filaments(raw, slots):
-    """Klipper has no filament ids: the material of the ACE slot picked (A1..A4), PLA when none says."""
+def klipper_filaments(alias, raw, slots):
+    """Klipper has no filament ids: the ACE slot picked (A1..A4), else the spool set in the app, else PLA."""
     trays = {t["slot"]: t for t in onboard.ams_trays(raw.get("ams"))}
-    return [{"filament_id": None, "filament_type": (trays.get(slot) or {}).get("material") or "PLA"} for slot in slots]
+    stored = stored_spool(alias)
+    filaments = []
+    for slot in slots:
+        ace = (trays.get(slot) or {}).get("material")
+        filaments.append({"filament_id": None if ace else stored.get("profile_id"),
+                          "filament_type": ace or stored.get("material") or "PLA"})
+    return filaments
 
 
 def _slice_request(rid, printer, source, file_name, choices_json, slots, copies, stage=None):
@@ -2500,7 +2718,7 @@ def _slice_request(rid, printer, source, file_name, choices_json, slots, copies,
     klipper = isinstance(link_of(printer), MoonrakerLink)
     # No AMS (same test as printer_info's ams_present): every colour prints on the one loaded spool.
     if klipper:
-        filaments = klipper_filaments(raw, slots)
+        filaments = klipper_filaments(printer, raw, slots)
         feed = [254] * len(slots)
     else:
         if raw.get("ams"):
@@ -2713,6 +2931,7 @@ TEMP = {"heater": {"type": "string", "enum": ["nozzle", "bed"]}, "target": {"typ
 FILE_ID = {"file_id": {"type": "integer", "description": "file_id restituito dallo script bff-upload.sh"}}
 CONFIRM_RULE = " Mostra il riepilogo all'utente e chiama il confirm solo dopo il suo si' esplicito."
 HOME_AXES = {"axes": {"type": "string", "enum": ["xy", "all"], "description": "xy = G28 X (Z fermo), all = G28 (Z tasta il piatto)"}}
+HOME_AXES_KLIPPER = {"axes": {"type": "string", "enum": ["xy", "all"], "description": "xy = G28 X Y (Z fermo), all = G28 (Z tasta il piatto)"}}
 MOVE_AXES = {axis: {"type": "number", "description": f"{axis.upper()} assoluta in mm, ometti per lasciarla ferma"} for axis in "xyz"}
 
 
@@ -2751,11 +2970,14 @@ TOOLS = {
     "move": (tool_move, f"Sposta gli assi in mm assoluti, solo dopo azzeramento completo. Z scende libera solo nella posa sicura X-48 Y256, altrimenti prepare_move e confirm_move.", optional_axes(**KEY), True),
     "prepare_move": (tool_prepare_move, "Prepara un movimento assi con la foto del piatto, anche con discesa di Z." + CONFIRM_RULE, optional_axes(), True),
     "confirm_move": (tool_confirm_move, "Esegue il movimento preparato." + CONFIRM_RULE, schema(**TOKEN, **KEY), True),
+    "jog": (tool_jog, "Movimento relativo in mm su una stampante Klipper, un asse alla volta, al massimo 100 mm. Solo con l'asse azzerato.", schema(axis={"type": "string", "enum": ["x", "y", "z"]}, distance={"type": "number", "description": "Millimetri, da -100 a 100: positivo avanti/su, negativo indietro/giu'"}, **KEY), True),
+    "home": (tool_home, "Azzeramento diretto su una stampante Klipper, senza foto: 'G28 X Y' o 'G28'. Mai durante una stampa.", schema(**HOME_AXES_KLIPPER, **KEY), True),
+    "motors_off": (tool_motors_off, "Rilascia i motori di una stampante Klipper (M84): la posizione va persa e serve un nuovo Home. Mai durante una stampa.", schema(**KEY), True),
     "recheck": (tool_recheck, "Rilegge lo stato dopo un esito sconosciuto e sblocca la stampante. Non reinvia nulla; un avvio rimasto in coda viene annullato.", schema(), True),
     "set_print_speed": (tool_set_print_speed, "Imposta la velocita' di stampa da 1 a 4. Solo durante una stampa o in pausa.", schema(level={"type": "integer", "description": "Velocita' 1-4"}, **KEY), True),
     "set_fan": (tool_set_fan, "Imposta la velocita' di una ventola da 0 a 100%.", schema(fan={"type": "string", "enum": ["part", "aux", "chamber"]}, percent={"type": "integer", "description": "0-100"}, **KEY), True),
     "set_detector": (tool_set_detector, "Attiva o disattiva un sensore xcam. Sensibilita' opzionale per l'arresto.", schema(module={"type": "string", "enum": list(DETECTOR_MODULES)}, enabled={"type": "boolean"}, sensitivity={"type": "string", "enum": list(SENSITIVITIES)}, **KEY), True),
-    "set_print_option": (tool_set_print_option, "Attiva o disattiva un'opzione di stampa.", schema(option={"type": "string", "description": f"{', '.join([*PRINT_OPTIONS, 'bff_spaghetti'])}, or filament_sensor:<name> on Klipper"}, enabled={"type": "boolean"}, **KEY), True),
+    "set_print_option": (tool_set_print_option, "Attiva o disattiva un'opzione di stampa.", schema(option={"type": "string", "description": f"{', '.join([*PRINT_OPTIONS, 'bff_spaghetti', 'bff_spaghetti_pause'])}, or filament_sensor:<name> on Klipper"}, enabled={"type": "boolean"}, **KEY), True),
     "clear_errors": (tool_clear_errors, "Pulisce gli errori mostrati dalla stampante.", schema(**KEY), True),
     "dismiss_spaghetti": (tool_dismiss_spaghetti, "Falso allarme spaghetti: niente avvisi fino alla fine di questa stampa. Solo su richiesta dell'utente.", schema(), True),
     "prepare_skip_objects": (tool_prepare_skip_objects, "Prepara il salto di oggetti in stampa, irreversibile. Solo durante stampa o pausa." + CONFIRM_RULE, schema(obj_ids={"type": "array", "items": {"type": "integer"}, "description": "Id degli oggetti da saltare"}), True),
@@ -3091,7 +3313,8 @@ def ha_action(alias, action, value, key):
     if action in ("fan_part", "fan_aux", "fan_chamber"):
         return tool_set_fan({"printer": alias, "fan": action[4:], "percent": value, "idempotency_key": key})
     if action.startswith("opt_") and action[4:] in ("auto_recovery", "sound_enable",
-                                                    "filament_tangle_detect", "bff_spaghetti"):
+                                                    "filament_tangle_detect", "bff_spaghetti",
+                                                    "bff_spaghetti_pause"):
         return tool_set_print_option({"printer": alias, "option": action[4:], "enabled": value,
                                       "idempotency_key": key})
     if action == "clear_errors":
@@ -3176,7 +3399,11 @@ def start_notify():
     def name(alias):
         return (onboard.load_store(store_path()).get(alias) or {}).get("name")
     NOTIFIER = notify.Notifier(DB_PATH, lambda: list(CFG["printers"]), lambda alias: status_dict({"printer": alias}),
-                               name, os.environ.get("BFF_HA_LANG", "en"), os.environ.get("BFF_PUBLIC_URL", ""))
+                               name, os.environ.get("BFF_HA_LANG", "en"), os.environ.get("BFF_PUBLIC_URL", ""),
+                               # /photo/ needs no token (unguessable id), so the phone opens the push image itself,
+                               # on the same public base the notification already uses.
+                               photo=lambda alias: latest_frame(alias, 10.0),
+                               photo_url=lambda jpeg: store_photo(jpeg, os.environ.get("BFF_PUBLIC_URL") or None))
     NOTIFIER.start()
 
 

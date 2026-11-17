@@ -2,6 +2,7 @@
 import socket
 import ssl
 import struct
+import subprocess
 import threading
 import time
 
@@ -138,6 +139,27 @@ def with_orientation(jpeg, code):
             + b"\x00\x00\x00\x00")
     body = b"Exif\x00\x00" + tiff
     return jpeg[:2] + b"\xff\xe1" + (len(body) + 2).to_bytes(2, "big") + body + jpeg[2:]
+
+
+UPRIGHT_FILTERS = {2: "hflip", 3: "hflip,vflip", 4: "vflip", 5: "transpose=0",
+                   6: "transpose=1", 7: "transpose=3", 8: "transpose=2"}  # same as go2rtc h264_o<N>
+
+
+def upright(jpeg, orientation):
+    """The same JPEG with the pixels turned upright, for consumers that ignore EXIF (Obico).
+
+    -noautorotate: the Orientation tag BFF wrote is on the frame, and ffmpeg applies it by itself.
+    """
+    code = int(orientation or 1)
+    if code not in UPRIGHT_FILTERS or jpeg[:2] != b"\xff\xd8":
+        return jpeg
+    cmd = ["ffmpeg", "-loglevel", "error", "-noautorotate", "-f", "mjpeg", "-i", "pipe:0",
+           "-vf", UPRIGHT_FILTERS[code], "-q:v", "3", "-f", "mjpeg", "pipe:1"]
+    try:
+        out = subprocess.run(cmd, input=jpeg, capture_output=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):  # no ffmpeg, or it hung: the raw frame is still usable
+        return jpeg
+    return out.stdout if out.returncode == 0 and out.stdout[:2] == b"\xff\xd8" else jpeg
 
 
 class SnapshotFeed:

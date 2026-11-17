@@ -3,7 +3,7 @@ self.addEventListener("activate", e => e.waitUntil(clients.claim()));
 self.addEventListener("push", e => {
   let m = {};
   try { m = e.data.json(); } catch (x) { m = { title: "Pygmy", body: e.data ? e.data.text() : "" }; }
-  e.waitUntil(self.registration.showNotification(m.title || "Pygmy", { body: m.body || "", data: { url: m.url || "/app" }, tag: m.tag }));
+  e.waitUntil(self.registration.showNotification(m.title || "Pygmy", { body: m.body || "", data: { url: m.url || "/app" }, tag: m.tag, image: m.image }));
 });
 self.addEventListener("notificationclick", e => {
   e.notification.close();

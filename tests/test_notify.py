@@ -28,6 +28,12 @@ class Alerts(unittest.TestCase):
     def test_spaghetti_alerts_once_while_it_stays_bad(self):
         assert alerts({"state": "RUNNING", "spaghetti": "warning"}, {"state": "RUNNING", "spaghetti": "failure"}) == []
 
+    def test_spaghetti_paused_says_so(self):
+        out = alerts({"state": "RUNNING"}, {"state": "RUNNING", "spaghetti": "failure",
+                                            "spaghetti_paused": True, "file": "cube"})
+        assert [k for k, _ in out] == ["spaghetti"], out
+        assert "paused" in out[0][1] and "camera" in out[0][1]
+
     def test_low_spool_once_per_print(self):
         w = set()
         run = lambda r: {"state": "RUNNING", "ams": {"A2": {"remain": r, "name": "PLA Basic"}}}
@@ -143,8 +149,8 @@ class NotifierTest(unittest.TestCase):
         self.n = notify.Notifier(self.path, lambda: list(self.states), lambda a: self.states[a],
                                  lambda a: a.capitalize(), base_url="https://bff")
         self.n.background = False
-        self.patches = [mock.patch.object(notify, "send_push", lambda db, t, b, u: self.sent.append(("push", t, b, u)) or 1),
-                        mock.patch.object(notify, "send_telegram", lambda db, text: self.sent.append(("tg", text)) or True)]
+        self.patches = [mock.patch.object(notify, "send_push", lambda db, t, b, u, image=None: self.sent.append(("push", t, b, u)) or 1),
+                        mock.patch.object(notify, "send_telegram", lambda db, text, photo=None: self.sent.append(("tg", text)) or True)]
         for p in self.patches:
             p.start()
 

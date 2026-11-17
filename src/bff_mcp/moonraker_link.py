@@ -8,6 +8,7 @@ queue work unchanged. Bambu-only keys (AMS, HMS, xcam...) are simply absent or e
 Stdlib only. Moonraker: https://moonraker.readthedocs.io/en/latest/external_api/
 """
 import json
+import re
 import sys
 import threading
 import time
@@ -23,6 +24,7 @@ TIMEOUT_S = 5
 STATES = {"standby": "IDLE", "printing": "RUNNING", "paused": "PAUSE", "complete": "FINISH",
           "cancelled": "FAILED", "error": "FAILED"}
 SENSOR_KINDS = ("filament_switch_sensor", "filament_motion_sensor")  # Klipper's documented runout sensors
+SPEED_PERCENT = {1: 50, 2: 100, 3: 124, 4: 166}  # the Bambu levels, as M220 percentages
 OBJECTS = ("print_stats&display_status&virtual_sdcard&extruder&heater_bed&gcode_move&fan&idle_timeout&toolhead"
            "&ace&ace_instance_0&ace_instance_1&ace_instance_2&ace_instance_3")  # unknown objects are just left out
 # Moonraker's own hostname-free defaults; a printer entry can override port and key.
@@ -33,12 +35,13 @@ def pct(fraction):
     return None if fraction is None else round(float(fraction) * 100)
 
 
-def to_snapshot(raw, klippy="ready", light=None):
+def to_snapshot(raw, klippy="ready", light=None, strips=None, direct=None):
     """Moonraker object status (merged `printer/objects/query` result) -> BFF snapshot."""
     stats = raw.get("print_stats") or {}
     ext, bed = raw.get("extruder") or {}, raw.get("heater_bed") or {}
     sd, display = raw.get("virtual_sdcard") or {}, raw.get("display_status") or {}
     move, fan = raw.get("gcode_move") or {}, raw.get("fan") or {}
+    head = raw.get("toolhead") or {}
     info = stats.get("info") or {}
     state = STATES.get(stats.get("state"), "IDLE")
     if klippy in ("shutdown", "error"):
@@ -59,9 +62,12 @@ def to_snapshot(raw, klippy="ready", light=None):
     speed = move.get("speed_factor")
     current = (raw.get("ace") or {}).get("current_index")
     tray_now = current if isinstance(current, int) and current >= 0 else None
+    # Display only: the app and Home Assistant show the name as Klipper's UI does, without the extension.
+    # Everything that starts or reprints a file keeps printer/webcams' full file name.
+    name = re.sub(r"\.gcode$", "", stats.get("filename") or "", flags=re.IGNORECASE)
     return {
         "state": state,
-        "subtask_name": stats.get("filename") or None,
+        "subtask_name": name or None,
         "progress": float(progress) if progress is not None else None,
         "remaining_time": remaining,
         "layer_num": info.get("current_layer"),
@@ -69,11 +75,17 @@ def to_snapshot(raw, klippy="ready", light=None):
         "temperatures": temps,
         "door_open": False,
         "home_flag": None,
-        "speed_level": None,
-        "chamber_light": led_on(raw, light),
+        "speed_level": speed_level(speed),
+        "chamber_light": led_on(raw, light, strips, direct),
         "hms_errors": [{"module": 0, "code": "klipper", "attr": 0, "severity": None, "description": stats["message"]}]
         if stats.get("message") and state == "FAILED" else [],
         "print_error": 1 if state == "FAILED" else 0,
+        "axes": None if not head else {
+            "homed": head.get("homed_axes") or "",  # "" until G28, then e.g. "xyz"
+            "min": list(head.get("axis_minimum") or [])[:3],
+            "max": list(head.get("axis_maximum") or [])[:3],
+            "pos": list(head.get("position") or [])[:3],
+        },
         "stage": None,
         "prepare_percent": None,
         "ams": ace_units(raw), "tray_now": tray_now, "ams_exist_bits": None, "vt_tray": [],
@@ -109,21 +121,69 @@ def ace_units(raw):
     return units
 
 
-def led_on(raw, light):
-    """Whether the chamber LED is lit, from the `led <name>` object's colour (any channel above 0); None if unknown."""
-    colors = (raw.get(f"led {light['led']}") or {}).get("color_data") if light else None
-    return any(c > 0 for c in colors[0]) if colors else None
+def speed_level(speed):
+    """The nearest Bambu speed level to Klipper's gcode_move.speed_factor; None if unknown."""
+    return None if speed is None else min(SPEED_PERCENT, key=lambda level: abs(SPEED_PERCENT[level] - speed * 100))
 
 
-def find_light(objects):
-    """(led, on_macro, off_macro) from Moonraker's object list: a `led X` plus macros named <prefix>_on / <prefix>_off."""
-    macros = {o.split(" ", 1)[1] for o in objects if o.startswith("gcode_macro ")}
-    for led in [o.split(" ", 1)[1] for o in objects if o.startswith("led ")]:
-        for on in sorted(macros):
-            off = on[:-3] + "_off" if on.lower().endswith("_on") else None
-            if off and off in macros and ("led" in on.lower() or "light" in on.lower()):
-                return {"led": led, "on": on, "off": off}
+def led_on(raw, light, strips=None, direct=None):
+    """Whether the chamber light is lit: a `led <name>` object's colour, else the WLED strip's status; None if unknown.
+
+    `direct` is WLED's own /json/state, preferred when read: Moonraker's strips miss changes made in the WLED app.
+    """
+    colors = (raw.get(f"led {light['led']}") or {}).get("color_data") if light and light.get("led") else None
+    if colors:
+        return any(c > 0 for c in colors[0])
+    if light and light.get("wled"):
+        off_preset = light.get("off_preset")
+        if direct is not None:
+            return direct["on"] and direct["ps"] != off_preset
+        strip = (strips or {}).get(light["wled"]) or {}
+        if strip.get("status") is None:
+            return None
+        return strip["status"] == "on" and (off_preset is None or strip.get("preset") != off_preset)
     return None
+
+
+def macro_arg(text, key):
+    """Value of `KEY=value` in a macro's gcode, or None."""
+    found = re.search(rf"\b{key}=(\S+)", text or "", re.IGNORECASE)
+    return found.group(1) if found else None
+
+
+def wled_light(on, off, settings, strips):
+    """WLED strip behind the light macros: the one in `STRIP=<name>` (else the first), plus its off preset."""
+    if not strips:
+        return {}
+    config = settings or {}
+    on_text = (config.get(f"gcode_macro {on.lower()}") or {}).get("gcode", "") if on else ""
+    off_text = (config.get(f"gcode_macro {off.lower()}") or {}).get("gcode", "") if off else ""
+    named = macro_arg(on_text, "STRIP")
+    light = {"wled": named if named in strips else next(iter(strips))}
+    preset = macro_arg(off_text, "PRESET")
+    if preset and preset.lstrip("+-").isdigit():
+        light["off_preset"] = int(preset)
+    return light
+
+
+def find_light(objects, settings=None, strips=None):
+    """The chamber light from Moonraker: a `led X` and its macros, else light macros or a bare WLED strip.
+
+    Shape: {"led": name|None, "on": macro|None, "off": macro|None} plus "wled"/"off_preset" for WLED.
+    Real E3K: LIGHT_ON = "WLED_ON STRIP=light PRESET=1", LIGHT_OFF = "WLED_ON STRIP=light PRESET=2".
+    """
+    names = [o.split(" ", 1)[1] for o in objects if o.startswith("gcode_macro ")]
+    lower = {n.lower(): n for n in names}
+    pair = next(((on, lower[on.lower()[:-3] + "_off"]) for on in sorted(names)
+                 if on.lower().endswith("_on") and on.lower()[:-3] + "_off" in lower
+                 and ("led" in on.lower() or "light" in on.lower())), None)
+    leds = [o.split(" ", 1)[1] for o in objects if o.startswith("led ")]
+    if pair and leds:
+        return {"led": leds[0], "on": pair[0], "off": pair[1]}
+    on, off = pair or (None, None)
+    light = {"led": None, "on": on, "off": off}
+    light.update(wled_light(on, off, settings, strips))
+    return light if on or light.get("wled") else None
 
 
 def merge(known, update):
@@ -151,8 +211,13 @@ class MoonrakerLink:
         self.error = None
         self.drops = 0
         self.firmware_version = None
-        self.light = light  # {"led","on","off"}: given by the printer entry, else found on the first poll
+        self.light = light  # {"led","on","off"[,"wled","off_preset"]}: given by the printer entry, else found on the first poll
         self._light_searched = light is not None
+        self.wled = {}  # /machine/wled/strips while the light is a WLED strip
+        self.wled_address = None  # the strip's own address, read once from Moonraker's config
+        self.wled_direct = None  # {"on","ps"} from WLED's /json/state; None = use Moonraker's strips
+        self._wled_checked = False
+        self.fans = []  # fan_generic names, for aux/chamber fans
         self.sensors = None  # filament_switch_sensor / filament_motion_sensor objects, found on the first poll
         self.cam_flip = (False, False, 0)  # Moonraker's flip_horizontal, flip_vertical, rotation of the webcam used
         self._connected = None
@@ -188,6 +253,43 @@ class MoonrakerLink:
                 return url if "://" in url else f"http://{self.host}{url if url.startswith('/') else '/' + url}"
         raise OSError("no enabled webcam in Moonraker")
 
+    def _config(self):
+        """Moonraker's configfile sections (gcode_macro bodies live here); empty when unavailable."""
+        try:
+            return (self._request("GET", "/printer/objects/query", configfile="settings").get("result", {}).get("status", {}).get("configfile", {}).get("settings")) or {}
+        except (urllib.error.URLError, OSError, ValueError):
+            return {}
+
+    def _wled_strips(self):
+        """Moonraker's WLED strips ({} when the WLED component is not installed: the endpoint 404s)."""
+        try:
+            return self._request("GET", "/machine/wled/strips").get("result", {}).get("strips") or {}
+        except (urllib.error.URLError, OSError, ValueError):
+            return {}
+
+    def _wled_address(self):
+        """The WLED strip's own address from Moonraker's config (http strips only); None otherwise."""
+        if not (self.light and self.light.get("wled")):
+            return None
+        try:
+            config = self._request("GET", "/server/config").get("result", {}).get("config") or {}
+        except (urllib.error.URLError, OSError, ValueError):
+            return None
+        wled = config.get(f"wled {self.light['wled']}") or {}
+        address = (wled.get("address") or "").strip()
+        return address if wled.get("type") == "http" and address else None
+
+    def _wled_state(self):
+        """WLED's own /json/state (changes made in the WLED app are invisible to Moonraker); None = fallback."""
+        if not self.wled_address:
+            return None
+        try:
+            with urllib.request.urlopen(f"http://{self.wled_address}/json/state", timeout=2) as resp:
+                state = json.loads(resp.read() or b"{}")
+            return {"on": bool(state.get("on")), "ps": int(state.get("ps") or 0)}
+        except (urllib.error.URLError, OSError, ValueError):
+            return None
+
     # --- polling --------------------------------------------------------------------------------
     def poll(self):
         """One round trip; the result feeds snapshot(). Returns whether Moonraker answered."""
@@ -196,17 +298,26 @@ class MoonrakerLink:
             if not self._light_searched or self.sensors is None:
                 objects = self._request("GET", "/printer/objects/list").get("result", {}).get("objects", [])
                 if not self._light_searched:
-                    self.light = find_light(objects)
+                    self.light = find_light(objects, self._config(), self._wled_strips())
                     self._light_searched = True
                 self.sensors = [o for o in objects if o.split(" ")[0] in SENSOR_KINDS and " " in o]
-            led = f"&led%20{urllib.parse.quote(self.light['led'])}" if self.light else ""
+                self.fans = [o.split(" ", 1)[1] for o in objects if o.startswith("fan_generic ")]
+            if not self._wled_checked:  # once: the light does not change for the life of the connection
+                self._wled_checked = True
+                self.wled_address = self._wled_address()
+            strips = self._wled_strips() if self.light and self.light.get("wled") else None
+            led = f"&led%20{urllib.parse.quote(self.light['led'])}" if self.light and self.light.get("led") else ""
             led += "".join(f"&{urllib.parse.quote(s)}" for s in self.sensors)
             status = self._request("GET", "/printer/objects/query?" + OBJECTS + led).get("result", {}).get("status", {})
         except (urllib.error.URLError, OSError, ValueError):
             self.online = False
             return False
+        direct = self._wled_state()
         with self.lock:
             merge(self.raw, status)
+            if strips is not None:
+                self.wled = strips
+            self.wled_direct = direct
             self.klippy = info.get("state", "ready")
             self.firmware_version = info.get("software_version")
             self.last_report = self.clock()
@@ -215,7 +326,10 @@ class MoonrakerLink:
 
     def snapshot(self):
         with self.lock:
-            snapshot = to_snapshot(json.loads(json.dumps(self.raw)), self.klippy, self.light)
+            snapshot = to_snapshot(json.loads(json.dumps(self.raw)), self.klippy, self.light, self.wled,
+                                   self.wled_direct)
+            # Runout sensors pass through untouched: status_dict turns them into Options switches
+            snapshot.update({k: dict(v) for k, v in self.raw.items() if k.split(" ")[0] in SENSOR_KINDS and isinstance(v, dict)})
             snapshot["firmware_version"] = self.firmware_version
             fresh = self.last_report is not None and self.clock() - self.last_report <= STALE_S
         snapshot["connected"] = fresh
@@ -247,7 +361,7 @@ class MoonrakerLink:
         """Bambu MQTT payloads have no meaning here: refused, so a Bambu-only tool fails closed."""
         return False
 
-    def command(self, action, heater=None, target=None, on=None, **_unused):
+    def command(self, action, heater=None, target=None, on=None, level=None, fan=None, percent=None, **_unused):
         if action == "pause":
             return self._send("POST", "/printer/print/pause")
         if action == "resume":
@@ -258,8 +372,21 @@ class MoonrakerLink:
             gcode = {"bed": "M140", "nozzle": "M104"}[heater]
             return self.gcode(f"{gcode} S{int(target)}")
         if action == "light" and self.light:
-            return self.gcode(self.light["on" if on else "off"])
-        return False  # no light macros found, and the rest: printer-specific, not guessed
+            macro = self.light.get("on" if on else "off")
+            if macro:
+                return self.gcode(macro)
+            if self.light.get("wled"):
+                return self._send("POST", "/machine/wled/on" if on else "/machine/wled/off",
+                                  strip=self.light["wled"])
+            return False
+        if action == "speed" and level in SPEED_PERCENT:
+            return self.gcode(f"M220 S{SPEED_PERCENT[level]}")
+        if action == "fan" and fan == "part":
+            return self.gcode(f"M106 S{round((percent or 0) * 255 / 100)}")
+        if action == "fan":  # aux/chamber only where the printer has a fan_generic with that word
+            name = next((n for n in self.fans if fan and fan in n.lower()), None)
+            return self.gcode(f"SET_FAN_SPEED FAN={name} SPEED={(percent or 0) / 100:g}") if name else False
+        return False  # the rest: printer-specific, not guessed
 
     def gcode(self, text):
         return self._send("POST", "/printer/gcode/script", script=text.strip())

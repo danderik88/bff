@@ -383,7 +383,13 @@ class Notifications(unittest.TestCase):
         self.assertEqual(self.text(run, state="PAUSE", alarm="Ugello intasato"),
                          ["⚠️ Ugello intasato. Stampa in pausa: serve una mano."])
         self.assertEqual(self.text(run, spaghetti="warning", subtask_name="plate2", layer_num=27),
-                         ["🍝 Possibili spaghetti su plate2 al layer 27: guarda la camera. Pygmy non mette in pausa."])
+                         ["🍝 Possibili spaghetti su plate2 al layer 27: guarda la camera."])
+
+    def test_spaghetti_pause_after_warning_tells_again(self):
+        warned = {**self.RUN, "spaghetti": "warning", "subtask_name": "cube"}
+        self.assertEqual(self.text(warned, lang="en", spaghetti="failure", spaghetti_paused=True, subtask_name="cube"),
+                         ["🍝 Possible spaghetti on cube: the print is paused. Check the camera."])
+        self.assertEqual(self.text(warned, lang="en", spaghetti="failure", subtask_name="cube"), [])
 
     def test_texts_english_default_and_missing_facts(self):
         self.assertEqual(self.text({**self.RUN, "subtask_name": None}, lang="en", state="FINISH", subtask_name=None),
