@@ -269,7 +269,7 @@ class Klipper(AddPrinter):
         mock.patch.object(moonraker_link.MoonrakerLink, "stop", lambda s: None).start()
         onboard.KLIPPER_SEEN.update(at=None, rows=[])
         mock.patch.object(onboard, "scan_moonraker", lambda prefixes: [
-            {"ip": "192.168.0.60", "port": 7125, "name": "SV08", "model": "KLIPPER-SV08"}]).start()
+            {"ip": "192.0.2.60", "port": 7125, "name": "SV08", "model": "KLIPPER-SV08"}]).start()
         self.mprobe = mock.patch.object(onboard, "probe_moonraker", return_value={"hostname": "SV08", "limits": {"nozzle_max_c": 300, "bed_max_c": 100}, "machine": {}})
         self.mprobe.start()
 
@@ -277,17 +277,17 @@ class Klipper(AddPrinter):
         self.assertEqual([r for r in call("discover_printers")[0]["printers"] if r.get("kind")], [])  # nothing scanned yet
         got, _ = call("discover_printers", scan=True)
         row = [r for r in got["printers"] if r.get("kind") == "klipper"][0]
-        self.assertEqual((row["ip"], row["model_name"], row["managed"]), ("192.168.0.60", "Sovol SV08", False))
+        self.assertEqual((row["ip"], row["model_name"], row["managed"]), ("192.0.2.60", "Sovol SV08", False))
         self.assertIn({"code": "KLIPPER-SV08", "name": "Sovol SV08"}, got["klipper_models"])
 
     def test_add_klipper_saves_limits(self):
-        got, err = call("add_printer", kind="klipper", name="SV08", ip="192.168.0.60", model="KLIPPER-SV08", port="7125")
+        got, err = call("add_printer", kind="klipper", name="SV08", ip="192.0.2.60", model="KLIPPER-SV08", port="7125")
         self.assertIsNone(err)
         entry = self.store()["sv08"]
         self.assertEqual((entry["host"], entry["port"], entry["model"], entry["limits"]["nozzle_max_c"]),
-                         ("192.168.0.60", 7125, "KLIPPER-SV08", 300))
+                         ("192.0.2.60", 7125, "KLIPPER-SV08", 300))
         self.assertIn("sv08", server.LINKS)
-        _, err = call("add_printer", kind="klipper", name="Other", ip="192.168.0.60", model="KLIPPER-SV08")
+        _, err = call("add_printer", kind="klipper", name="Other", ip="192.0.2.60", model="KLIPPER-SV08")
         self.assertEqual(err, "This printer is already added")
         _, err = call("set_access_code", printer="sv08", access_code=CODE)
         self.assertEqual(err, "Klipper printers have no access code")
@@ -352,11 +352,11 @@ class Klipper(AddPrinter):
 
     def test_identify_printer(self):
         def get(host, port, path, timeout):
-            if host == "192.168.0.60" and port == 7125:
+            if host == "192.0.2.60" and port == 7125:
                 return {"state": "ready", "hostname": "SV08"}
             raise onboard.ProbeError("moonraker unreachable")
         with mock.patch.object(onboard, "moonraker_get", get):
-            got, _ = call("identify_printer", ip=" 192.168.0.60 ")
+            got, _ = call("identify_printer", ip=" 192.0.2.60 ")
             self.assertEqual((got["kind"], got["port"], got["model"]), ("klipper", 7125, "KLIPPER-SV08"))
             got, _ = call("identify_printer", ip="192.168.0.20")
             self.assertEqual((got["kind"], got["model_name"]), ("bambu", "Bambu Lab printer"))
@@ -404,7 +404,7 @@ class Klipper(AddPrinter):
     def test_orca_profiles_bundle(self):
         import base64
         import zipfile
-        call("add_printer", kind="klipper", name="SV08", ip="192.168.0.60", model="KLIPPER-SV08")
+        call("add_printer", kind="klipper", name="SV08", ip="192.0.2.60", model="KLIPPER-SV08")
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as z:
             z.writestr("printer/E3K 0.4 nozzle.json", json.dumps({"name": "E3K 0.4 nozzle", "inherits": "MyKlipper 0.4 nozzle"}))
@@ -438,7 +438,7 @@ class Klipper(AddPrinter):
     def test_orca_profiles_machine_arg(self):
         import base64
         import zipfile
-        call("add_printer", kind="klipper", name="SV08", ip="192.168.0.60", model="KLIPPER-SV08")
+        call("add_printer", kind="klipper", name="SV08", ip="192.0.2.60", model="KLIPPER-SV08")
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as z:
             z.writestr("printer/a.json", json.dumps({"name": "E3K 0.4 nozzle", "inherits": "MyKlipper 0.4 nozzle",
@@ -457,7 +457,7 @@ class Klipper(AddPrinter):
     def test_orca_profiles_upload_keeps_loaded(self):
         import base64
         import zipfile
-        call("add_printer", kind="klipper", name="SV08", ip="192.168.0.60", model="KLIPPER-SV08")
+        call("add_printer", kind="klipper", name="SV08", ip="192.0.2.60", model="KLIPPER-SV08")
 
         def upload(*filaments):
             buf = io.BytesIO()
@@ -496,7 +496,7 @@ class Klipper(AddPrinter):
 
     def test_klipper_filament_sensors(self):
         import moonraker_link
-        call("add_printer", kind="klipper", name="SV08", ip="192.168.0.60", model="KLIPPER-SV08")
+        call("add_printer", kind="klipper", name="SV08", ip="192.0.2.60", model="KLIPPER-SV08")
         link = server.LINKS["sv08"]
         link.raw.update({"filament_switch_sensor btt_switch_sensor": {"enabled": True, "filament_detected": True},
                          "filament_motion_sensor btt_motion_sensor": {"enabled": False, "filament_detected": False}})
