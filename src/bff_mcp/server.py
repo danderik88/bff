@@ -1350,7 +1350,19 @@ def tool_orca_profiles(args):
                 bundle = slicer.user_bundle(raw)
             except slicer.SliceError as err:
                 raise ToolError(str(err)) from None
-            bundle["machine"] = pick_user_machine(bundle["machines"], cfg_nozzle(alias))
+            wanted = args.get("machine")
+            if wanted:
+                if wanted not in bundle["machines"]:
+                    raise ToolError("Unknown printer profile")
+                bundle["machine"] = wanted  # the sync tool knows which preset belongs to this printer
+            else:
+                bundle["machine"] = pick_user_machine(bundle["machines"], cfg_nozzle(alias))
+            try:  # a re-upload keeps the chosen filament when the new bundle still has it
+                loaded = json.loads(path.read_text()).get("loaded")
+            except (OSError, ValueError):
+                loaded = None
+            if loaded in bundle["filaments"]:
+                bundle["loaded"] = loaded
             path.parent.mkdir(exist_ok=True)
             path.write_text(json.dumps(bundle))
         try:

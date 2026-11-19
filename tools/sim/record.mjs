@@ -117,13 +117,26 @@ const scenarios = {
   // Several meshes from one link: untick the one you don't want, then slice.
   async multifile() {
     await open();
-    await pickPrinter("Desk A1 mini");
+    // Photos are optional (tools/sim/cam is gitignored): use the sample printer that has them, made idle.
+    const alias = await frame.evaluate(() => {
+      const have = Object.keys(window.SIM_PHOTOS || {});
+      const a = have.includes("p1s") ? "p1s" : have[0] || "p1s";
+      SIM.finish(a);  // a sample printer with photos starts out printing; SIM.finish is a no-op when idle
+      return a;
+    });
+    const names = { a1: "Workshop A1", a1mini: "Desk A1 mini", p1s: "Studio P1S", p2s: "Lab P2S" };
+    // Off camera: pick it, clear the finished plate, let the banner go and the camera load.
+    await click("#pick");
+    await app.locator(".prn", { hasText: names[alias] || "Studio P1S" }).click();
+    await app.locator("button", { hasText: "Plate is clear" }).click({ timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(6000);
+    await shot(800);
     await click('.tabs button[data-t="tab-new"]'); await shot(600);
     await fill("#mwurl", "https://www.printables.com/model/1234-handle-holder/files"); await shot(700);
     await click("#mwsend"); await shot(2000);
     await when(() => !document.getElementById("s1files").hidden); await shot(1500);
     await app.locator("#s1files").scrollIntoViewIfNeeded().catch(() => {});
-    await frame.evaluate(() => { const t = document.querySelectorAll("#s1files input")[1]; t.checked = false; t.dispatchEvent(new Event("change", { bubbles: true })); }); await shot(900);
+    await frame.evaluate(() => { const t = document.querySelectorAll("#s1files input")[1]; t.checked = false; t.dispatchEvent(new Event("change", { bubbles: true })); }); await shot(1200);
     await when(() => !document.getElementById("pnslice").disabled);
     await click("#pnslice"); await shot(4500);
     await when(() => !document.getElementById("pnresult").hidden); await shot(1800);

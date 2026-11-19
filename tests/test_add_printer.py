@@ -435,6 +435,45 @@ class Klipper(AddPrinter):
         call("orca_profiles", printer="sv08", remove=True)
         self.assertIsNone(server.user_presets_for("sv08", [{}]))
 
+    def test_orca_profiles_machine_arg(self):
+        import base64
+        import zipfile
+        call("add_printer", kind="klipper", name="SV08", ip="192.168.0.60", model="KLIPPER-SV08")
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("printer/a.json", json.dumps({"name": "E3K 0.4 nozzle", "inherits": "MyKlipper 0.4 nozzle",
+                                                     "nozzle_diameter": ["0.4"]}))
+            z.writestr("printer/b.json", json.dumps({"name": "Kiron 0.6 nozzle", "inherits": "MyKlipper 0.6 nozzle",
+                                                     "nozzle_diameter": ["0.6"]}))
+        blob = base64.b64encode(buf.getvalue()).decode()
+        with mock.patch.object(server, "cfg_nozzle", lambda printer: 0.6):  # the server's own pick would be Kiron
+            got, err = call("orca_profiles", printer="sv08", bundle_b64=blob, machine="E3K 0.4 nozzle")
+        self.assertIsNone(err)
+        self.assertEqual(got["machine"], "E3K 0.4 nozzle")
+        self.assertEqual(call("orca_profiles", printer="sv08", bundle_b64=blob, machine="No Such Nozzle")[1],
+                         "Unknown printer profile")
+        self.assertEqual(call("orca_profiles", printer="sv08")[0]["machine"], "E3K 0.4 nozzle")  # untouched
+
+    def test_orca_profiles_upload_keeps_loaded(self):
+        import base64
+        import zipfile
+        call("add_printer", kind="klipper", name="SV08", ip="192.168.0.60", model="KLIPPER-SV08")
+
+        def upload(*filaments):
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w") as z:
+                z.writestr("machine/m.json", json.dumps({"name": "M", "inherits": "MyKlipper 0.4 nozzle",
+                                                         "nozzle_diameter": ["0.4"]}))
+                for name in filaments:
+                    z.writestr(f"filament/{name}.json", json.dumps({"name": name, "filament_type": "PLA"}))
+            with mock.patch.object(server, "cfg_nozzle", lambda printer: 0.4):
+                return call("orca_profiles", printer="sv08", bundle_b64=base64.b64encode(buf.getvalue()).decode())[0]
+
+        upload("My PLA", "Other PLA")
+        call("orca_profiles", printer="sv08", loaded="My PLA")
+        self.assertEqual(upload("My PLA", "Other PLA")["loaded"], "My PLA")
+        self.assertIsNone(upload("Other PLA")["loaded"])
+
     def test_webcam_orientation(self):
         import camera
         table = {(False, False, 0): 1, (True, True, 0): 3, (True, False, 0): 2, (False, True, 0): 4,

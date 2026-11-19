@@ -1400,7 +1400,8 @@ function pnModelReady() {
   $("s1cols").innerHTML = colourSquares(usedColors());
   $("s1file").hidden = false;
   pnFilePicker();
-  pnEdit = 0;
+  // Several meshes from one link: stay on step 1 so the file checkboxes are on screen.
+  pnEdit = PN.facts && PN.facts.files && PN.facts.files.length > 1 ? 1 : 0;
   paintSteps();
   loadPnInfo();
 }

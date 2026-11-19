@@ -224,12 +224,17 @@ class Stale(unittest.TestCase):
         self.link.maybe_push_stale()
         self.assertEqual(len(self.link.client.publish.call_args_list), 2)
 
-    def test_silent_11s_is_disconnected_until_a_message_arrives(self):
+    def test_silent_past_stale_s_is_disconnected_until_a_message_arrives(self):
         self.link.feed({"print": {"gcode_state": "IDLE"}})
         self.assertTrue(self.link.snapshot()["connected"])
-        self.clock.now += 11
+        self.clock.now += STALE_AFTER_S + 1
         self.assertFalse(self.link.snapshot()["connected"])
         self.link.feed({"print": {"mc_percent": 7}})
+        self.assertTrue(self.link.snapshot()["connected"])
+
+    def test_a_10s_report_gap_is_not_a_disconnect(self):
+        self.link.feed({"print": {"gcode_state": "IDLE"}})
+        self.clock.now += 10.5  # P1/A1 firmware stalls its stream this long with the link healthy
         self.assertTrue(self.link.snapshot()["connected"])
 
     def test_connected_transitions_log_exactly_one_line_each(self):
@@ -239,7 +244,7 @@ class Stale(unittest.TestCase):
             self.link.snapshot()
             lines = buf.getvalue().strip().splitlines()
             self.assertEqual(len(lines), 1)
-            self.clock.now += 11
+            self.clock.now += STALE_AFTER_S + 1
             self.link.snapshot()
             lines = buf.getvalue().strip().splitlines()
             self.assertEqual(len(lines), 2)
@@ -248,7 +253,7 @@ class Stale(unittest.TestCase):
         lines = buf.getvalue().strip().splitlines()
         self.assertEqual(len(lines), 3)
         self.assertIn("a1", lines[1])
-        self.assertIn("nessun dato da 10 s", lines[1])
+        self.assertIn(f"nessun dato da {STALE_AFTER_S} s", lines[1])
 
 
 if __name__ == "__main__":

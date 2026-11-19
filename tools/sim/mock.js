@@ -115,8 +115,11 @@
         ? `🍝 Possible spaghetti on ${p.file} at layer ${layer(p)}: the print is paused. Check the camera.`
         : `🍝 Possible spaghetti on ${p.file} at layer ${layer(p)}: check the camera. Pygmy does not pause.`);
     },
-    // The plate photo the real Pygmy attaches to prepare_print_start (the simulator has no JPEG).
-    photo: a => "data:image/svg+xml," + encodeURIComponent(bedSvg(get(a))),
+    // The plate photo the real Pygmy attaches to prepare_print_start: a real camera photo when the build has one.
+    photo: a => {
+      const photos = (window.SIM_PHOTOS || {})[a];
+      return photos && photos.length ? photos[0] : "data:image/svg+xml," + encodeURIComponent(bedSvg(get(a)));
+    },
     askPlate() {
       requests = [{ id: requests.length + 8, url: "https://makerworld.com/models/sample-hook", status: "blocked",
                     note: "Which plate is on the printer?", plates: [1], plate_index: 0, file_name: null }, ...requests];
