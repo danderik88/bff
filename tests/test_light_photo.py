@@ -4,7 +4,7 @@ import unittest
 from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
-from bff_mcp import server  # noqa: E402
+from pygmy import server  # noqa: E402
 
 
 class LightForPhoto(unittest.TestCase):

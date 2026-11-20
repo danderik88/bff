@@ -15,9 +15,9 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from bff_mcp import server  # noqa: E402
+from pygmy import server  # noqa: E402
 
-PAGE = (ROOT / "src" / "bff_mcp" / "app.html").read_text()
+PAGE = (ROOT / "src" / "pygmy" / "app.html").read_text()
 TOKEN = "t" * 40
 
 

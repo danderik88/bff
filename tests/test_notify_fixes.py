@@ -3,7 +3,7 @@ import sqlite3
 import unittest
 from unittest import mock
 
-from bff_mcp import notify
+from pygmy import notify
 
 
 def memdb():

@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "bff_mcp"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "pygmy"))
 import onboard  # noqa: E402
 import printer_link  # noqa: E402
 import server  # noqa: E402

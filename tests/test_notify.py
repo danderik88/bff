@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from bff_mcp.notify import Presence, alerts  # noqa: E402
+from pygmy.notify import Presence, alerts  # noqa: E402
 
 
 class Alerts(unittest.TestCase):
@@ -73,7 +73,7 @@ import json  # noqa: E402
 import sqlite3  # noqa: E402
 from unittest import mock  # noqa: E402
 
-from bff_mcp import notify  # noqa: E402
+from pygmy import notify  # noqa: E402
 
 
 def memdb():
@@ -220,7 +220,7 @@ class NotifierTest(unittest.TestCase):
         self.assertIn("0300-0D00-0001-0001", push[2])
 
 
-APP = ROOT / "src" / "bff_mcp"
+APP = ROOT / "src" / "pygmy"
 
 
 class AppSide(unittest.TestCase):

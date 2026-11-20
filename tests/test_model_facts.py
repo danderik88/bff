@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
-from bff_mcp import slicer  # noqa: E402
+from pygmy import slicer  # noqa: E402
 from test_slicer_worker import model_3mf  # noqa: E402
 
 

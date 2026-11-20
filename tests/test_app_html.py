@@ -2,7 +2,7 @@
 import unittest
 from pathlib import Path
 
-PAGE = (Path(__file__).resolve().parents[1] / "src" / "bff_mcp" / "app.html").read_text()
+PAGE = (Path(__file__).resolve().parents[1] / "src" / "pygmy" / "app.html").read_text()
 
 
 class AppHtml(unittest.TestCase):

@@ -7,7 +7,7 @@ from unittest import mock
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
-from bff_mcp import ha_mqtt, server  # noqa: E402
+from pygmy import ha_mqtt, server  # noqa: E402
 
 STATUS = {"connected": True, "state": "RUNNING", "progress": 42, "remaining_time": 17, "layer_num": 3,
           "total_layers": 90, "subtask_name": "x", "speed_level": 2, "hms_count": 0, "chamber_light": True,
@@ -33,23 +33,23 @@ class HaBridgeTest(unittest.TestCase):
         return b
 
     def test_ha_accepts_only_known_actions(self):
-        ok = {("bff/a1/cmd/pause", b"PRESS"): ("a1", "pause", None),
-              ("bff/a1/cmd/stop", b"PRESS"): ("a1", "stop", None),
-              ("bff/a1/cmd/light", b"ON"): ("a1", "light", True),
-              ("bff/a1/cmd/light", b"OFF"): ("a1", "light", False)}
+        ok = {("pygmy/a1/cmd/pause", b"PRESS"): ("a1", "pause", None),
+              ("pygmy/a1/cmd/stop", b"PRESS"): ("a1", "stop", None),
+              ("pygmy/a1/cmd/light", b"ON"): ("a1", "light", True),
+              ("pygmy/a1/cmd/light", b"OFF"): ("a1", "light", False)}
         for (topic, payload), want in ok.items():
             self.assertEqual(ha_mqtt.parse_command(topic, payload, ("a1",)), want)
-        for topic, payload in (("bff/a1/cmd/light", b"PRESS"), ("bff/a1/cmd/pause", b"ON"),
-                               ("bff/p1s/cmd/pause", b"PRESS"), ("bff/a1/cmd/gcode", b"PRESS"),
-                               ("bff/a1/cmd/pause/x", b"PRESS"), ("other/a1/cmd/pause", b"PRESS")):
+        for topic, payload in (("pygmy/a1/cmd/light", b"PRESS"), ("pygmy/a1/cmd/pause", b"ON"),
+                               ("pygmy/p1s/cmd/pause", b"PRESS"), ("pygmy/a1/cmd/gcode", b"PRESS"),
+                               ("pygmy/a1/cmd/pause/x", b"PRESS"), ("other/a1/cmd/pause", b"PRESS")):
             with self.subTest(topic=topic, payload=payload):
                 self.assertIsNone(ha_mqtt.parse_command(topic, payload, ("a1",)))
 
     def test_ha_cannot_start_a_print(self):
         for action in ("start", "print_start", "confirm_print_start", "gcode", "move", "home"):
-            self.assertIsNone(ha_mqtt.parse_command(f"bff/a1/cmd/{action}", b"PRESS", ("a1",)))
+            self.assertIsNone(ha_mqtt.parse_command(f"pygmy/a1/cmd/{action}", b"PRESS", ("a1",)))
         topics = [cfg.get("command_topic") for _, cfg in ha_mqtt.discovery("a1")]
-        self.assertEqual(sorted(t for t in topics if t), sorted(f"bff/a1/cmd/{a}" for a in ha_mqtt.HA_ACTIONS))
+        self.assertEqual(sorted(t for t in topics if t), sorted(f"pygmy/a1/cmd/{a}" for a in ha_mqtt.HA_ACTIONS))
 
     def test_discovery_is_unique_and_marked_with_availability(self):
         pairs = ha_mqtt.discovery("a1")
@@ -58,7 +58,7 @@ class HaBridgeTest(unittest.TestCase):
             self.assertTrue(topic.startswith("homeassistant/") and topic.endswith("/config"))
             self.assertEqual(cfg["availability_topic"], ha_mqtt.AVAILABILITY)
             component, obj = topic.split("/")[1], topic.split("/")[3]
-            self.assertEqual(cfg["default_entity_id"], f"{component}.bff_a1_{obj}")
+            self.assertEqual(cfg["default_entity_id"], f"{component}.pygmy_a1_{obj}")
         temps = [cfg for _, cfg in pairs if cfg.get("device_class") == "temperature"]
         self.assertEqual(len(temps), 4)
         self.assertTrue(all(cfg["suggested_display_precision"] == 0 for cfg in temps))
@@ -71,7 +71,7 @@ class HaBridgeTest(unittest.TestCase):
         b = self.bridge()
         b._on_connect(b.client, None, None, mock.Mock(is_failure=False), None)
         self.assertIn((ha_mqtt.AVAILABILITY, "online", True), b.client.sent)
-        self.assertEqual(b.client.subscribed, "bff/+/cmd/+")
+        self.assertEqual(b.client.subscribed, "pygmy/+/cmd/+")
         retained = [t for t, _, r in b.client.sent if r and t.endswith("/config")]
         self.assertEqual(len(retained), len(ha_mqtt.discovery("a1")))
 
@@ -81,7 +81,7 @@ class HaBridgeTest(unittest.TestCase):
         b.publish_states()
         self.assertEqual(len(b.client.sent), 1)
         topic, payload, retain = b.client.sent[0]
-        self.assertEqual((topic, retain), ("bff/a1/state", False))
+        self.assertEqual((topic, retain), ("pygmy/a1/state", False))
         self.assertEqual(json.loads(payload)["nozzle"], 220)
         self.assertEqual(json.loads(payload)["light"], "ON")
 
@@ -98,15 +98,15 @@ class HaBridgeTest(unittest.TestCase):
         self.assertTrue(run.call_args[0][3].startswith("ha-"))
 
     def test_new_commands_are_accepted_and_bad_ones_are_not(self):
-        ok = {("bff/a1/cmd/speed", b"sport"): ("a1", "speed", 3),
-              ("bff/a1/cmd/fan_part", b"50"): ("a1", "fan_part", 50),
-              ("bff/a1/cmd/fan_aux", b"50.0"): ("a1", "fan_aux", 50),
-              ("bff/a1/cmd/fan_chamber", b"100"): ("a1", "fan_chamber", 100),
-              ("bff/a1/cmd/opt_auto_recovery", b"OFF"): ("a1", "opt_auto_recovery", False),
-              ("bff/a1/cmd/read_a1", b"PRESS"): ("a1", "read_a1", "A1"),
-              ("bff/a1/cmd/read_d4", b"PRESS"): ("a1", "read_d4", "D4"),
-              ("bff/a1/cmd/clear_errors", b"PRESS"): ("a1", "clear_errors", None),
-              ("bff/a1/cmd/dismiss_spaghetti", b"PRESS"): ("a1", "dismiss_spaghetti", None)}
+        ok = {("pygmy/a1/cmd/speed", b"sport"): ("a1", "speed", 3),
+              ("pygmy/a1/cmd/fan_part", b"50"): ("a1", "fan_part", 50),
+              ("pygmy/a1/cmd/fan_aux", b"50.0"): ("a1", "fan_aux", 50),
+              ("pygmy/a1/cmd/fan_chamber", b"100"): ("a1", "fan_chamber", 100),
+              ("pygmy/a1/cmd/opt_auto_recovery", b"OFF"): ("a1", "opt_auto_recovery", False),
+              ("pygmy/a1/cmd/read_a1", b"PRESS"): ("a1", "read_a1", "A1"),
+              ("pygmy/a1/cmd/read_d4", b"PRESS"): ("a1", "read_d4", "D4"),
+              ("pygmy/a1/cmd/clear_errors", b"PRESS"): ("a1", "clear_errors", None),
+              ("pygmy/a1/cmd/dismiss_spaghetti", b"PRESS"): ("a1", "dismiss_spaghetti", None)}
         for (topic, payload), want in ok.items():
             with self.subTest(topic=topic):
                 self.assertEqual(ha_mqtt.parse_command(topic, payload, ("a1",)), want)
@@ -114,66 +114,66 @@ class HaBridgeTest(unittest.TestCase):
                                 ("read_e1", b"PRESS"), ("temperature", b"200"), ("move", b"PRESS"),
                                 ("start", b"PRESS")):
             with self.subTest(action=action):
-                self.assertIsNone(ha_mqtt.parse_command(f"bff/a1/cmd/{action}", payload, ("a1",)))
+                self.assertIsNone(ha_mqtt.parse_command(f"pygmy/a1/cmd/{action}", payload, ("a1",)))
 
     def test_discovery_for_ams_slots_and_controls(self):
         pairs = ha_mqtt.discovery("a1", slots=("A1", "A2"), units=("A",))
         cfg = dict(pairs)
-        self.assertIn("homeassistant/sensor/bff_a1/ams_a1/config", cfg)
-        self.assertIn("homeassistant/sensor/bff_a1/ams_a2_remain/config", cfg)
-        self.assertIn("homeassistant/sensor/bff_a1/ams_a2_state/config", cfg)
-        self.assertNotIn("homeassistant/button/bff_a1/read_a2/config", cfg)
-        self.assertNotIn("homeassistant/sensor/bff_a1/ams_a_humidity/config", cfg)
-        self.assertIn("homeassistant/select/bff_a1/speed/config", cfg)
-        self.assertIn("homeassistant/number/bff_a1/set_fan_aux/config", cfg)
-        self.assertIn("homeassistant/switch/bff_a1/opt_bff_spaghetti/config", cfg)
-        self.assertIn("homeassistant/camera/bff_a1/last_photo/config", cfg)
+        self.assertIn("homeassistant/sensor/pygmy_a1/ams_a1/config", cfg)
+        self.assertIn("homeassistant/sensor/pygmy_a1/ams_a2_remain/config", cfg)
+        self.assertIn("homeassistant/sensor/pygmy_a1/ams_a2_state/config", cfg)
+        self.assertNotIn("homeassistant/button/pygmy_a1/read_a2/config", cfg)
+        self.assertNotIn("homeassistant/sensor/pygmy_a1/ams_a_humidity/config", cfg)
+        self.assertIn("homeassistant/select/pygmy_a1/speed/config", cfg)
+        self.assertIn("homeassistant/number/pygmy_a1/set_fan_aux/config", cfg)
+        self.assertIn("homeassistant/switch/pygmy_a1/opt_bff_spaghetti/config", cfg)
+        self.assertIn("homeassistant/camera/pygmy_a1/last_photo/config", cfg)
         self.assertEqual(len({c["unique_id"] for _, c in pairs}), len(pairs))
-        ams = cfg["homeassistant/sensor/bff_a1/ams_a1/config"]
+        ams = cfg["homeassistant/sensor/pygmy_a1/ams_a1/config"]
         self.assertIn("value_json.ams['A1']", ams["value_template"])
-        self.assertEqual(cfg["homeassistant/number/bff_a1/set_fan_aux/config"]["command_topic"], "bff/a1/cmd/fan_aux")
-        self.assertEqual(cfg["homeassistant/camera/bff_a1/last_photo/config"]["topic"], "bff/a1/photo")
+        self.assertEqual(cfg["homeassistant/number/pygmy_a1/set_fan_aux/config"]["command_topic"], "pygmy/a1/cmd/fan_aux")
+        self.assertEqual(cfg["homeassistant/camera/pygmy_a1/last_photo/config"]["topic"], "pygmy/a1/photo")
 
     def test_ams_entities_live_on_their_own_device(self):
         cfg = dict(ha_mqtt.discovery("a1", name="AUNA A1", slots=("A1", "B2"), units=("A", "B")))
-        for topic, unit in (("homeassistant/sensor/bff_a1/ams_a1/config", "A"),
-                            ("homeassistant/sensor/bff_a1/ams_a1_remain/config", "A"),
-                            ("homeassistant/sensor/bff_a1/ams_b2_state/config", "B"),
-                            ("homeassistant/sensor/bff_a1/ams_a_info/config", "A"),
-                            ("homeassistant/sensor/bff_a1/ams_b_info/config", "B")):
+        for topic, unit in (("homeassistant/sensor/pygmy_a1/ams_a1/config", "A"),
+                            ("homeassistant/sensor/pygmy_a1/ams_a1_remain/config", "A"),
+                            ("homeassistant/sensor/pygmy_a1/ams_b2_state/config", "B"),
+                            ("homeassistant/sensor/pygmy_a1/ams_a_info/config", "A"),
+                            ("homeassistant/sensor/pygmy_a1/ams_b_info/config", "B")):
             device = cfg[topic]["device"]
-            self.assertEqual(device["identifiers"], [f"bff_a1_ams_{unit}"])
+            self.assertEqual(device["identifiers"], [f"pygmy_a1_ams_{unit}"])
             self.assertEqual(device["name"], f"AUNA A1 AMS {unit}")
-            self.assertEqual((device["model"], device["via_device"]), ("BMCU", "bff_a1"))
+            self.assertEqual((device["model"], device["via_device"]), ("BMCU", "pygmy_a1"))
             self.assertEqual(device["manufacturer"], "BMCU")
-        self.assertEqual(cfg["homeassistant/sensor/bff_a1/ams_a1/config"]["name"], "Slot A1")
-        self.assertEqual(cfg["homeassistant/sensor/bff_a1/ams_a1_remain/config"]["name"], "Slot A1 remaining")
-        self.assertEqual(cfg["homeassistant/sensor/bff_a1/ams_a_info/config"]["name"], "Raw AMS A info")
+        self.assertEqual(cfg["homeassistant/sensor/pygmy_a1/ams_a1/config"]["name"], "Slot A1")
+        self.assertEqual(cfg["homeassistant/sensor/pygmy_a1/ams_a1_remain/config"]["name"], "Slot A1 remaining")
+        self.assertEqual(cfg["homeassistant/sensor/pygmy_a1/ams_a_info/config"]["name"], "Raw AMS A info")
         # The printer device carries the rest and has no via_device.
-        self.assertEqual(cfg["homeassistant/sensor/bff_a1/nozzle/config"]["device"]["identifiers"], ["bff_a1"])
+        self.assertEqual(cfg["homeassistant/sensor/pygmy_a1/nozzle/config"]["device"]["identifiers"], ["pygmy_a1"])
 
     def test_a1_profile_drops_what_it_does_not_have(self):
         a1 = {"fans": ["part"], "options": ["auto_recovery", "sound_enable", "filament_tangle_detect"]}
         cfg = dict(ha_mqtt.discovery("a1", slots=("A1",), units=("A",), profile=a1))
-        for topic in ("homeassistant/sensor/bff_a1/fan_aux/config",
-                      "homeassistant/sensor/bff_a1/fan_chamber/config",
-                      "homeassistant/number/bff_a1/set_fan_aux/config",
-                      "homeassistant/number/bff_a1/set_fan_chamber/config"):
+        for topic in ("homeassistant/sensor/pygmy_a1/fan_aux/config",
+                      "homeassistant/sensor/pygmy_a1/fan_chamber/config",
+                      "homeassistant/number/pygmy_a1/set_fan_aux/config",
+                      "homeassistant/number/pygmy_a1/set_fan_chamber/config"):
             self.assertNotIn(topic, cfg)
-        self.assertIn("homeassistant/sensor/bff_a1/fan/config", cfg)
-        self.assertIn("homeassistant/number/bff_a1/set_fan_part/config", cfg)
-        self.assertIn("homeassistant/switch/bff_a1/opt_bff_spaghetti/config", cfg)
-        self.assertIn("homeassistant/switch/bff_a1/opt_auto_recovery/config", cfg)
+        self.assertIn("homeassistant/sensor/pygmy_a1/fan/config", cfg)
+        self.assertIn("homeassistant/number/pygmy_a1/set_fan_part/config", cfg)
+        self.assertIn("homeassistant/switch/pygmy_a1/opt_bff_spaghetti/config", cfg)
+        self.assertIn("homeassistant/switch/pygmy_a1/opt_auto_recovery/config", cfg)
         partial = dict(ha_mqtt.discovery("a1", profile={"fans": ["part"], "options": ["sound_enable"]}))
-        self.assertIn("homeassistant/switch/bff_a1/opt_sound_enable/config", partial)
-        self.assertIn("homeassistant/switch/bff_a1/opt_bff_spaghetti/config", partial)
-        self.assertNotIn("homeassistant/switch/bff_a1/opt_auto_recovery/config", partial)
+        self.assertIn("homeassistant/switch/pygmy_a1/opt_sound_enable/config", partial)
+        self.assertIn("homeassistant/switch/pygmy_a1/opt_bff_spaghetti/config", partial)
+        self.assertNotIn("homeassistant/switch/pygmy_a1/opt_auto_recovery/config", partial)
         # No profile: today's full set stays.
         full = dict(ha_mqtt.discovery("a1"))
-        for topic in ("homeassistant/sensor/bff_a1/fan_aux/config",
-                      "homeassistant/sensor/bff_a1/fan_chamber/config",
-                      "homeassistant/number/bff_a1/set_fan_aux/config",
-                      "homeassistant/number/bff_a1/set_fan_chamber/config"):
+        for topic in ("homeassistant/sensor/pygmy_a1/fan_aux/config",
+                      "homeassistant/sensor/pygmy_a1/fan_chamber/config",
+                      "homeassistant/number/pygmy_a1/set_fan_aux/config",
+                      "homeassistant/number/pygmy_a1/set_fan_chamber/config"):
             self.assertIn(topic, full)
 
     def test_flat_state_carries_ams_door_and_options(self):
@@ -203,8 +203,8 @@ class HaBridgeTest(unittest.TestCase):
         b.publish_states()  # RUNNING: nothing to notify
         run["state"] = "FINISH"
         b.publish_states()
-        self.assertEqual([t for t, _, _ in b.client.sent][-2:], ["bff/a1/photo", "bff/a1/event"])
-        self.assertIn(("bff/a1/photo", b"JPEG", True), b.client.sent)
+        self.assertEqual([t for t, _, _ in b.client.sent][-2:], ["pygmy/a1/photo", "pygmy/a1/event"])
+        self.assertIn(("pygmy/a1/photo", b"JPEG", True), b.client.sent)
 
     def test_snapshot_error_does_not_swallow_the_event(self):
         run = dict(STATUS)
@@ -214,7 +214,7 @@ class HaBridgeTest(unittest.TestCase):
         b.publish_states()
         run["state"] = "FAILED"
         b.publish_states()
-        self.assertEqual(b.client.sent[-1][0], "bff/a1/event")
+        self.assertEqual(b.client.sent[-1][0], "pygmy/a1/event")
 
     def test_layout_change_republishes_discovery(self):
         status = dict(STATUS)
@@ -224,7 +224,7 @@ class HaBridgeTest(unittest.TestCase):
         self.assertFalse(any(t.endswith("/ams_a1/config") for t, _, _ in b.client.sent))
         status["ams_units"] = [{"unit": "A", "humidity": 4, "slots": [{"slot": "A1", "empty": True}]}]
         b.publish_states()
-        self.assertIn("homeassistant/sensor/bff_a1/ams_a1/config",
+        self.assertIn("homeassistant/sensor/pygmy_a1/ams_a1/config",
                       [t for t, _, retained in b.client.sent if retained])
         self.assertEqual(b.layout["a1"], (("A1",), ("A",), (), ()))
 
@@ -238,12 +238,12 @@ class HaBridgeTest(unittest.TestCase):
         b.publish_states()  # the layout gained one BMCU unit: discovery is republished
         cleared = {t for t, p, r in b.client.sent if r and p == ""}
         self.assertTrue(set(ha_mqtt.bmcu_dropped_topics("a1", "A")) <= cleared)
-        self.assertNotIn("homeassistant/sensor/bff_a1/ams_a1_remain/config", cleared)
+        self.assertNotIn("homeassistant/sensor/pygmy_a1/ams_a1_remain/config", cleared)
         kept = {t for t, p, r in b.client.sent if r and p}
-        for topic in ("homeassistant/sensor/bff_a1/ams_a1/config",
-                      "homeassistant/sensor/bff_a1/ams_a1_remain/config",
-                      "homeassistant/sensor/bff_a1/ams_a1_state/config",
-                      "homeassistant/sensor/bff_a1/ams_a_info/config"):
+        for topic in ("homeassistant/sensor/pygmy_a1/ams_a1/config",
+                      "homeassistant/sensor/pygmy_a1/ams_a1_remain/config",
+                      "homeassistant/sensor/pygmy_a1/ams_a1_state/config",
+                      "homeassistant/sensor/pygmy_a1/ams_a_info/config"):
             self.assertIn(topic, kept)
 
     def test_ha_ams_state_drops_impossible_sensor_values(self):
@@ -261,25 +261,25 @@ class HaBridgeTest(unittest.TestCase):
                              profile=lambda alias: profile or None)
         b.client = FakeClient()
         b._on_connect(b.client, None, None, mock.Mock(is_failure=False), None)
-        self.assertIn("homeassistant/number/bff_a1/set_fan_aux/config", [t for t, _, _ in b.client.sent])
+        self.assertIn("homeassistant/number/pygmy_a1/set_fan_aux/config", [t for t, _, _ in b.client.sent])
         profile.update({"fans": ["part"], "options": ["sound_enable"]})
         b.client.sent.clear()
         b.publish_states()
         topics = [t for t, _, _ in b.client.sent]
-        self.assertNotIn("homeassistant/number/bff_a1/set_fan_aux/config", topics)
-        self.assertIn("homeassistant/switch/bff_a1/opt_sound_enable/config", topics)
+        self.assertNotIn("homeassistant/number/pygmy_a1/set_fan_aux/config", topics)
+        self.assertIn("homeassistant/switch/pygmy_a1/opt_sound_enable/config", topics)
         self.assertEqual(b.layout["a1"], ((), (), ("part",), ("sound_enable",)))
 
 
 class OnlyOwnTopics(unittest.TestCase):
     def test_bridge_publishes_only_on_bff_and_its_discovery_topics(self):
-        # The broker has no ACL (HA session, 2026-11-11): BFF itself must stay on bff/# and its discovery topics.
+        # The broker has no ACL (HA session, 2026-11-11): BFF itself must stay on pygmy/# and its discovery topics.
         b = ha_mqtt.HaBridge("h", 1883, "u", "p", ["a1"], lambda a: STATUS, mock.Mock(), {"a1": "AUNA A1"})
         b.client = FakeClient()
         b._on_connect(b.client, None, None, mock.Mock(is_failure=False), None)
         b.publish_states()
         for topic, _, _ in b.client.sent:
-            self.assertTrue(topic.startswith("bff/") or topic.startswith("homeassistant/") and "/bff_a1/" in topic, topic)
+            self.assertTrue(topic.startswith("pygmy/") or topic.startswith("homeassistant/") and "/pygmy_a1/" in topic, topic)
         self.assertEqual(json.loads(b.client.sent[0][1])["device"]["name"], "AUNA A1")
 
 
@@ -335,7 +335,7 @@ class FanAndSpool(unittest.TestCase):
         empty = ha_mqtt.flat_state({})
         self.assertEqual((empty["fan"], empty["spool_material"], empty["spool_color"]), (None, None, None))
         spool = dict((t.split("/")[-2], c) for t, c in ha_mqtt.discovery("a1"))["spool"]
-        self.assertEqual(spool["json_attributes_topic"], "bff/a1/state")
+        self.assertEqual(spool["json_attributes_topic"], "pygmy/a1/state")
 
 class Notifications(unittest.TestCase):
     RUN = {"state": "RUNNING", "subtask_name": "cube", "end_reason": "none", "alarm": None, "spaghetti": "safe"}
@@ -404,7 +404,7 @@ class Notifications(unittest.TestCase):
         self.assertIsNone(bridge.track("a1", None, {"state": "RUNNING"}))  # started before a restart: unknown
 
     def test_event_entity_in_discovery(self):
-        cfg = dict((t, c) for t, c in ha_mqtt.discovery("a1"))["homeassistant/event/bff_a1/event/config"]
+        cfg = dict((t, c) for t, c in ha_mqtt.discovery("a1"))["homeassistant/event/pygmy_a1/event/config"]
         self.assertEqual(cfg["event_types"], list(ha_mqtt.EVENT_TYPES))
 
 

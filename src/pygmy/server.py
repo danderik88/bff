@@ -26,6 +26,11 @@ import urllib.parse
 import urllib.request
 import zipfile
 import zlib
+
+# ponytail: users write PYGMY_*, the code still reads BFF_*; rename inside when convenient.
+for _k, _v in list(os.environ.items()):
+    if _k.startswith("PYGMY_"):
+        os.environ.setdefault("BFF_" + _k[len("PYGMY_"):], _v)
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 

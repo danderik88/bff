@@ -14,7 +14,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-from bff_mcp import server  # noqa: E402
+from pygmy import server  # noqa: E402
 
 JPEG = b"\xff\xd8fake-jpeg"
 AUTH = "tok-" + "x" * 40

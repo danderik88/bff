@@ -10,7 +10,7 @@ from unittest import mock
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from bff_mcp import fetch  # noqa: E402
+from pygmy import fetch  # noqa: E402
 
 
 def global_dns(ip="93.184.216.34"):

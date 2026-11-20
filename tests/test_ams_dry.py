@@ -10,7 +10,7 @@ from unittest import mock
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
-from bff_mcp import ha_mqtt, onboard, printer_link, server  # noqa: E402
+from pygmy import ha_mqtt, onboard, printer_link, server  # noqa: E402
 import test_bff_direct as direct_tests  # noqa: E402
 
 SERIAL = "00600A000008996"
@@ -171,9 +171,9 @@ class HaDryEntities(unittest.TestCase):
         pro = self.topics("AMS 2 Pro")
         for component, obj in (("binary_sensor", "drying"), ("sensor", "dry_target"), ("number", "dry_temp"),
                                ("number", "dry_hours"), ("button", "dry_start"), ("button", "dry_stop")):
-            self.assertIn(f"homeassistant/{component}/bff_ams_{SERIAL.lower()}/{obj}/config", pro)
-        self.assertEqual(pro[f"homeassistant/number/bff_ams_{SERIAL.lower()}/dry_temp/config"]["max"], 65)
-        self.assertEqual(self.topics("AMS HT")[f"homeassistant/number/bff_ams_{SERIAL.lower()}/dry_temp/config"]["max"], 85)
+            self.assertIn(f"homeassistant/{component}/pygmy_ams_{SERIAL.lower()}/{obj}/config", pro)
+        self.assertEqual(pro[f"homeassistant/number/pygmy_ams_{SERIAL.lower()}/dry_temp/config"]["max"], 65)
+        self.assertEqual(self.topics("AMS HT")[f"homeassistant/number/pygmy_ams_{SERIAL.lower()}/dry_temp/config"]["max"], 85)
         plain = self.topics("AMS")
         dry = ("/drying/config", "/dry_target/config", "/dry_temp/config", "/dry_hours/config",
                "/dry_start/config", "/dry_stop/config")
@@ -184,10 +184,10 @@ class HaDryEntities(unittest.TestCase):
         stopped = self.topics("AMS 2 Pro", ams_drying=onboard.ams_drying("C12"))
         for component, obj in (("number", "dry_temp"), ("number", "dry_hours"),
                                ("button", "dry_start"), ("button", "dry_stop")):
-            self.assertNotIn(f"homeassistant/{component}/bff_ams_{SERIAL.lower()}/{obj}/config", stopped)
+            self.assertNotIn(f"homeassistant/{component}/pygmy_ams_{SERIAL.lower()}/{obj}/config", stopped)
         for component, obj in (("binary_sensor", "drying"), ("sensor", "dry_target")):
-            self.assertIn(f"homeassistant/{component}/bff_ams_{SERIAL.lower()}/{obj}/config", stopped)
-        self.assertIn(f"homeassistant/button/bff_ams_{SERIAL.lower()}/dry_start/config",
+            self.assertIn(f"homeassistant/{component}/pygmy_ams_{SERIAL.lower()}/{obj}/config", stopped)
+        self.assertIn(f"homeassistant/button/pygmy_ams_{SERIAL.lower()}/dry_start/config",
                       self.topics("AMS 2 Pro", ams_drying=onboard.ams_drying("N7")))
 
     def test_remembered_temp_and_hours_go_out_on_state(self):

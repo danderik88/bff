@@ -7,11 +7,11 @@ from unittest import mock
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
-from bff_mcp import ha_mqtt, onboard, printer_link, server  # noqa: E402
+from pygmy import ha_mqtt, onboard, printer_link, server  # noqa: E402
 
 
 def find(pairs, alias, obj):
-    return next((c for t, c in pairs.items() if t.endswith(f"/bff_{alias}/{obj}/config")), None)
+    return next((c for t, c in pairs.items() if t.endswith(f"/pygmy_{alias}/{obj}/config")), None)
 
 
 class Section1Entities(unittest.TestCase):
@@ -53,12 +53,12 @@ class Section1Entities(unittest.TestCase):
     def test_ams_unit_entities_live_on_the_unit_device(self):
         for obj in ("ams_a_info", "ams_a1", "ams_a1_remain", "ams_a1_state"):
             device = find(self.p1, "p1s", obj)["device"]
-            self.assertEqual(device["identifiers"], ["bff_p1s_ams_A"])
+            self.assertEqual(device["identifiers"], ["pygmy_p1s_ams_A"])
 
     def test_external_spool_sensor_carries_attributes(self):
         cfg = find(self.a1, "a1", "external_spool")
         self.assertEqual(cfg["value_template"], "{{ value_json.external_spool.state }}")
-        self.assertEqual(cfg["json_attributes_topic"], "bff/a1/state")
+        self.assertEqual(cfg["json_attributes_topic"], "pygmy/a1/state")
 
     def test_heatbreak_wifi_tray_and_ams_status_mapping(self):
         snap = printer_link.to_snapshot({"heatbreak_fan_speed": "15", "wifi_signal": "-69dBm"})
@@ -139,11 +139,11 @@ class FirmwareVersion(unittest.TestCase):
 
 class PlateDetectionSwitch(unittest.TestCase):
     def test_parse_command(self):
-        self.assertEqual(ha_mqtt.parse_command("bff/a1/cmd/plate_detection", b"ON", ("a1",)),
+        self.assertEqual(ha_mqtt.parse_command("pygmy/a1/cmd/plate_detection", b"ON", ("a1",)),
                          ("a1", "plate_detection", True))
-        self.assertEqual(ha_mqtt.parse_command("bff/a1/cmd/plate_detection", b"OFF", ("a1",)),
+        self.assertEqual(ha_mqtt.parse_command("pygmy/a1/cmd/plate_detection", b"OFF", ("a1",)),
                          ("a1", "plate_detection", False))
-        self.assertIsNone(ha_mqtt.parse_command("bff/a1/cmd/plate_detection", b"PRESS", ("a1",)))
+        self.assertIsNone(ha_mqtt.parse_command("pygmy/a1/cmd/plate_detection", b"PRESS", ("a1",)))
 
     def test_ha_action_sends_xcam_control_set_payload(self):
         server.CFG.update(printers={"a1": 1})

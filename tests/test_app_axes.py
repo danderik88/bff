@@ -6,8 +6,8 @@ from unittest import mock
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
-sys.path.insert(0, str(ROOT / "src" / "bff_mcp"))
-from bff_mcp import ha_mqtt, server  # noqa: E402
+sys.path.insert(0, str(ROOT / "src" / "pygmy"))
+from pygmy import ha_mqtt, server  # noqa: E402
 from printer_link import PrinterLink, to_snapshot  # noqa: E402
 
 
@@ -28,23 +28,23 @@ class AppAxesTest(unittest.TestCase):
             self.assertEqual(server.shot_parts(1), ([{"type": "image"}], {"photo_url": "u"}))
 
     def test_app_html_sends_app_header(self):
-        self.assertIn('"X-BFF-App": "1"', (ROOT / "src" / "bff_mcp" / "app.html").read_text())
+        self.assertIn('"X-BFF-App": "1"', (ROOT / "src" / "pygmy" / "app.html").read_text())
 
     def test_motion_disclaimer_present(self):
-        self.assertIn("the printer doesn't report its position", (ROOT / "src" / "bff_mcp" / "app.html").read_text())
+        self.assertIn("the printer doesn't report its position", (ROOT / "src" / "pygmy" / "app.html").read_text())
 
     def test_expert_mode_key_and_default_off(self):
-        html = (ROOT / "src" / "bff_mcp" / "app.html").read_text()
+        html = (ROOT / "src" / "pygmy" / "app.html").read_text()
         self.assertIn("bff.expert", html)
         self.assertIn('localStorage.getItem("bff.expert") === "1"', html)
 
     def test_expert_mode_popup_text(self):
-        html = (ROOT / "src" / "bff_mcp" / "app.html").read_text()
+        html = (ROOT / "src" / "pygmy" / "app.html").read_text()
         self.assertIn("Turn on Expert mode?", html)
         self.assertIn("You use this at your own risk.", html)
 
     def test_expert_switch_locked_on_untested_model(self):
-        html = (ROOT / "src" / "bff_mcp" / "app.html").read_text()
+        html = (ROOT / "src" / "pygmy" / "app.html").read_text()
         self.assertIn("Not tested on this model yet", html)
         self.assertIn('rpc("set_expert"', html)
 

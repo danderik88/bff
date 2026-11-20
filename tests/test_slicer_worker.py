@@ -15,7 +15,7 @@ from unittest import mock
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
-from bff_mcp import server  # noqa: E402
+from pygmy import server  # noqa: E402
 import test_bff_direct as direct_tests  # noqa: E402
 
 slicer = server.slicer  # the module server.py imports, so setup() reaches the worker

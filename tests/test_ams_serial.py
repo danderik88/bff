@@ -9,8 +9,8 @@ from unittest import mock
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
-sys.path.insert(0, str(ROOT / "src" / "bff_mcp"))
-from bff_mcp import ha_mqtt, printer_link  # noqa: E402
+sys.path.insert(0, str(ROOT / "src" / "pygmy"))
+from pygmy import ha_mqtt, printer_link  # noqa: E402
 
 STATUS = {"connected": True, "state": "RUNNING", "progress": 42, "remaining_time": 17, "layer_num": 3,
           "total_layers": 90, "subtask_name": "x", "speed_level": 2, "hms_count": 0, "chamber_light": True,
@@ -57,27 +57,27 @@ class SerialDiscovery(unittest.TestCase):
         pairs = ha_mqtt.serial_unit_discovery(SERIAL, "AMS", "alpha", "A", "Alpha")
         cfg = dict(pairs)
         s = SERIAL.lower()
-        for topic in ("homeassistant/sensor/bff_ams_%s/printer/config" % s,
-                      "homeassistant/sensor/bff_ams_%s/position/config" % s,
-                      "homeassistant/sensor/bff_ams_%s/humidity/config" % s,
-                      "homeassistant/sensor/bff_ams_%s/slot_1/config" % s,
-                      "homeassistant/sensor/bff_ams_%s/slot_4/config" % s,
-                      "homeassistant/sensor/bff_ams_%s/slot_3_remain/config" % s,
-                      "homeassistant/button/bff_ams_%s/read_1/config" % s,
-                      "homeassistant/sensor/bff_ams_%s/raw_slot_2_state/config" % s):
+        for topic in ("homeassistant/sensor/pygmy_ams_%s/printer/config" % s,
+                      "homeassistant/sensor/pygmy_ams_%s/position/config" % s,
+                      "homeassistant/sensor/pygmy_ams_%s/humidity/config" % s,
+                      "homeassistant/sensor/pygmy_ams_%s/slot_1/config" % s,
+                      "homeassistant/sensor/pygmy_ams_%s/slot_4/config" % s,
+                      "homeassistant/sensor/pygmy_ams_%s/slot_3_remain/config" % s,
+                      "homeassistant/button/pygmy_ams_%s/read_1/config" % s,
+                      "homeassistant/sensor/pygmy_ams_%s/raw_slot_2_state/config" % s):
             self.assertIn(topic, cfg)
-        device = cfg["homeassistant/sensor/bff_ams_%s/printer/config" % s]["device"]
-        self.assertEqual(device["identifiers"], [f"bff_ams_{s}"])
+        device = cfg["homeassistant/sensor/pygmy_ams_%s/printer/config" % s]["device"]
+        self.assertEqual(device["identifiers"], [f"pygmy_ams_{s}"])
         self.assertEqual(device["name"], "AMS 8996")
         self.assertEqual(device["model"], "AMS")
         self.assertEqual(device["manufacturer"], "Bambu Lab")
-        self.assertEqual(device["via_device"], "bff_alpha")
-        self.assertEqual(cfg["homeassistant/sensor/bff_ams_%s/slot_1/config" % s]["name"], "Slot 1")
-        self.assertEqual(cfg["homeassistant/button/bff_ams_%s/read_1/config" % s]["name"], "Re-read filament 1")
+        self.assertEqual(device["via_device"], "pygmy_alpha")
+        self.assertEqual(cfg["homeassistant/sensor/pygmy_ams_%s/slot_1/config" % s]["name"], "Slot 1")
+        self.assertEqual(cfg["homeassistant/button/pygmy_ams_%s/read_1/config" % s]["name"], "Re-read filament 1")
 
     def test_printer_device_manufacturer_is_bff(self):
         cfg = dict((t, c) for t, c in ha_mqtt.discovery("a1"))
-        device = cfg["homeassistant/sensor/bff_a1/nozzle/config"]["device"]
+        device = cfg["homeassistant/sensor/pygmy_a1/nozzle/config"]["device"]
         self.assertEqual(device["manufacturer"], "Bambu Lab")
 
 
@@ -98,9 +98,9 @@ class HaBridgeSerial(unittest.TestCase):
         b = self.bridge(lambda a: status, aliases=("a1",), names={"a1": "Alpha"})
         b.publish_states()
         cleared = [t for t, p, r in b.client.sent if r and p == ""]
-        self.assertIn("homeassistant/sensor/bff_a1/ams_a_humidity/config", cleared)
-        self.assertIn("homeassistant/sensor/bff_a1/ams_a1/config", cleared)
-        self.assertIn("homeassistant/button/bff_a1/read_a1/config", cleared)
+        self.assertIn("homeassistant/sensor/pygmy_a1/ams_a_humidity/config", cleared)
+        self.assertIn("homeassistant/sensor/pygmy_a1/ams_a1/config", cleared)
+        self.assertIn("homeassistant/button/pygmy_a1/read_a1/config", cleared)
 
     def test_serial_moves_between_printers(self):
         alpha, bravo = dict(STATUS), dict(STATUS)
@@ -118,11 +118,11 @@ class HaBridgeSerial(unittest.TestCase):
         self.assertEqual(b.ams_location[s]["letter"], "C")
         self.assertEqual(b.ams_disc[s], ("bravo", "C", "AMS"))
         config = dict((t, json.loads(c)) for t, c, r in b.client.sent
-                      if r and t == f"homeassistant/sensor/bff_ams_{s}/printer/config")
-        self.assertEqual(config[f"homeassistant/sensor/bff_ams_{s}/printer/config"]["device"]["via_device"],
-                         "bff_bravo")
-        self.assertEqual(config[f"homeassistant/sensor/bff_ams_{s}/printer/config"]["unique_id"],
-                         f"bff_ams_{s}_printer")
+                      if r and t == f"homeassistant/sensor/pygmy_ams_{s}/printer/config")
+        self.assertEqual(config[f"homeassistant/sensor/pygmy_ams_{s}/printer/config"]["device"]["via_device"],
+                         "pygmy_bravo")
+        self.assertEqual(config[f"homeassistant/sensor/pygmy_ams_{s}/printer/config"]["unique_id"],
+                         f"pygmy_ams_{s}_printer")
         state = json.loads(b.ams_last_state[s])
         self.assertEqual(state["printer"], "Bravo")
         self.assertEqual(state["position"], "C")
@@ -136,7 +136,7 @@ class HaBridgeSerial(unittest.TestCase):
         b.publish_states()
         s = SERIAL.lower()
         self.assertEqual(json.loads(b.ams_last_state[s])["printer"], "none")
-        self.assertNotIn((f"homeassistant/sensor/bff_ams_{s}/printer/config", "", True), b.client.sent)
+        self.assertNotIn((f"homeassistant/sensor/pygmy_ams_{s}/printer/config", "", True), b.client.sent)
         self.assertIn(s, b.ams_disc)  # discovery kept, never deleted
 
     def test_no_serial_unit_disappears_clears_old_scheme(self):
@@ -148,8 +148,8 @@ class HaBridgeSerial(unittest.TestCase):
         status["ams_units"] = []
         b.publish_states()
         cleared = [t for t, p, r in b.client.sent if r and p == ""]
-        self.assertIn("homeassistant/sensor/bff_a1/ams_a_humidity/config", cleared)
-        self.assertIn("homeassistant/sensor/bff_a1/ams_a1/config", cleared)
+        self.assertIn("homeassistant/sensor/pygmy_a1/ams_a_humidity/config", cleared)
+        self.assertIn("homeassistant/sensor/pygmy_a1/ams_a1/config", cleared)
 
     def test_no_serial_appears_in_logs(self):
         status = dict(STATUS)
@@ -174,17 +174,17 @@ class HaBridgeSerial(unittest.TestCase):
 
     def test_ams_command_resolves_where_the_serial_is_now(self):
         loc = {SERIAL.lower(): {"alias": "bravo", "letter": "C", "model": "AMS"}}
-        self.assertEqual(ha_mqtt.parse_ams_command(f"bff/ams/{SERIAL.lower()}/cmd/read_1", b"PRESS", loc),
+        self.assertEqual(ha_mqtt.parse_ams_command(f"pygmy/ams/{SERIAL.lower()}/cmd/read_1", b"PRESS", loc),
                          ("bravo", "read_c1", "C1"))
-        self.assertIsNone(ha_mqtt.parse_ams_command(f"bff/ams/{SERIAL.lower()}/cmd/read_1", b"PRESS", {}))
-        self.assertIsNone(ha_mqtt.parse_ams_command(f"bff/ams/{SERIAL.lower()}/cmd/read_5", b"PRESS", loc))
+        self.assertIsNone(ha_mqtt.parse_ams_command(f"pygmy/ams/{SERIAL.lower()}/cmd/read_1", b"PRESS", {}))
+        self.assertIsNone(ha_mqtt.parse_ams_command(f"pygmy/ams/{SERIAL.lower()}/cmd/read_5", b"PRESS", loc))
         status = dict(STATUS)
         status["ams_units"] = [self.unit("A", SERIAL)]
         b = self.bridge(lambda a: status, aliases=("a1",))
         b.publish_states()
         buf = io.StringIO()
         with contextlib.redirect_stderr(buf):
-            b._on_message(None, None, mock.Mock(topic="bff/ams/unknownserial000/cmd/read_2", payload=b"PRESS"))
+            b._on_message(None, None, mock.Mock(topic="pygmy/ams/unknownserial000/cmd/read_2", payload=b"PRESS"))
         self.assertIn("nessuna stampante", buf.getvalue())
         self.assertNotIn("unknownserial000", buf.getvalue())
 

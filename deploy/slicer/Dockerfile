@@ -1,9 +1,9 @@
-# BFF slicer: headless OrcaSlicer CLI behind slicerd.py. x86_64 only (OrcaSlicer ships no Linux ARM build).
+# Pygmy slicer: headless OrcaSlicer CLI behind slicerd.py. x86_64 only (OrcaSlicer ships no Linux ARM build).
 FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
       curl ca-certificates git python3 libmspack0t64 libgtk-3-0t64 libwebkit2gtk-4.1-0 libgl1 libegl1 \
       libglu1-mesa libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 libsoup-3.0-0 libosmesa6 \
-      libavformat61 libavcodec61 libswscale8 libavutil59 libsm6 libice6 \
+      libavformat61 libavcodec61 libswscale8 libavutil59 libsm6 libice6 xvfb xauth libgl1-mesa-dri \
     && rm -rf /var/lib/apt/lists/*
 ARG ORCA_VERSION=2.5.0
 # AppImage extracted: no FUSE needed in a container.
@@ -23,6 +23,7 @@ RUN git clone -q --depth 1 --branch "v${ORCA_VERSION}" --filter=blob:none --spar
     && rm -rf /tmp/orca-src && chmod -R a+rX /opt/slicer \
     && useradd -r -m -d /home/slicer -s /usr/sbin/nologin slicer
 USER slicer
-ENV HOME=/home/slicer ORCA_BIN=/opt/orca/AppRun SLICER_PROFILES=/opt/slicer/profiles PYTHONUNBUFFERED=1
+ENV HOME=/home/slicer ORCA_BIN=/opt/orca/AppRun SLICER_PROFILES=/opt/slicer/profiles PYTHONUNBUFFERED=1 DISPLAY=:99
 EXPOSE 8765
-CMD ["python3", "/opt/slicer/slicerd.py"]
+# Orca draws the plate previews with OpenGL: it needs a (virtual) display, like xvfb.service on the LXC.
+CMD ["sh", "-c", "Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp >/dev/null 2>&1 & exec python3 /opt/slicer/slicerd.py"]

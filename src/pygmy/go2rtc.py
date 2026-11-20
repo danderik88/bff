@@ -21,7 +21,7 @@ WEBRTC_TIMEOUT_S = 10
 
 def camera_kind(model):
     try:
-        from . import onboard  # imported as bff_mcp.go2rtc (tests)
+        from . import onboard  # imported as pygmy.go2rtc (tests)
     except ImportError:
         import onboard  # sibling module, on sys.path once server.py is loaded
     return onboard.camera_kind(model)

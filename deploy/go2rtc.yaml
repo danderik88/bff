@@ -2,17 +2,17 @@ api:
   listen: "127.0.0.1:1984"
 rtsp:
   listen: ":8554"
-  username: "${BFF_RTSP_USER}"
-  password: "${BFF_RTSP_PASS}"
+  username: "${PYGMY_RTSP_USER}"
+  password: "${PYGMY_RTSP_PASS}"
 webrtc:
   listen: ":8555"
 log:
   level: warn
 # The MJPEG printers (A1, P1) send ~1.5 frames/s with no timestamps: HA and ffmpeg viewers then probed
 # 30-70 s before the first frame. Wall-clock timestamps and a steady 10 fps bring it under 5 s.
-# Only http sources (BFF's /stream/) use these; RTSP printers pass through untouched.
+# Only http sources (Pygmy's /stream/) use these; RTSP printers pass through untouched.
 ffmpeg:
-  # -noautorotate: BFF already puts Moonraker's flip/rotation on each JPEG as an EXIF Orientation tag,
+  # -noautorotate: Pygmy already puts Moonraker's flip/rotation on each JPEG as an EXIF Orientation tag,
   # and ffmpeg applies that tag by itself; without this the h264_o<N> filters below turn a second time
   # (hflip+vflip twice = no turn at all, the "unflipped" Klipper webcam).
   http: "-noautorotate -fflags nobuffer -flags low_delay -use_wallclock_as_timestamps 1 -i {input}"

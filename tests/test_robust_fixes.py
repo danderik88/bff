@@ -11,10 +11,10 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-sys.path.insert(0, str(ROOT / "src" / "bff_mcp"))
+sys.path.insert(0, str(ROOT / "src" / "pygmy"))
 import onboard  # noqa: E402
 import printer_link  # noqa: E402
-from bff_mcp import notify  # noqa: E402
+from pygmy import notify  # noqa: E402
 
 
 class FakeClient:

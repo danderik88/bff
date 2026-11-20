@@ -9,11 +9,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest import mock
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src" / "bff_mcp"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src" / "pygmy"))
 import moonraker_link as ml  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from bff_mcp import server  # noqa: E402
-from bff_mcp import ha_mqtt  # noqa: E402
+from pygmy import server  # noqa: E402
+from pygmy import ha_mqtt  # noqa: E402
 
 STATUS = {
     "print_stats": {"state": "printing", "filename": "cube.gcode", "print_duration": 600.0,

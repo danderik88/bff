@@ -16,7 +16,7 @@ LIB="$(mktemp -d)"
 uv pip install -q --target "$LIB" --python-version 3.10 --python-platform x86_64-manylinux_2_28 -r "$ROOT/deploy/requirements.txt"
 "${SSH[@]}" 'mkdir -p ~/bff/{src,lib,state,env,slicer,bin}'
 rsync -a --delete "$LIB/" "$HOST:bff/lib/"
-rsync -a --delete --exclude __pycache__ "$ROOT/src/bff_mcp/" "$HOST:bff/src/bff_mcp/"
+rsync -a --delete --exclude __pycache__ "$ROOT/src/pygmy/" "$HOST:bff/src/pygmy/"
 rsync -a --exclude __pycache__ "$ROOT/tools/slicer/" "$HOST:bff/slicer/"
 rsync -a "$ROOT/profiles/" "$HOST:bff/profiles/"
 rm -rf "$LIB"
@@ -77,7 +77,7 @@ Description=BFF server
 After=network-online.target bff-slicer.service
 [Service]
 EnvironmentFile=%h/bff/env/bff.env
-ExecStart=/usr/bin/python3 %h/bff/src/bff_mcp/server.py
+ExecStart=/usr/bin/python3 %h/bff/src/pygmy/server.py
 Restart=always
 RestartSec=5
 [Install]

@@ -2,9 +2,9 @@ import os
 import sys
 import unittest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src", "bff_mcp"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src", "pygmy"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from bff_mcp import server  # noqa: E402
+from pygmy import server  # noqa: E402
 
 
 class GenericKlipperModel(unittest.TestCase):

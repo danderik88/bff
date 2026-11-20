@@ -10,10 +10,10 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src" / "bff_mcp"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src" / "pygmy"))
 import moonraker_link as ml  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from bff_mcp import server  # noqa: E402
+from pygmy import server  # noqa: E402
 
 
 def plate_3mf(png=b"plate-png"):

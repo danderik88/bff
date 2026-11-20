@@ -8,7 +8,7 @@ from unittest import mock
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
-from bff_mcp import printer_link, server  # noqa: E402
+from pygmy import printer_link, server  # noqa: E402
 
 
 class ProjectFileTest(unittest.TestCase):

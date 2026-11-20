@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from bff_mcp import notify
+from pygmy import notify
 
 
 def memdb():
@@ -59,8 +59,8 @@ class PushImage(unittest.TestCase):
         notify.put(db, "push_subs", [{"id": "a", "label": "iPhone", "sub": {"endpoint": "https://push/a"}}])
         seen = []
         with mock.patch.object(notify, "webpush", lambda **kw: seen.append(kw["data"])):
-            self.assertEqual(notify.send_push(db, "Delta", "done", "/app", "https://bff/photo/x"), 1)
-        self.assertEqual(json.loads(seen[0])["image"], "https://bff/photo/x")
+            self.assertEqual(notify.send_push(db, "Delta", "done", "/app", "https://pygmy/photo/x"), 1)
+        self.assertEqual(json.loads(seen[0])["image"], "https://pygmy/photo/x")
 
 
 class Duration(unittest.TestCase):

@@ -18,7 +18,8 @@ rand_hex() {
   fi
 }
 
-# An existing .env is the user's: never touch it.
+# An existing .env is the user's: never touch it (except renaming the old BFF_* keys once).
+[ -f .env ] && grep -q '^BFF_' .env && sed -i.bak 's/^BFF_/PYGMY_/' .env && rm -f .env.bak
 if [ ! -f .env ]; then
   if [ "$#" -ge 1 ] && [ -n "$1" ]; then
     ip=$1
@@ -42,12 +43,14 @@ fi
 # OrcaSlicer has no Linux ARM build: no Print now there, everything else works.
 case "$(uname -m)" in
   x86_64)
-    docker compose up -d --build
+    echo "Building Pygmy (about 5 minutes the first time)..."
+    docker compose --progress quiet up -d --build
     ;;
   *)
-    docker compose up -d --build bff go2rtc
+    echo "Building Pygmy (a few minutes the first time)..."
+    docker compose --progress quiet up -d --build app go2rtc
     echo "Print now is off on ARM: OrcaSlicer has no Linux ARM build. Everything else works."
     ;;
 esac
 
-echo "Open on your phone: http://$(grep '^BFF_MCP_BIND=' .env | cut -d= -f2):8765/app#k=$(grep '^BFF_MCP_TOKENS=' .env | cut -d= -f3)"
+echo "Open on your phone: http://$(grep '^PYGMY_MCP_BIND=' .env | cut -d= -f2):8765/app#k=$(grep '^PYGMY_MCP_TOKENS=' .env | cut -d= -f3)"

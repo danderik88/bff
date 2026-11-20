@@ -4,7 +4,7 @@ import sys
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src" / "bff_mcp"))
+sys.path.insert(0, str(ROOT / "src" / "pygmy"))
 import makerworld_off  # noqa: E402
 
 
@@ -23,9 +23,9 @@ class MakerWorldOff(unittest.TestCase):
             self.assertTrue(hasattr(makerworld, name) and hasattr(makerworld_off, name), name)
 
     def test_server_falls_back_and_app_hides_sign_in(self):
-        server = (ROOT / "src/bff_mcp/server.py").read_text()
+        server = (ROOT / "src/pygmy/server.py").read_text()
         self.assertIn("import makerworld_off as makerworld", server)
-        app = (ROOT / "src/bff_mcp/app.html").read_text()
+        app = (ROOT / "src/pygmy/app.html").read_text()
         self.assertIn("mwStatus.available === false", app)
         self.assertIn("MakerWorld links need sign-in, not in this build", app)
 

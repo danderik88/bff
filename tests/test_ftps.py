@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
-sys.path.insert(0, str(ROOT / "src" / "bff_mcp"))
+sys.path.insert(0, str(ROOT / "src" / "pygmy"))
 import ftps  # noqa: E402
 from printer_link import project_file  # noqa: E402
 

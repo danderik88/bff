@@ -98,17 +98,17 @@ Also: Web Push and Telegram notifications with a photo, Home Assistant through M
 
 Run these in the `pygmy` folder (on Proxmox: `pct enter <id>`, then `cd /opt/pygmy`).
 
-- **Logs:** `docker compose logs -f bff`
+- **Logs:** `docker compose logs -f app`
 - **Wrong address in the link:** `rm .env && ./install.sh 192.168.1.50` (your computer's IP).
 - **Printer not in the list:** use **Enter IP** under **+ Add printer**.
-- Your data lives in the `bff-data` Docker volume and survives updates.
+- Your data lives in the `pygmy-data` Docker volume and survives updates.
 
 </details>
 
 <details>
 <summary><b>Access from outside and notifications</b> (Tailscale)</summary>
 
-Install [Tailscale](https://tailscale.com) on the computer, set `BFF_MCP_BIND` in `.env` to its Tailscale IP, run
+Install [Tailscale](https://tailscale.com) on the computer, set `PYGMY_MCP_BIND` in `.env` to its Tailscale IP, run
 `./install.sh`, then `sudo tailscale serve --bg http://<tailscale-ip>:8765`. The app is then at
 `https://<machine>.<tailnet>.ts.net/app` from anywhere, and Web Push notifications work (they need HTTPS).
 
@@ -121,9 +121,9 @@ Run only the `ml_api` container from [obico-server](https://github.com/TheSpaghe
 Obico web server, and not `moonraker-obico` next to Pygmy). Then add to `.env` and run `./install.sh`:
 
 ```sh
-BFF_OBICO_URL=http://<ml_api host>:3333
-BFF_OBICO_TOKEN=<ML_API_TOKEN, if set>
-BFF_OBICO_SENSITIVITY=medium   # low | medium | high
+PYGMY_OBICO_URL=http://<ml_api host>:3333
+PYGMY_OBICO_TOKEN=<ML_API_TOKEN, if set>
+PYGMY_OBICO_SENSITIVITY=medium   # low | medium | high
 ```
 
 The `ml_api` host must reach Pygmy on port 8766. Pause on spaghetti is per printer (Options on the printer page, on by
@@ -146,10 +146,10 @@ profiles (upload the preset bundle in the app). An ACE Pro shows up as a spool u
 <summary><b>AI agents</b> (Claude Code or any MCP client)</summary>
 
 The agent slices with an OrcaSlicer MCP server and hands the file to Pygmy, which shows the plate photo and starts only
-after your OK. One token per agent: add `,agent=<48-char token>` to `BFF_MCP_TOKENS` in `.env`, then `./install.sh`.
+after your OK. One token per agent: add `,agent=<48-char token>` to `PYGMY_MCP_TOKENS` in `.env`, then `./install.sh`.
 
 ```sh
-claude mcp add --transport http bff http://<pygmy-ip>:8765/ --header "Authorization: Bearer <token>"
+claude mcp add --transport http pygmy http://<pygmy-ip>:8765/ --header "Authorization: Bearer <token>"
 ```
 
 </details>
@@ -157,7 +157,7 @@ claude mcp add --transport http bff http://<pygmy-ip>:8765/ --header "Authorizat
 <details>
 <summary><b>Moving the axes</b> (Expert mode)</summary>
 
-Gear icon, **Advanced**, **Expert mode**, and `BFF_MCP_CONTROL=1` in `.env`. Only on the tested models. The printer
+Gear icon, **Advanced**, **Expert mode**, and `PYGMY_MCP_CONTROL=1` in `.env`. Only on the tested models. The printer
 does not report the head position, so home first, clear the bed, stay next to it, and **never drive a P1 to X0 Y0**:
 the head hits the filament cutter.
 

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from bff_mcp import server
+from pygmy import server
 
 
 class TestFrame(unittest.TestCase):
@@ -25,7 +25,7 @@ class JoinedMidPrint(unittest.TestCase):
     """Pygmy restarted during a print: no warmup, bad frames alarm within the one-minute vote."""
 
     def first_verdict(self, progress):
-        from bff_mcp import spaghetti
+        from pygmy import spaghetti
         bad = [["failure", 0.9, [0, 0, 1, 1]]] * 3
         w = spaghetti.Watch(lambda: "RUNNING", lambda: b"j", lambda j: bad, progress_of=lambda: progress)
         for _ in range(spaghetti.WINDOW):

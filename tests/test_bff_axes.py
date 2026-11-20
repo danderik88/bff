@@ -11,7 +11,7 @@ from unittest import mock
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
-from bff_mcp import onboard, server  # noqa: E402
+from pygmy import onboard, server  # noqa: E402
 import test_bff_direct as direct_tests  # noqa: E402
 
 PROFILE = {"command_timeout_s": 0.3, "supports": {"stop": True, "start": True}}

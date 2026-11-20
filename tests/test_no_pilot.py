@@ -9,10 +9,10 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from bff_mcp import onboard, server  # noqa: E402
+from pygmy import onboard, server  # noqa: E402
 
-APP = (ROOT / "src" / "bff_mcp" / "app.html").read_text()
-SERVER = (ROOT / "src" / "bff_mcp" / "server.py").read_text()
+APP = (ROOT / "src" / "pygmy" / "app.html").read_text()
+SERVER = (ROOT / "src" / "pygmy" / "server.py").read_text()
 
 
 class EnvelopeFromStore(unittest.TestCase):

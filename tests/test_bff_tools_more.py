@@ -10,7 +10,7 @@ from unittest import mock
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
-from bff_mcp import server  # noqa: E402
+from pygmy import server  # noqa: E402
 import test_bff_direct as direct_tests  # noqa: E402
 from printer_link import PUSHALL  # noqa: E402
 

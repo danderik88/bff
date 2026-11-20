@@ -2,7 +2,7 @@ import os
 import sys
 import unittest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src", "bff_mcp"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src", "pygmy"))
 import spaghetti  # noqa: E402
 
 BAD = [["failure", 0.9, [0, 0, 1, 1]], ["failure", 0.8, [0, 0, 1, 1]]]

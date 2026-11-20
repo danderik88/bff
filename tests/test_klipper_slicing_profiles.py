@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools" / "slicer"))
 import flatten_profiles as fp  # noqa: E402
-from bff_mcp import slicer  # noqa: E402
+from pygmy import slicer  # noqa: E402
 
 
 def write(path, doc):

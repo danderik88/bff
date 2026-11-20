@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from bff_mcp import camera  # noqa: E402
+from pygmy import camera  # noqa: E402
 
 JPEG = b"\xff\xd8" + b"x" * 30 + b"\xff\xd9"
 

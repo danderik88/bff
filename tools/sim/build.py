@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 here = Path(__file__).resolve().parent
-page = (here.parents[1] / "src" / "bff_mcp" / "app.html").read_text()
+page = (here.parents[1] / "src" / "pygmy" / "app.html").read_text()
 mock = (here / "mock.js").read_text()
 
 # The app's own names and demo printers were the user's; the simulator has only generic models.

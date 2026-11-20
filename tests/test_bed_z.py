@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from bff_mcp import server
+from pygmy import server
 
 
 class BedZTest(unittest.TestCase):

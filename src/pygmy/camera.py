@@ -106,7 +106,7 @@ class Go2rtcFeed:
         if fetch is None:
             def fetch():
                 try:
-                    from . import go2rtc  # imported as bff_mcp.camera (tests)
+                    from . import go2rtc  # imported as pygmy.camera (tests)
                 except ImportError:
                     import go2rtc  # sibling module, on sys.path once server.py is loaded
                 return go2rtc.frame(self.alias)

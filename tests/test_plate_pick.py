@@ -11,11 +11,11 @@ from unittest import mock
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
-sys.path.insert(0, str(ROOT / "src" / "bff_mcp"))
+sys.path.insert(0, str(ROOT / "src" / "pygmy"))
 sys.path.insert(0, str(ROOT / "tools" / "slicer"))
 import slicer  # noqa: E402
 import slicerd  # noqa: E402
-from bff_mcp import server  # noqa: E402
+from pygmy import server  # noqa: E402
 from printer_link import project_file  # noqa: E402
 
 MODEL_SETTINGS = """<?xml version="1.0" encoding="UTF-8"?>
@@ -104,12 +104,12 @@ class StartThatPlate(unittest.TestCase):
 
 class PlatePickerInTheApp(unittest.TestCase):
     def test_slice_opens_the_picker_and_sends_the_plate(self):
-        app = (ROOT / "src/bff_mcp/app.html").read_text()
+        app = (ROOT / "src/pygmy/app.html").read_text()
         self.assertIn('id="platesheet"', app)
         self.assertIn("return openPlatePicker();", app)
         self.assertIn("plate_no: pnPlate()", app)
         self.assertIn('rpc("plate_preview"', app)
-        self.assertIn('"plate_preview": (tool_plate_preview', (ROOT / "src/bff_mcp/server.py").read_text())
+        self.assertIn('"plate_preview": (tool_plate_preview', (ROOT / "src/pygmy/server.py").read_text())
 
 
 if __name__ == "__main__":
@@ -153,7 +153,7 @@ class UsedColours(unittest.TestCase):
         self.assertEqual(slicer.paint_states(b"84" + b"0" + b"1"), {0, 2, 1})  # split nibble then leaves
 
     def test_app_shows_only_used_spools(self):
-        app = (ROOT / "src/bff_mcp/app.html").read_text()
+        app = (ROOT / "src/pygmy/app.html").read_text()
         self.assertIn("if (!one && usedIdx() && !usedIdx().includes(i)) return \"\";", app)
         self.assertIn("fillUnused();", app)
 
@@ -183,7 +183,7 @@ class CopiesOfAProject(unittest.TestCase):
 
 class OriginalOrStandard(unittest.TestCase):
     def test_app_offers_original_for_3mf(self):
-        app = (ROOT / "src/bff_mcp/app.html").read_text()
+        app = (ROOT / "src/pygmy/app.html").read_text()
         self.assertIn('id="pnorig"', app)
         self.assertIn('return isThreeMf ? { fresh: true } : { supports: "auto" };', app)
 

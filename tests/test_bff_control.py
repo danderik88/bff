@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-from bff_mcp import server  # noqa: E402
+from pygmy import server  # noqa: E402
 
 SERIAL = "03919A000000000"
 

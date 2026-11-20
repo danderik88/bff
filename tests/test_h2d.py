@@ -3,7 +3,7 @@ import os
 import sys
 import unittest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src", "bff_mcp"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src", "pygmy"))
 
 import onboard  # noqa: E402
 import printer_link  # noqa: E402

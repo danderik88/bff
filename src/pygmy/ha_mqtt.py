@@ -5,7 +5,7 @@ import threading
 import time
 import uuid
 
-AVAILABILITY = "bff/availability"
+AVAILABILITY = "pygmy/availability"
 DISCOVERY = "homeassistant"
 PUBLISH_S = 5
 SPEEDS = ("silent", "standard", "sport", "ludicrous")
@@ -20,7 +20,7 @@ DRY_CONTROLS = (("number", "dry_temp"), ("number", "dry_hours"), ("button", "dry
 HA_ACTIONS = ("pause", "resume", "stop", "light", "plate_cleared", "speed", *FANS,
               *(f"opt_{key}" for key in OPTIONS), "clear_errors", "dismiss_spaghetti", "plate_detection")
 
-# Bambu stg_cur codes (the same map the app uses, src/bff_mcp/app.html).
+# Bambu stg_cur codes (the same map the app uses, src/pygmy/app.html).
 STAGE = {1: "Auto bed leveling", 2: "Heating bed", 3: "Sweeping XY mech mode", 4: "Changing filament",
          5: "Paused", 6: "Paused: filament runout", 7: "Heating nozzle", 8: "Calibrating extrusion",
          9: "Scanning bed surface", 10: "Inspecting first layer", 11: "Identifying build plate",
@@ -85,7 +85,7 @@ MORE_BINARY = (
      {"value_template": "{{ 'ON' if value_json.camera_recording else 'OFF' }}", "entity_category": "diagnostic"}),
 )
 
-# (component, object id, name, extra config). Values come from the state JSON on bff/<alias>/state.
+# (component, object id, name, extra config). Values come from the state JSON on pygmy/<alias>/state.
 SENSORS = (
     ("sensor", "state", "Status", {"value_template": "{{ value_json.state | lower }}"}),
     ("sensor", "progress", "Progress", {"value_template": "{{ value_json.progress }}", "unit_of_measurement": "%"}),
@@ -313,21 +313,21 @@ def discovery(alias, name=None, slots=(), units=(), profile=None):
 
     slots/units come from the AMS this printer reports right now (e.g. "A1", "A").
     profile is what this printer really has ({"fans": [...], "options": [...]}); None means try everything.
-    Entity ids are bff_<alias>_*.
+    Entity ids are pygmy_<alias>_*.
     """
     printer_name = name or alias.upper()
-    device = {"identifiers": [f"bff_{alias}"], "name": printer_name, "manufacturer": "Bambu Lab"}
+    device = {"identifiers": [f"pygmy_{alias}"], "name": printer_name, "manufacturer": "Bambu Lab"}
 
     def ams_device(unit):
-        return {"identifiers": [f"bff_{alias}_ams_{unit}"], "name": f"{printer_name} AMS {unit}",
-                "model": "BMCU", "manufacturer": "BMCU", "via_device": f"bff_{alias}"}
+        return {"identifiers": [f"pygmy_{alias}_ams_{unit}"], "name": f"{printer_name} AMS {unit}",
+                "model": "BMCU", "manufacturer": "BMCU", "via_device": f"pygmy_{alias}"}
 
     base = {"availability_topic": AVAILABILITY, "device": device}
     fans = None if profile is None else set(profile.get("fans") or ())
     options = None if profile is None else set(profile.get("options") or ())
     chamber = profile is not None and profile.get("chamber_sensor")
     xcam_on = profile is None or "buildplate_marker_detector" in (profile.get("xcam") or ())
-    state = f"bff/{alias}/state"
+    state = f"pygmy/{alias}/state"
     out = []
     for component, obj, name, extra in SENSORS:
         if fans is not None and obj.startswith("fan_") and obj != "fan" and obj[4:] not in fans:
@@ -337,11 +337,11 @@ def discovery(alias, name=None, slots=(), units=(), profile=None):
             cfg["json_attributes_topic"] = state
         out.append((component, obj, cfg))
     for action, name in BUTTONS:
-        out.append(("button", action, {"name": name, "command_topic": f"bff/{alias}/cmd/{action}", "payload_press": "PRESS"}))
-    out.append(("event", "event", {"name": "Alert", "state_topic": f"bff/{alias}/event",
+        out.append(("button", action, {"name": name, "command_topic": f"pygmy/{alias}/cmd/{action}", "payload_press": "PRESS"}))
+    out.append(("event", "event", {"name": "Alert", "state_topic": f"pygmy/{alias}/event",
                                     "event_types": list(EVENT_TYPES)}))
     out.append(("light", "light", {"name": "Light", "state_topic": state, "state_value_template": "{{ value_json.light }}",
-                                    "command_topic": f"bff/{alias}/cmd/light"}))
+                                    "command_topic": f"pygmy/{alias}/cmd/light"}))
     for slot in slots:
         low = slot.lower()
         out.append(("sensor", f"ams_{low}", {
@@ -368,7 +368,7 @@ def discovery(alias, name=None, slots=(), units=(), profile=None):
         "name": "Speed", "state_topic": state, "options": list(SPEEDS),
         "value_template": "{{ {1: 'silent', 2: 'standard', 3: 'sport', 4: 'ludicrous'}"
                           ".get(value_json.speed_level, 'unknown') }}",
-        "command_topic": f"bff/{alias}/cmd/speed"}))
+        "command_topic": f"pygmy/{alias}/cmd/speed"}))
     for obj, action, field, name, fan in (("set_fan_part", "fan_part", "fan", "Set part fan", "part"),
                                           ("set_fan_aux", "fan_aux", "fan_aux", "Set aux fan", "aux"),
                                           ("set_fan_chamber", "fan_chamber", "fan_chamber", "Set chamber fan",
@@ -377,7 +377,7 @@ def discovery(alias, name=None, slots=(), units=(), profile=None):
             continue
         out.append(("number", obj, {"name": name, "state_topic": state,
                                     "value_template": f"{{{{ value_json.{field} }}}}",
-                                    "command_topic": f"bff/{alias}/cmd/{action}", "min": 0, "max": 100,
+                                    "command_topic": f"pygmy/{alias}/cmd/{action}", "min": 0, "max": 100,
                                     "step": 10, "unit_of_measurement": "%", "mode": "slider"}))
     for key, name in (("auto_recovery", "Step loss recovery"), ("sound_enable", "Printer sounds"),
                       ("filament_tangle_detect", "Tangle detection"),
@@ -387,7 +387,7 @@ def discovery(alias, name=None, slots=(), units=(), profile=None):
             continue
         out.append(("switch", f"opt_{key}", {"name": name, "state_topic": state,
                                              "value_template": f"{{{{ 'ON' if value_json.options.{key} else 'OFF' }}}}",
-                                             "command_topic": f"bff/{alias}/cmd/opt_{key}",
+                                             "command_topic": f"pygmy/{alias}/cmd/opt_{key}",
                                              "payload_on": "ON", "payload_off": "OFF"}))
     for component, obj, name, extra in MORE_SENSORS:
         cfg = {"name": name, "state_topic": state, **extra}
@@ -399,7 +399,7 @@ def discovery(alias, name=None, slots=(), units=(), profile=None):
     if xcam_on:
         out.append(("switch", "plate_detection", {"name": "Build plate detection", "state_topic": state,
                     "value_template": "{{ 'ON' if value_json.plate_detection else 'OFF' }}",
-                    "command_topic": f"bff/{alias}/cmd/plate_detection",
+                    "command_topic": f"pygmy/{alias}/cmd/plate_detection",
                     "payload_on": "ON", "payload_off": "OFF"}))
     if chamber:
         out.append(("sensor", "chamber_temp", {"name": "Chamber", "state_topic": state,
@@ -411,27 +411,27 @@ def discovery(alias, name=None, slots=(), units=(), profile=None):
         out.append(("sensor", obj, {"name": f"Raw {label}", "state_topic": state,
                     "entity_category": "diagnostic",
                     "value_template": f"{{{{ value_json.diag.{obj} }}}}"}))
-    out.append(("camera", "last_photo", {"name": "Last print", "topic": f"bff/{alias}/photo"}))
+    out.append(("camera", "last_photo", {"name": "Last print", "topic": f"pygmy/{alias}/photo"}))
     # The select carries the speed sensor's state plus control; HA still needs a distinct unique_id.
     unique = {"select/speed": "speed_select"}
-    return [(f"{DISCOVERY}/{c}/bff_{alias}/{obj}/config",
-             {**base, **cfg, "unique_id": f"bff_{alias}_{unique.get(f'{c}/{obj}', obj)}",
-              "default_entity_id": f"{c}.bff_{alias}_{obj}"})
+    return [(f"{DISCOVERY}/{c}/pygmy_{alias}/{obj}/config",
+             {**base, **cfg, "unique_id": f"pygmy_{alias}_{unique.get(f'{c}/{obj}', obj)}",
+              "default_entity_id": f"{c}.pygmy_{alias}_{obj}"})
             for c, obj, cfg in out]
 
 
 def dry_control_topics(serial):
     """The config topics of the entities that start drying, to empty them when the printer cannot."""
-    return [f"{DISCOVERY}/{c}/bff_ams/{serial.lower()}/{obj}/config" for c, obj in DRY_CONTROLS]
+    return [f"{DISCOVERY}/{c}/pygmy_ams/{serial.lower()}/{obj}/config" for c, obj in DRY_CONTROLS]
 
 
 def bmcu_dropped_topics(alias, letter):
     """Config topics of the BMCU entities that no longer exist: an empty payload makes HA remove them."""
     low = letter.lower()
-    topics = [f"{DISCOVERY}/sensor/bff_{alias}/ams_{low}_{field}/config"
+    topics = [f"{DISCOVERY}/sensor/pygmy_{alias}/ams_{low}_{field}/config"
               for field in ("humidity", "humidity_pct", "temp", "dry_time")]
     for n in "1234":
-        topics += [f"{DISCOVERY}/button/bff_{alias}/read_{low}{n}/config"]
+        topics += [f"{DISCOVERY}/button/pygmy_{alias}/read_{low}{n}/config"]
     return topics
 
 
@@ -442,16 +442,16 @@ def serial_unit_discovery(serial, model, alias, letter, printer_name, ams_drying
     Slot entities are numbered 1..4, not lettered: the state carries the printer-level position.
     """
     s = serial.lower()
-    device = {"identifiers": [f"bff_ams_{s}"], "name": f"AMS {serial[-4:]}", "model": model,
-              "manufacturer": "Bambu Lab", "via_device": f"bff_{alias}"}
+    device = {"identifiers": [f"pygmy_ams_{s}"], "name": f"AMS {serial[-4:]}", "model": model,
+              "manufacturer": "Bambu Lab", "via_device": f"pygmy_{alias}"}
     base = {"availability_topic": AVAILABILITY, "device": device}
-    state = f"bff/ams/{s}/state"
+    state = f"pygmy/ams/{s}/state"
     out = []
 
     def emit(component, obj, cfg):
-        cfg["unique_id"] = f"bff_ams_{s}_{obj}"
-        cfg["default_entity_id"] = f"{component}.bff_ams_{s}_{obj}"
-        out.append((f"{DISCOVERY}/{component}/bff_ams_{s}/{obj}/config", {**base, **cfg}))
+        cfg["unique_id"] = f"pygmy_ams_{s}_{obj}"
+        cfg["default_entity_id"] = f"{component}.pygmy_ams_{s}_{obj}"
+        out.append((f"{DISCOVERY}/{component}/pygmy_ams_{s}/{obj}/config", {**base, **cfg}))
 
     emit("sensor", "printer", {"name": "Printer", "state_topic": state,
                                 "value_template": "{{ value_json.printer }}"})
@@ -479,17 +479,17 @@ def serial_unit_discovery(serial, model, alias, letter, printer_name, ams_drying
     if model in DRY_MODELS and ams_drying:  # the printer must be able to start it too, not just the AMS
         emit("number", "dry_temp", {"name": "Drying temperature", "state_topic": state,
                                     "value_template": "{{ value_json.dry_temp }}",
-                                    "command_topic": f"bff/ams/{s}/cmd/dry_temp",
+                                    "command_topic": f"pygmy/ams/{s}/cmd/dry_temp",
                                     "min": 45, "max": DRY_MODELS[model], "step": 5, "mode": "box",
                                     "unit_of_measurement": "°C"})
         emit("number", "dry_hours", {"name": "Drying hours", "state_topic": state,
                                      "value_template": "{{ value_json.dry_hours }}",
-                                     "command_topic": f"bff/ams/{s}/cmd/dry_hours",
+                                     "command_topic": f"pygmy/ams/{s}/cmd/dry_hours",
                                      "min": 1, "max": 24, "step": 1, "mode": "box"})
         emit("button", "dry_start", {"name": "Start drying",
-                                     "command_topic": f"bff/ams/{s}/cmd/dry_start", "payload_press": "PRESS"})
+                                     "command_topic": f"pygmy/ams/{s}/cmd/dry_start", "payload_press": "PRESS"})
         emit("button", "dry_stop", {"name": "Stop drying",
-                                    "command_topic": f"bff/ams/{s}/cmd/dry_stop", "payload_press": "PRESS"})
+                                    "command_topic": f"pygmy/ams/{s}/cmd/dry_stop", "payload_press": "PRESS"})
     emit("sensor", "info", {"name": "Raw AMS info", "state_topic": state,
                             "value_template": "{{ value_json.info }}", "entity_category": "diagnostic"})
     for n in range(1, 5):
@@ -502,7 +502,7 @@ def serial_unit_discovery(serial, model, alias, letter, printer_name, ams_drying
         emit("sensor", f"{slot}_remain", {"name": f"Slot {n} remaining", "state_topic": state,
              "value_template": f"{{{{ value_json.{slot}.remain }}}}", "unit_of_measurement": "%"})
         emit("button", f"read_{n}", {"name": f"Re-read filament {n}",
-             "command_topic": f"bff/ams/{s}/cmd/read_{n}", "payload_press": "PRESS"})
+             "command_topic": f"pygmy/ams/{s}/cmd/read_{n}", "payload_press": "PRESS"})
         emit("sensor", f"raw_slot_{n}_state", {"name": f"Raw slot {n} state", "state_topic": state,
              "value_template": f"{{{{ value_json.{slot}.state }}}}", "entity_category": "diagnostic"})
     return out
@@ -511,7 +511,7 @@ def serial_unit_discovery(serial, model, alias, letter, printer_name, ams_drying
 def parse_ams_command(topic, payload, ams_location):
     """(alias, action, value) for a command on a serial-keyed AMS unit, resolving where the serial is now."""
     parts = topic.split("/")
-    if len(parts) != 5 or parts[0] != "bff" or parts[1] != "ams" or parts[3] != "cmd":
+    if len(parts) != 5 or parts[0] != "pygmy" or parts[1] != "ams" or parts[3] != "cmd":
         return None
     loc = ams_location.get(parts[2])
     if loc is None:
@@ -535,7 +535,7 @@ def parse_ams_command(topic, payload, ams_location):
 def parse_command(topic, payload, aliases):
     """(alias, action, value) for a valid HA command, else None. Anything else is ignored."""
     parts = topic.split("/")
-    if len(parts) != 4 or parts[0] != "bff" or parts[2] != "cmd" or parts[1] not in aliases:
+    if len(parts) != 4 or parts[0] != "pygmy" or parts[2] != "cmd" or parts[1] not in aliases:
         return None
     alias, action = parts[1], parts[3]
     text = payload.decode("utf-8", "replace") if isinstance(payload, bytes) else str(payload)
@@ -583,7 +583,7 @@ class HaBridge:
 
     def start(self):
         import paho.mqtt.client as mqtt
-        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="bff-ha")
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="pygmy-ha")
         client.username_pw_set(self.user, self.password)
         client.will_set(AVAILABILITY, "offline", retain=True)
         client.reconnect_delay_set(1, 30)
@@ -601,7 +601,7 @@ class HaBridge:
         for alias in self.aliases:
             self._publish_discovery(client, alias)
         client.publish(AVAILABILITY, "online", retain=True)
-        client.subscribe("bff/+/cmd/+")
+        client.subscribe("pygmy/+/cmd/+")
         self.last = {}  # Republish every state after a reconnect.
         print("ha: connessa", file=sys.stderr)
 
@@ -615,19 +615,19 @@ class HaBridge:
         return self.names.get(alias) or alias.upper()
 
     def _old_ams_topics(self, alias, letter):
-        """The old-scheme (bff_<alias>_ams_<letter>) config topics of one AMS unit letter."""
+        """The old-scheme (pygmy_<alias>_ams_<letter>) config topics of one AMS unit letter."""
         low = letter.lower()
-        topics = [f"{DISCOVERY}/sensor/bff_{alias}/ams_{low}_humidity/config",
-                  f"{DISCOVERY}/sensor/bff_{alias}/ams_{low}_temp/config",
-                  f"{DISCOVERY}/sensor/bff_{alias}/ams_{low}_humidity_pct/config",
-                  f"{DISCOVERY}/sensor/bff_{alias}/ams_{low}_dry_time/config",
-                  f"{DISCOVERY}/sensor/bff_{alias}/ams_{low}_info/config"]
+        topics = [f"{DISCOVERY}/sensor/pygmy_{alias}/ams_{low}_humidity/config",
+                  f"{DISCOVERY}/sensor/pygmy_{alias}/ams_{low}_temp/config",
+                  f"{DISCOVERY}/sensor/pygmy_{alias}/ams_{low}_humidity_pct/config",
+                  f"{DISCOVERY}/sensor/pygmy_{alias}/ams_{low}_dry_time/config",
+                  f"{DISCOVERY}/sensor/pygmy_{alias}/ams_{low}_info/config"]
         for n in "1234":
             sl = f"{low}{n}"
-            topics += [f"{DISCOVERY}/sensor/bff_{alias}/ams_{sl}/config",
-                       f"{DISCOVERY}/button/bff_{alias}/read_{sl}/config",
-                       f"{DISCOVERY}/sensor/bff_{alias}/ams_{sl}_remain/config",
-                       f"{DISCOVERY}/sensor/bff_{alias}/ams_{sl}_state/config"]
+            topics += [f"{DISCOVERY}/sensor/pygmy_{alias}/ams_{sl}/config",
+                       f"{DISCOVERY}/button/pygmy_{alias}/read_{sl}/config",
+                       f"{DISCOVERY}/sensor/pygmy_{alias}/ams_{sl}_remain/config",
+                       f"{DISCOVERY}/sensor/pygmy_{alias}/ams_{sl}_state/config"]
         return topics
 
     def _clear_old_scheme(self, alias, letter):
@@ -672,7 +672,7 @@ class HaBridge:
 
     def _on_message(self, _client, _userdata, msg):
         command = parse_command(msg.topic, msg.payload, self.aliases)
-        if command is None and msg.topic.startswith("bff/ams/"):
+        if command is None and msg.topic.startswith("pygmy/ams/"):
             parts = msg.topic.split("/")
             if len(parts) == 5 and parts[3] == "cmd":
                 if parts[2] in self.ams_location:
@@ -760,7 +760,7 @@ class HaBridge:
                 self.ams_disc[s] = (alias, letter, model)
             state = json.dumps(self._serial_state(unit, alias, printer_name))
             if state != self.ams_last_state.get(s):
-                self.client.publish(f"bff/ams/{s}/state", state, retain=True)
+                self.client.publish(f"pygmy/ams/{s}/state", state, retain=True)
                 self.ams_last_state[s] = state
 
     def _forget_gone_ams(self, seen, read_ok):
@@ -773,7 +773,7 @@ class HaBridge:
             prev = json.loads(self.ams_last_state.get(s, "{}"))
             prev.update({"printer": "none", "position": "none"})
             state = json.dumps(prev)
-            self.client.publish(f"bff/ams/{s}/state", state, retain=True)
+            self.client.publish(f"pygmy/ams/{s}/state", state, retain=True)
             self.ams_last_state[s] = state
         self.ams_location = seen
 
@@ -790,7 +790,7 @@ class HaBridge:
             read_ok.add(alias)
             self._remember_layout(alias, status)
             self._publish_ams(alias, status, seen)
-            if payload != self.last.get(alias) and self.client.publish(f"bff/{alias}/state", payload).rc == 0:
+            if payload != self.last.get(alias) and self.client.publish(f"pygmy/{alias}/state", payload).rc == 0:
                 prev = json.loads(self.last[alias]) if self.last.get(alias) else None
                 self.last[alias] = payload
                 cur = json.loads(payload)
@@ -799,7 +799,7 @@ class HaBridge:
                 for kind, message in events(prev, cur, self.lang, minutes):
                     if kind in ("finished", "failed"):
                         self._publish_photo(alias)
-                    self.client.publish(f"bff/{alias}/event", json.dumps(
+                    self.client.publish(f"pygmy/{alias}/event", json.dumps(
                         {"event_type": kind, "title": self.names.get(alias) or alias.upper(), "message": message}))
         self._forget_gone_ams(seen, read_ok)
 
@@ -833,7 +833,7 @@ class HaBridge:
             print(f"ha: foto {alias} non letta: {err}", file=sys.stderr)
             return
         if photo:
-            self.client.publish(f"bff/{alias}/photo", photo, retain=True)
+            self.client.publish(f"pygmy/{alias}/photo", photo, retain=True)
 
     def track(self, alias, prev, cur, clock=time.monotonic):
         """Minutes since the bridge saw this print start, or None (e.g. it started before a restart)."""

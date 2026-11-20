@@ -1,4 +1,4 @@
-"""Tests for the files folder (src/bff_mcp/library.py). Run: python3 -m unittest tests.test_library"""
+"""Tests for the files folder (src/pygmy/library.py). Run: python3 -m unittest tests.test_library"""
 import os
 import sys
 import tempfile
@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
-from bff_mcp import library  # noqa: E402
+from pygmy import library  # noqa: E402
 
 
 class LibraryTest(unittest.TestCase):

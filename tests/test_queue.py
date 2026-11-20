@@ -8,7 +8,7 @@ ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from bff_mcp import server  # noqa: E402
+from pygmy import server  # noqa: E402
 from test_filament_newprint import FilamentNewPrint, body, make_3mf  # noqa: E402
 from test_bff_print_start import PrintStartTest  # noqa: E402
 

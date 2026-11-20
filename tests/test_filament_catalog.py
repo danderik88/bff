@@ -10,7 +10,7 @@ ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT / "tests"))
-from bff_mcp import server  # noqa: E402
+from pygmy import server  # noqa: E402
 import filament_catalog  # noqa: E402
 import test_bff_direct as direct_tests  # noqa: E402
 from test_bff_tools_more import PROFILE  # noqa: E402
@@ -134,7 +134,7 @@ class CommittedCatalog(unittest.TestCase):
 
 class App(unittest.TestCase):
     def test_vendor_and_filament_selects(self):
-        html = (ROOT / "src" / "bff_mcp" / "app.html").read_text()
+        html = (ROOT / "src" / "pygmy" / "app.html").read_text()
         self.assertIn('<label class="fld">Vendor<select id="fvendor">', html)
         self.assertIn('<label class="fld">Filament<select id="fprof">', html)
 

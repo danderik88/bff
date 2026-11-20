@@ -13,12 +13,13 @@ BRIDGE=${BRIDGE:-vmbr0}
 pveam update >/dev/null
 TEMPLATE=$(pveam available --section system | awk -v a="_$(dpkg --print-architecture).tar" '/debian-13-standard/ && index($2, a) {print $2}' | sort -V | tail -1)
 [ -n "$TEMPLATE" ] || { echo "No Debian 13 template found (pveam available)." >&2; exit 1; }
-pveam list local | grep -q "$TEMPLATE" || pveam download local "$TEMPLATE"
+pveam list local | grep -q "$TEMPLATE" || pveam download local "$TEMPLATE" >/dev/null
 
 echo "Creating container $CTID (Debian 13, 2 cores, 4 GB, 16 GB on $STORAGE)..."
 pct create "$CTID" "local:vztmpl/$TEMPLATE" --hostname pygmy --cores 2 --memory 4096 --swap 1024 \
   --rootfs "$STORAGE:16" --net0 "name=eth0,bridge=$BRIDGE,ip=dhcp" --unprivileged 1 \
-  --features nesting=1,keyctl=1 --dev0 /dev/net/tun --onboot 1 --description "Pygmy: https://github.com/danderik88/pygmy"
+  --features nesting=1,keyctl=1 --dev0 /dev/net/tun --onboot 1 --description "Pygmy: https://github.com/danderik88/pygmy" \
+  >/tmp/pygmy-ct.log 2>&1 || { cat /tmp/pygmy-ct.log; exit 1; }
 pct start "$CTID"
 
 for _ in $(seq 30); do  # wait for DHCP
@@ -27,11 +28,11 @@ for _ in $(seq 30); do  # wait for DHCP
 done
 [ -n "${IP:-}" ] || { echo "Container $CTID got no IP address (DHCP on $BRIDGE?)." >&2; exit 1; }
 
-echo "Installing Docker and Pygmy (a few minutes)..."
-pct exec "$CTID" -- bash -c '
+echo "Installing Docker..."
+pct exec "$CTID" -- env LC_ALL=C.UTF-8 bash -c '
   set -e
-  apt-get update -qq && apt-get install -y -qq git curl ca-certificates >/dev/null
-  curl -fsSL https://get.docker.com | sh >/dev/null
+  { apt-get update -qq && apt-get install -y -qq git curl ca-certificates && curl -fsSL https://get.docker.com | sh; } \
+    >/var/log/pygmy-install.log 2>&1 || { tail -20 /var/log/pygmy-install.log; exit 1; }
   git clone -q https://github.com/danderik88/pygmy /opt/pygmy
   cd /opt/pygmy && ./install.sh
 '

@@ -15,7 +15,7 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT / "src" / "bff_mcp"))
+sys.path.insert(0, str(ROOT / "src" / "pygmy"))
 import camera  # noqa: E402
 import go2rtc  # noqa: E402
 import onboard  # noqa: E402
@@ -170,7 +170,7 @@ class Tools(unittest.TestCase):
 
 class AppPage(unittest.TestCase):
     def test_webrtc_and_home_assistant_camera_are_in_the_page(self):
-        page = (ROOT / "src" / "bff_mcp" / "app.html").read_text()
+        page = (ROOT / "src" / "pygmy" / "app.html").read_text()
         for text in ("RTCPeerConnection", "camera_webrtc", "Home Assistant camera",
                      "Add it in Home Assistant as a Generic Camera (stream source).",
                      "RTSP not set up on this server"):

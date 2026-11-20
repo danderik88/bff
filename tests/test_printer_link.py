@@ -10,8 +10,8 @@ from unittest import mock
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
-sys.path.insert(0, str(ROOT / "src" / "bff_mcp"))
-from bff_mcp import server  # noqa: E402
+sys.path.insert(0, str(ROOT / "src" / "pygmy"))
+from pygmy import server  # noqa: E402
 from printer_link import STALE_AFTER_S, PUSHALL, CertificateChanged, PrinterLink, check_fingerprint  # noqa: E402
 
 DATA = ROOT / "tests" / "data"

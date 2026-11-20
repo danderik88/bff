@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-from bff_mcp import server  # noqa: E402
+from pygmy import server  # noqa: E402
 
 SERIAL = "03919A000000000"
 TRAY = {"id": 254, "tray_color": "EEAECDFF", "tray_type": "PLA", "tray_info_idx": "GFA01", "tag_uid": SERIAL}

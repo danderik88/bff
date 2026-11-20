@@ -12,7 +12,7 @@ import urllib.request
 
 try:
     from .ha_mqtt import TEXT, events, flat_state
-except ImportError:  # server.py runs with src/bff_mcp on sys.path
+except ImportError:  # server.py runs with src/pygmy on sys.path
     from ha_mqtt import TEXT, events, flat_state
 
 try:

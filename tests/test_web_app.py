@@ -13,7 +13,7 @@ from unittest import mock
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
-from bff_mcp import server  # noqa: E402
+from pygmy import server  # noqa: E402
 
 TOKEN = "t" * 40
 JPEG = b"\xff\xd8frame"
