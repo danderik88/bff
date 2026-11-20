@@ -164,12 +164,25 @@ class TestBundle(unittest.TestCase):
         with self.assertRaisesRegex(fetch.FetchError, "Pick at least one file"):
             fetch.bundle_pick(data, [])
 
-    def test_download_all_bundles_every_mesh_but_the_3mf(self):
+    def test_download_all_keeps_a_3mf_next_to_stls_aside(self):
         rows = [{"name": "a.stl"}, {"name": "b.stl"}, {"name": "p.3mf"}]
         name, data, others = fetch._download_all(rows, lambda row: b"<" + row["name"].encode() + b">")
         self.assertTrue(name.endswith(fetch.BUNDLE_EXT))
         self.assertEqual(fetch.bundle_names(data), ["a.stl", "b.stl"])
         self.assertEqual(others, ["p.3mf"])
+
+    def test_download_all_page_of_3mf_is_a_bundle(self):
+        rows = [{"name": "3mf_Base-pattern-1.3mf"}, {"name": "3mf_Rail.3mf"},
+                {"name": "3mf_Roller-single-ring.3mf"}]
+        name, data, others = fetch._download_all(rows, lambda row: b"<" + row["name"].encode() + b">")
+        self.assertTrue(name.endswith(fetch.BUNDLE_EXT))
+        self.assertEqual(fetch.bundle_names(data),
+                         ["3mf_Base-pattern-1.3mf", "3mf_Rail.3mf", "3mf_Roller-single-ring.3mf"])
+        self.assertEqual(others, [])
+
+    def test_download_all_one_3mf_stays_bare(self):
+        name, data, others = fetch._download_all([{"name": "p.3mf"}], lambda row: b"3mf!")
+        self.assertEqual((name, data, others), ("p.3mf", b"3mf!", []))
 
 
 class TestPrintables(FetchBase):

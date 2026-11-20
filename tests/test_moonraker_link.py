@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src" / "bff_mcp
 import moonraker_link as ml  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from bff_mcp import server  # noqa: E402
+from bff_mcp import ha_mqtt  # noqa: E402
 
 STATUS = {
     "print_stats": {"state": "printing", "filename": "cube.gcode", "print_duration": 600.0,
@@ -48,6 +49,9 @@ class FakeMoonraker(BaseHTTPRequestHandler):
     klippy = "ready"
     objects = OBJECTS
     config = {}
+    status = None  # None: the module's STATUS; a test can put an idle/error state here
+    webhooks = {}  # the `webhooks` object: {"state": ..., "state_message": ...}
+    gcode_store = []  # /server/gcode_store result, oldest first
     server_config = {}  # /server/config: {"wled <strip>": {"type": "http", "address": "host:port"}}
     strips = None  # None: the WLED component is not installed (404)
     webcams = [{"enabled": False, "snapshot_url": "/off"},
@@ -88,8 +92,11 @@ class FakeMoonraker(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             return self.wfile.write(body)
+        if self.path.startswith("/server/gcode_store"):
+            return self._reply({"result": {"gcode_store": FakeMoonraker.gcode_store}})
         if self.path.startswith("/printer/objects/query"):
-            return self._reply({"result": {"status": STATUS}})
+            return self._reply({"result": {"status": dict(FakeMoonraker.status or STATUS,
+                                                           webhooks=FakeMoonraker.webhooks)}})
         self._not_found()
 
     def do_POST(self):
@@ -138,6 +145,9 @@ class MoonrakerLinkTest(unittest.TestCase):
         FakeMoonraker.klippy = "ready"
         FakeMoonraker.objects = OBJECTS
         FakeMoonraker.config = {}
+        FakeMoonraker.status = None
+        FakeMoonraker.webhooks = {}
+        FakeMoonraker.gcode_store = []
         FakeMoonraker.server_config = {}
         FakeMoonraker.strips = None
         FakeMoonraker.webcams = [{"enabled": False, "snapshot_url": "/off"},
@@ -505,6 +515,85 @@ class MoonrakerLinkTest(unittest.TestCase):
                              [{"filament_id": "GFG99", "filament_type": "PETG"}])
             self.assertEqual(server.klipper_filaments("sv08", raw, ["A3"]),  # the ACE slot still wins
                              [{"filament_id": None, "filament_type": "PETG"}])
+
+
+class KlipperErrors(unittest.TestCase):
+    """Printer errors reach the snapshot (and so the app banner and every notification) with a reason."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), FakeMoonraker)
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        cls.port = cls.srv.server_address[1]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+
+    def setUp(self):
+        FakeMoonraker.klippy = "ready"
+        FakeMoonraker.status = {"print_stats": {"state": "standby"}}
+        FakeMoonraker.webhooks = {}
+        FakeMoonraker.gcode_store = []
+        self.now = [1000.0]
+        self.link = ml.MoonrakerLink("e3k", "127.0.0.1", port=self.port, clock=lambda: self.now[0])
+
+    def flat(self):
+        snap = self.link.snapshot()
+        return ha_mqtt.flat_state({**snap, "attention": server.attention(snap)})
+
+    def test_idle_error_once_and_old_lines_ignored(self):
+        FakeMoonraker.gcode_store = [{"time": 100, "message": "!! Must home axis first"}]
+        self.link.poll()  # the restart baseline: what is already there is history
+        prev = self.flat()
+        self.now[0] += 10
+        self.link.poll()
+        self.assertEqual(self.flat()["alarm"], None)
+        FakeMoonraker.gcode_store.append({"time": 200, "message": "!! Probe triggered prior to movement"})
+        self.now[0] += 10
+        self.link.poll()
+        cur = self.flat()
+        self.assertEqual(cur["alarm"], "Probe problem: Probe triggered prior to movement")
+        self.assertEqual([k for k, _ in ha_mqtt.events(prev, cur)], ["error"])
+        self.assertIn("Probe triggered prior to movement", ha_mqtt.events(prev, cur)[0][1])
+        self.now[0] += 10
+        self.link.poll()
+        self.assertEqual(ha_mqtt.events(cur, self.flat()), [])  # same line: no second notification
+        self.assertIsNone(self.link._new_error)
+
+    def test_probe_failure_during_print_keeps_the_reason(self):
+        FakeMoonraker.status = {"print_stats": {"state": "error", "filename": "cube.gcode"}}
+        FakeMoonraker.gcode_store = [{"time": 100, "message": "!! Probe triggered prior to movement"}]
+        self.link.poll()
+        snap = self.link.snapshot()
+        self.assertEqual(snap["state"], "FAILED")
+        self.assertEqual(snap["hms_errors"][0]["description"],
+                         "Probe problem: Probe triggered prior to movement")
+        prev = {"state": "RUNNING", "subtask_name": "cube", "progress": 40, "alarm": None, "end_reason": "none"}
+        cur = self.flat()
+        out = ha_mqtt.events(prev, cur)
+        self.assertEqual([k for k, _ in out], ["failed"])
+        self.assertIn("Probe problem", out[0][1])
+        self.assertIn("Probe triggered prior to movement", out[0][1])
+
+    def test_shutdown_state_message_is_the_reason(self):
+        FakeMoonraker.klippy = "shutdown"
+        FakeMoonraker.webhooks = {"state": "shutdown", "state_message": "MCU 'mcu' shutdown: Timer too close"}
+        self.link.poll()
+        snap = self.link.snapshot()
+        self.assertEqual(snap["state"], "FAILED")
+        self.assertEqual(snap["hms_errors"][0]["description"],
+                         "Printer board problem: MCU 'mcu' shutdown: Timer too close")
+
+    def test_common_errors_get_a_plain_english_prefix(self):
+        self.assertEqual(ml.error_text("No trigger on probe after full movement"),
+                         "Probe did not trigger: No trigger on probe after full movement")
+        self.assertEqual(ml.error_text("Heater extruder not heating at expected rate"),
+                         "Heating problem: Heater extruder not heating at expected rate")
+        self.assertEqual(ml.error_text("ADC out of range"), "Temperature sensor problem: ADC out of range")
+        self.assertEqual(ml.error_text("Lost communication with MCU 'mcu'"),
+                         "Printer board problem: Lost communication with MCU 'mcu'")
+        self.assertEqual(ml.error_text("Something odd"), "Something odd")
 
 
 class RunoutSensorTest(unittest.TestCase):

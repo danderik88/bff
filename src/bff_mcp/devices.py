@@ -70,8 +70,11 @@ def add(db, name, builtin, origin, now=None):
 
 def _add(db, name, builtin, origin, now):
     devs = _all(db)
-    if name.lower() in {n.lower() for n in [*devs, *builtin]}:
+    if name.lower() in {n.lower() for n in devs}:
         raise ValueError(f"a device named {name} already exists")
+    # Agent keys are invisible in the list: say where the name comes from, or the user sees "already exists" for nothing.
+    if name.lower() in {n.lower() for n in builtin}:
+        raise ValueError(f"{name} is already an agent key on the server: choose another name")
     url = urlsplit(origin or "")
     if url.scheme not in ("http", "https") or not url.netloc:
         raise ValueError("origin: http(s) address needed")

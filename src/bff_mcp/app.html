@@ -54,7 +54,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .cam.full img, .cam.full video { object-fit: contain; }
 .cam.full { touch-action: none; }
 @media (orientation: landscape) and (max-height: 500px) {
-  body > *:not(main), main > *:not(.cam) { display: none !important; }
+  body > *:not(main), main > *:not(.pager) { display: none !important; }
   main[hidden] { display: block !important; }
   .cam { position: fixed; inset: 0; z-index: 100; border-radius: 0; aspect-ratio: auto; }
   .cam img, .cam video { object-fit: contain; }
@@ -63,6 +63,15 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .cam .live { top: 12px; left: 12px; } .cam .live::before { content: "● "; color: var(--bad); }
 .cam .age { bottom: 12px; right: 12px; font-family: var(--mono); }
 .cam .msg { inset: 0; display: grid; place-items: center; color: #9aa; font-size: 14px; position: absolute; }
+/* Camera / print-preview pager: one page at a time, dots below. The second page hides when there is no preview. */
+.pages { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+.pages::-webkit-scrollbar { display: none; }
+.pages > * { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; }
+.prevpage { aspect-ratio: 16/10; border-radius: 16px; overflow: hidden; background: #000; }
+.prevpage img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.dots { display: flex; justify-content: center; gap: 6px; margin-top: 8px; }
+.dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.dots i.on { background: var(--muted); }
 .job { border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, var(--panel)), var(--panel) 60%);
   border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
 .fname { font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -139,6 +148,7 @@ select { font: 16px var(--sans); color: var(--fg); background: var(--panel2); bo
 .file { display: flex; justify-content: space-between; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
 .file:last-child { border: 0; padding-bottom: 0; } .file b { display: block; font-weight: 500; word-break: break-all; } .file .btn { padding: 10px 14px; flex: none; }
 #cphoto { width: 100%; border-radius: 12px; }
+#pnthumb, #cthumb { max-width: 100%; border-radius: 12px; }
 .prn b { display: block; font-size: 18px; font-weight: 500; margin-bottom: 4px; } .prn i { color: var(--accent); font-style: normal; font-size: 20px; }
 .found-h { margin: 14px 0 0; text-transform: uppercase; letter-spacing: .06em; font-size: 12px; }
 .prow.found .prn { cursor: default; } .prow.found .btn { flex: none; padding-left: 22px; padding-right: 22px; }
@@ -191,8 +201,14 @@ select { font: 16px var(--sans); color: var(--fg); background: var(--panel2); bo
     <button class="gear" id="setbtn" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
   </div>
 
-  <div class="cam"><img id="cam" alt="Printer camera"><video id="camvideo" autoplay muted playsinline hidden></video><span class="msg" id="cammsg">Camera…</span>
-    <span class="chip live">LIVE</span><span class="chip age" id="camage">–</span></div>
+  <div class="pager" id="pager">
+    <div class="pages" id="pages">
+      <div class="cam"><img id="cam" alt="Printer camera"><video id="camvideo" autoplay muted playsinline hidden></video><span class="msg" id="cammsg">Camera…</span>
+        <span class="chip live">LIVE</span><span class="chip age" id="camage">–</span></div>
+      <div class="prevpage" id="prevpage" hidden><img id="previmg" alt="Preview of the print"></div>
+    </div>
+    <div class="dots" id="pdots" hidden><i class="on"></i><i></i></div>
+  </div>
 
   <div class="alert" id="alert" hidden></div>
 
@@ -366,6 +382,7 @@ select { font: 16px var(--sans); color: var(--fg); background: var(--panel2); bo
         <button class="btn primary" id="pnslice">Slice</button>
         <p class="note" id="pnsliceprog" hidden></p>
         <div id="pnresult" hidden>
+          <img id="pnthumb" alt="Preview of the sliced plate" hidden>
           <p id="pnmeta" style="margin:0"></p>
           <p class="note" id="pnwarn" hidden></p>
           <p class="note" id="pnbusy" hidden>The printer is busy: add this job to its queue.</p>
@@ -418,6 +435,7 @@ select { font: 16px var(--sans); color: var(--fg); background: var(--panel2); bo
 
 <div class="sheet" id="confirm" hidden><div>
   <h3 id="ctitle">Stop the print?</h3>
+  <img id="cthumb" alt="Preview of the sliced plate" hidden>
   <img id="cphoto" alt="Plate photo" hidden>
   <p id="csum" style="white-space: pre-line"></p>
   <button class="btn stop" id="cyes">Yes, stop</button>
@@ -597,6 +615,14 @@ const EN = [
   [/movimenti non ancora verificati/, "Moving the axes is not checked on this model yet"],
   [/non ancora testato/, "Not tested on this model yet"],
   [/zona del taglierino/, "Filament cutter corner: the head can't go there"],
+  // Devices: the server's errors are English already, but without a match the user only sees the generic toast.
+  [/is already an agent key on the server/, m => m],
+  [/a device named .* already exists/, "A device with that name already exists: choose another name"],
+  [/^name: 1 to 32 printable characters/, "The name must be 1 to 32 characters"],
+  [/^origin: http\(s\) address needed/, "Pygmy can't make a link from this address: open it from its usual one"],
+  [/built-in keys are changed on the server/, "Agent keys are set on the server and can't be removed here"],
+  [/^no device named/, "That device is no longer in the list"],
+  [/devices need BFF in control mode/, "Device management needs Pygmy in control mode, not on this build"],
 ];
 const en = m => { const hit = EN.find(([re]) => re.test(m)); return !hit ? "Command refused by Pygmy" : typeof hit[1] === "function" ? hit[1](m) : hit[1]; };
 // Request notes are English already: translate the ones that match, leave the others as they are.
@@ -703,6 +729,7 @@ function render(s) {
   $("xyzbtn").disabled = moving || unmeasured; $("xyzbtn").hidden = !(expert || jogFree);
   $("xyzbtn").querySelector(".val").innerHTML = unmeasured ? '<small style="font-size:14px;font-weight:500">Not measured</small>' : moving ? "Locked" : "XYZ";
   if (moving || unmeasured || !(expert || jogFree)) $("xyz").hidden = true;
+  previewFor(s);
 }
 
 async function poll() {
@@ -800,6 +827,30 @@ async function camera() {
 }
 document.addEventListener("visibilitychange", () => { if (document.hidden) stopWebrtc(); });
 
+// Camera / print-preview pager: page 2 is the image of the job printing now, fetched once per job name.
+const pages = $("pages"), pdots = $("pdots");
+let prevJob = "";
+function showPreview(png) {
+  $("prevpage").hidden = $("pdots").hidden = !png;
+  if (png) $("previmg").src = "data:image/png;base64," + png;
+  else $("previmg").removeAttribute("src");
+  if (!png) pages.scrollLeft = 0;
+  pdots.querySelectorAll("i").forEach((d, n) => d.classList.toggle("on", n === 0));
+}
+function previewFor(s) {
+  const active = ["RUNNING", "PAUSE"].includes(s.state), job = active ? (s.subtask_name || "") : "";
+  if (!job) { if (prevJob) { prevJob = ""; showPreview(null); } return; }
+  if (job === prevJob) return;
+  prevJob = job;
+  rpc("print_preview", {})
+    .then(r => { if (prevJob === job) showPreview(r && r.png ? r.png : null); })
+    .catch(() => { if (prevJob === job) showPreview(null); });
+}
+pages.addEventListener("scroll", () => {
+  const i = Math.round(pages.scrollLeft / pages.clientWidth);
+  pdots.querySelectorAll("i").forEach((d, n) => d.classList.toggle("on", n === i));
+}, { passive: true });
+
 // The printer reports a change ~10 s late: show what was asked until it reports it (or 10 s pass).
 var holds = {}; // var: render() may run before this line
 function hold(k, v) { holds[k] = { v, until: Date.now() + 10000 }; }
@@ -827,6 +878,7 @@ $("pause").onclick = () => last.state === "PAUSE"
 function ask(title, r, yes, danger, then) {
   $("ctitle").textContent = title; $("csum").textContent = r.text || ""; // r.summary is Pygmy's Italian text for agents
   $("cphoto").hidden = !r.photo_url; if (r.photo_url) $("cphoto").src = new URL(r.photo_url).pathname;  // same server, whatever name the phone used
+  pnPreview(null, $("cthumb"));  // a start-print dialog puts its own plate image back below
   $("cyes").textContent = yes; $("cyes").className = "btn " + (danger ? "stop" : "primary");
   onYes = () => then(r.confirm_token); $("confirm").hidden = false;
 }
@@ -845,6 +897,8 @@ const opts = (id, items, cur, label = x => x) => $(id).innerHTML = items.map(x =
 const COLORS = [["FFFFFFFF", "White"], ["000000FF", "Black"], ["8E9089FF", "Grey"], ["C12E1FFF", "Red"], ["FF6A13FF", "Orange"],
   ["F4EE2AFF", "Yellow"], ["00AE42FF", "Green"], ["0A2989FF", "Blue"], ["5E43B7FF", "Purple"], ["1FB5A5FF", "Turquoise"]];
 const NOZZLE_TYPE = { stainless_steel: "Stainless steel", hardened_steel: "Hardened steel" };
+// Display only: the value sent to the server stays "High Temp Plate".
+const plateLabel = v => v === "High Temp Plate" ? "Smooth PEI / High Temp Plate" : v;
 
 // ponytail: same 10 s optimistic hold as the light; the printer reports the new spool a few seconds late
 var spoolHold = null;
@@ -885,7 +939,7 @@ async function loadFil() {
   $("fpick").value = "#" + (cur || "FFFFFFFF").slice(0, 6).toLowerCase();
   opts("fdia", c.nozzle_diameters, info.nozzle.diameter, x => x + " mm");
   opts("ftype", c.nozzle_types, info.nozzle.type, x => NOZZLE_TYPE[x] || x);
-  opts("fplate", c.plate_types, info.plate_type);
+  opts("fplate", c.plate_types, info.plate_type, plateLabel);
   paintEditor();
 }
 // Nozzle tile: the real toolhead of the selected printer model, drawn from photos of each model.
@@ -1071,7 +1125,8 @@ setInterval(() => {
   let x0 = null, y0 = null, top = false, ready = false, skipX = false;
   addEventListener("touchstart", e => {
     // a sheet, the fullscreen camera (pinch/drag) or two fingers own the gesture
-    if (document.querySelector(".sheet:not([hidden])") || e.touches.length > 1 || camIsFull()) { x0 = null; return; }
+    if (document.querySelector(".sheet:not([hidden])") || e.touches.length > 1 || camIsFull()
+        || e.target.closest?.(".pager")) { x0 = null; return; }
     x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; top = scrollY <= 0; ready = false; skipX = ownsX(e.target);
   }, { passive: true });
   addEventListener("touchmove", e => {
@@ -1258,9 +1313,9 @@ async function loadPnInfo() {
 function paintP2() {
   const i = PN.info;
   $("pnnoams").hidden = !i || !!i.ams_present;
-  $("pnplate").textContent = i ? `Plate: ${i.plate_type || "not set"} · Nozzle: ${(i.nozzle || {}).diameter ?? "?"} mm` : "";
+  $("pnplate").textContent = i ? `Plate: ${plateLabel(i.plate_type) || "not set"} · Nozzle: ${(i.nozzle || {}).diameter ?? "?"} mm` : "";
   const types = ((i || {}).choices || {}).plate_types || [];
-  if (!$("pplate").options.length) $("pplate").innerHTML = types.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join("");
+  if (!$("pplate").options.length) $("pplate").innerHTML = types.map(t => `<option value="${esc(t)}">${esc(plateLabel(t))}</option>`).join("");
   if ($("pplate").options.length && !$("pplate").value) $("pplate").value = (i || {}).plate_type || "";
   paintSpools();
   paintSteps();
@@ -1341,7 +1396,7 @@ function paintMode() {
   $("pnorig").hidden = !/\.3mf$/i.test(PN.name || "");
   $("pnmodenote").textContent = MODE_NOTE[m];
 }
-function paintCustom() { paintSteps(); }
+function paintCustom() { pnStale(); paintSteps(); }
 $("pnorig").onclick = () => { $("pcustom").checked = false; $("psettings").dataset.mode = "original"; paintCustom(); };
 $("pnstd").onclick = () => { $("pcustom").checked = false; $("psettings").dataset.mode = "standard"; paintCustom(); };
 $("pncustom").onclick = () => { $("pcustom").checked = true; paintCustom(); };
@@ -1365,11 +1420,12 @@ const copiesNow = () => Math.min(20, Math.max(1, Math.round(Number($("mwcopies")
 // Step 1: upload or link, then a draft request carrying the model's plates and colours.
 function pnNewModel() {
   PN.id = null; PN.reqPrinter = null; PN.facts = null; PN.name = ""; PN.status = "";
-  PN.sliced = false; PN.fileId = null; PN.meta = null; PN.slots = []; PN.files = null;
+  PN.sliced = false; PN.fileId = null; PN.meta = null; PN.slots = []; PN.files = null; PN.stale = false;
   pnEdit = 1;
   $("s1file").hidden = true; $("s1status").hidden = true; $("s1cols").innerHTML = "";
   $("s1files").hidden = true; $("s1files").textContent = "";
   $("pnresult").hidden = true; $("pnsliceprog").hidden = true; $("pnwarn").hidden = true; $("pnmeta").textContent = "";
+  pnPreview(null, $("pnthumb")); pnPreview(null, $("cthumb"));
   paintSteps();
 }
 function pnProgress(text) {
@@ -1390,11 +1446,33 @@ function pnFilePicker() {
     box.append(label);
   }
 }
+// The plate image Orca wrote into the .gcode.3mf, shown before printing. A newer call wins over a late reply.
+let pnThumb = 0;
+function pnPreview(fileId, img) {
+  const seq = ++pnThumb;
+  img.hidden = true; img.removeAttribute("src");
+  if (fileId == null) return;
+  rpc("file_preview", { file_id: fileId })
+    .then(r => { if (seq === pnThumb && r.png) { img.src = "data:image/png;base64," + r.png; img.hidden = false; } })
+    .catch(() => {});
+}
+// Another file set or copy count makes the last slice stale: hide its result and let Slice run again.
+function pnStale() {
+  pnPreview(null, $("pnthumb")); pnPreview(null, $("cthumb"));
+  if (!PN.id || !PN.sliced) return;
+  PN.sliced = false; PN.fileId = null; PN.meta = null; PN.stale = true;  // the poll must not re-arm it
+  $("pnresult").hidden = true; $("pnsliceprog").hidden = true; $("pnwarn").hidden = true; $("pnmeta").textContent = "";
+  paintSteps();  // re-enables Slice; #pnprint starts PN.fileId, so it cannot send the old slice
+}
 $("s1files").onchange = () => {
   PN.files = [...$("s1files").querySelectorAll("input:checked")].map(t => Number(t.dataset.i));
+  pnStale();
 };
+$("mwcopies").addEventListener("input", pnStale);
+// Any slicing setting changed after a slice makes its result stale too: one delegated listener per step.
+for (const id of ["step2", "step3"]) for (const ev of ["change", "input"]) $(id).addEventListener(ev, pnStale);
 function pnModelReady() {
-  PN.sliced = false;
+  PN.sliced = false; PN.stale = false;
   $("s1status").hidden = true;
   $("s1name").textContent = PN.name.replace(/\.gcode\.3mf$/, "");
   $("s1cols").innerHTML = colourSquares(usedColors());
@@ -1502,7 +1580,7 @@ async function askPlate(r) {
   let types = [];
   try { types = (await rpc("printer_info", {})).choices.plate_types || []; } catch (e) {}
   $("ppnote").textContent = r.note || "";
-  $("ppopts").innerHTML = types.map(t => `<button class="opt" data-plate="${esc(t)}">${esc(t)}</button>`).join("");
+  $("ppopts").innerHTML = types.map(t => `<button class="opt" data-plate="${esc(t)}">${esc(plateLabel(t))}</button>`).join("");
   $("platepick").dataset.rid = r.id;
   $("platepick").hidden = false;
 }
@@ -1533,7 +1611,7 @@ watchRequests();
 function pnWarnings(meta) {
   const w = [];
   const pt = (PN.info || {}).plate_type;
-  if (meta && meta.plate && pt && meta.plate !== pt) w.push(`Plate in the printer: ${pt}, this file expects ${meta.plate}`);
+  if (meta && meta.plate && pt && meta.plate !== pt) w.push(`Plate in the printer: ${plateLabel(pt)}, this file expects ${plateLabel(meta.plate)}`);
   for (const slot of new Set(PN.slots)) {
     const f = ((PN.info || {}).filaments || []).find(x => x.slot === slot);
     if (f && f.grams_remaining != null && meta && meta.weight_g != null && meta.weight_g > f.grams_remaining)
@@ -1543,12 +1621,13 @@ function pnWarnings(meta) {
 }
 async function pnReady(r) {
   PN.sliced = true; PN.fileId = r.file_id;
+  pnPreview(PN.fileId, $("pnthumb"));
   try { PN.meta = (await rpc("ready_files", {})).files.find(f => f.file_id === r.file_id) || null; } catch (e) { PN.meta = null; }
   try { PN.info = await rpc("printer_info", { printer: PN.printer }); ninfo = PN.info; } catch (e) {}
   const m = PN.meta;
   $("pnsliceprog").hidden = true;
   $("pnmeta").textContent = m
-    ? `${Math.round(m.time_s / 60)} min${m.weight_g != null ? ` · ${Math.round(m.weight_g)} g` : ""}${m.plate ? ` · ${m.plate}` : ""}` : "";
+    ? `${Math.round(m.time_s / 60)} min${m.weight_g != null ? ` · ${Math.round(m.weight_g)} g` : ""}${m.plate ? ` · ${plateLabel(m.plate)}` : ""}` : "";
   const w = pnWarnings(m);
   $("pnwarn").hidden = !w.length; $("pnwarn").textContent = w.join(" ");
   const busy = !!(PN.info && PN.info.free === false);
@@ -1570,7 +1649,7 @@ async function pnApply(r) {
     offerAnswer([r]);
   } else if (r.status === "pending" || r.status === "working") {
     pnProgress(PN.sliced ? "Slicing…" : "Fetching…");
-  } else if (r.status === "ready" && r.file_id != null) {
+  } else if (r.status === "ready" && r.file_id != null && !PN.stale) {
     if (PN.fileId !== r.file_id) await pnReady(r);
     else paintSteps();
   } else if (r.status === "failed") {
@@ -1619,7 +1698,7 @@ $("pnslice").onclick = async () => {
       ...(PN.facts.files ? { files: PN.files } : {}) },
       copies: copiesNow(), standard: !$("pcustom").checked, printer: PN.printer,
       ...((PN.facts.plates || 1) > 1 ? { plate_no: pnPlate() } : {}) });
-    PN.sliced = true; PN.reqPrinter = PN.printer; PN.fileId = null;
+    PN.sliced = true; PN.reqPrinter = PN.printer; PN.fileId = null; PN.stale = false;
     pnEdit = 0;
     $("pnresult").hidden = true;
     $("s1status").hidden = true;
@@ -1645,6 +1724,7 @@ async function pnStartPrint(fileId, reqId, printer) {
       if (alias !== PRINTER) selectPrinter(alias);
       document.querySelector('.tabs [data-t="main"]').click();
     }, "Print started"));
+    pnPreview(fileId, $("cthumb"));  // the sliced plate next to the camera photo
   } catch (e) { toast(e.message); }
 }
 $("pnprint").onclick = () => PN.fileId && pnStartPrint(PN.fileId, PN.id, PN.printer);
@@ -1698,7 +1778,7 @@ async function loadFiles() {
     const files = (await rpc("ready_files", {})).files;
     $("filescard").innerHTML = files.length ? files.map(f => `<div class="file" style="flex-direction:column;align-items:stretch;gap:8px">
       <span><b>${esc(f.name.replace(/\.gcode\.3mf$/, ""))}</b>
-      <span class="note">${esc(f.filament)} · ${esc(f.nozzle)} mm · ${Math.round(f.time_s / 60)} min${f.weight_g != null ? ` · ${Math.round(f.weight_g)} g` : ""}${f.plate ? ` · ${esc(f.plate)}` : ""}</span></span>
+      <span class="note">${esc(f.filament)} · ${esc(f.nozzle)} mm · ${Math.round(f.time_s / 60)} min${f.weight_g != null ? ` · ${Math.round(f.weight_g)} g` : ""}${f.plate ? ` · ${esc(plateLabel(f.plate))}` : ""}</span></span>
       <div class="acts"><button class="btn" data-fp="${f.file_id}">Print</button><button class="btn" data-fq="${f.file_id}">Add to queue</button>
       <button class="btn" data-fr="${f.file_id}">Rename</button><button class="btn" data-fd="${f.file_id}">Delete</button></div></div>`).join("")
       : `<p class="note">No sliced files yet.</p>`;
@@ -1754,6 +1834,7 @@ function selectPrinter(a) {
   PN.printer = a; PN.slots = []; paintPrinterOptions(); paintSteps();
   $("pname").textContent = nameOf(a); refreshFil();
   camAt = 0; $("cammsg").hidden = false; $("cam").removeAttribute("src");
+  prevJob = ""; showPreview(null);
   rpc("status", {}).then(render).catch(() => {});
 }
 let selecting = false, picked = new Set(), FOUND = [];

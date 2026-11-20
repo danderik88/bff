@@ -8,7 +8,7 @@ ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "src" / "bff_mcp"))
 from bff_mcp import ha_mqtt, server  # noqa: E402
-from printer_link import PrinterLink  # noqa: E402
+from printer_link import PrinterLink, to_snapshot  # noqa: E402
 
 
 class AppAxesTest(unittest.TestCase):
@@ -65,7 +65,7 @@ class AppAxesTest(unittest.TestCase):
         link.feed({"print": {
             "cooling_fan_speed": "15", "big_fan1_speed": "0",
             "xcam": {"spaghetti_detector": True, "halt_print_sensitivity": "medium", "cfg": 7},
-            "home_flag": 0x10 | 0x100000,
+            "home_flag": 0x10 | 0x80000 | 0x100000,
         }})
         s = link.snapshot()
         self.assertEqual(s["fans"]["part"], 100)
@@ -74,6 +74,20 @@ class AppAxesTest(unittest.TestCase):
         self.assertNotIn("cfg", s["xcam"])
         self.assertEqual(s["options"], {"auto_recovery": True, "sound_enable": False, "filament_tangle_detect": True})
         self.assertEqual(PrinterLink("a1", "host", "s", "code", "/nonexistent").snapshot()["options"], {})
+
+    def test_p2s_options_come_from_cfg_gated_by_fun(self):
+        # DeviceManager.cpp: cfg is the state, fun says which switches the machine has.
+        hf = sum(1 << b for b in [3, 4, 7, 8, 10, 12, 14, 16, 18, 21, 22, 30, 31])
+        snap = to_snapshot({"home_flag": hf, "cfg": "4D02017DA19", "fun": "64039FD193FF9CB7"})
+        self.assertEqual(snap["options"], {"auto_recovery": True})
+
+    def test_older_printer_tangle_needs_home_flag_bit_19(self):
+        snap = to_snapshot({"home_flag": (1 << 4) | (1 << 19) | (1 << 20)})
+        self.assertIs(snap["options"]["filament_tangle_detect"], True)
+
+    def test_older_printer_without_bit_19_has_no_tangle_switch(self):
+        snap = to_snapshot({"home_flag": 1 << 4})
+        self.assertNotIn("filament_tangle_detect", snap["options"])
 
 
 if __name__ == "__main__":

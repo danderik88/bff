@@ -3,6 +3,7 @@ import base64
 import io
 import json
 import sys
+import tempfile
 import unittest
 import zipfile
 from pathlib import Path
@@ -209,3 +210,32 @@ class OutOfRange(unittest.TestCase):
                'value "enabled" for ensure_vertical_shell_thickness is not valid, using "ensure_all" instead')
         self.assertEqual(slicerd.orca_fixes(log), [("enabled", "ensure_vertical_shell_thickness", "ensure_all"),
                                                    ("-1", "raft_first_layer_expansion", "0")])
+
+
+class FilePreview(unittest.TestCase):
+    """The sliced plate image the app shows before printing (2026-11-19)."""
+
+    def sliced(self, images):
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("Metadata/plate_2.gcode", "G28")
+            for name, png in images.items():
+                z.writestr(name, png)
+        return buf.getvalue()
+
+    def test_the_sliced_plate_image_comes_back_base64(self):
+        data = self.sliced({"Metadata/plate_1.png": b"one", "Metadata/plate_2.png": b"two"})
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(server.library, "FOLDER", d):
+            server.library.save(7, data)
+            got = json.loads(server.tool_file_preview({"file_id": 7})[0]["text"])
+        self.assertEqual(base64.b64decode(got["png"]), b"two")  # plate 2 is the one sliced
+
+    def test_no_image_is_none(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(server.library, "FOLDER", d):
+            server.library.save(7, self.sliced({}))
+            self.assertIsNone(json.loads(server.tool_file_preview({"file_id": 7})[0]["text"])["png"])
+
+    def test_unknown_file_is_an_error(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(server.library, "FOLDER", d):
+            with self.assertRaises(server.ToolError):
+                server.tool_file_preview({"file_id": 99})

@@ -8,6 +8,7 @@ queue work unchanged. Bambu-only keys (AMS, HMS, xcam...) are simply absent or e
 Stdlib only. Moonraker: https://moonraker.readthedocs.io/en/latest/external_api/
 """
 import json
+import posixpath
 import re
 import sys
 import threading
@@ -26,13 +27,38 @@ STATES = {"standby": "IDLE", "printing": "RUNNING", "paused": "PAUSE", "complete
 SENSOR_KINDS = ("filament_switch_sensor", "filament_motion_sensor")  # Klipper's documented runout sensors
 SPEED_PERCENT = {1: 50, 2: 100, 3: 124, 4: 166}  # the Bambu levels, as M220 percentages
 OBJECTS = ("print_stats&display_status&virtual_sdcard&extruder&heater_bed&gcode_move&fan&idle_timeout&toolhead"
-           "&ace&ace_instance_0&ace_instance_1&ace_instance_2&ace_instance_3")  # unknown objects are just left out
+           "&webhooks&ace&ace_instance_0&ace_instance_1&ace_instance_2&ace_instance_3")  # unknown objects are just left out
+ERROR_CHECK_S = 5  # how often Moonraker's gcode_store is read while the printer is idle
+# Klipper's own words stay after the prefix; anything unknown passes through unchanged.
+ERROR_RULES = (
+    (r"^Probe triggered prior to movement", "Probe problem"),
+    (r"^No trigger on probe", "Probe did not trigger"),
+    (r"^Heater \S+ not heating at expected rate", "Heating problem"),
+    (r"^ADC out of range", "Temperature sensor problem"),
+    (r"^Lost communication with MCU", "Printer board problem"),
+    (r"^MCU\b.*shutdown", "Printer board problem"),
+    (r"^Move out of range", "Move out of range"),
+    (r"^Must home axis first", "Home the printer first"),
+)
 # Moonraker's own hostname-free defaults; a printer entry can override port and key.
 DEFAULT_PORT = 7125
 
 
 def pct(fraction):
     return None if fraction is None else round(float(fraction) * 100)
+
+
+def error_text(text):
+    """A common Klipper error with a plain-English prefix, the printer's own words kept after it."""
+    text = "" if text is None else str(text)
+    for pattern, prefix in ERROR_RULES:
+        if re.match(pattern, text):
+            return f"{prefix}: {text}"
+    return text
+
+
+def klipper_fault(text):
+    return {"module": 0, "code": "klipper", "attr": 0, "severity": None, "description": text}
 
 
 def pause_state(homed_axes, idle_state, timeout_s, paused_for_s):
@@ -47,8 +73,12 @@ def pause_state(homed_axes, idle_state, timeout_s, paused_for_s):
     return False, max(0, int(timeout_s - paused_for_s))
 
 
-def to_snapshot(raw, klippy="ready", light=None, strips=None, direct=None):
-    """Moonraker object status (merged `printer/objects/query` result) -> BFF snapshot."""
+def to_snapshot(raw, klippy="ready", light=None, strips=None, direct=None, error=None):
+    """Moonraker object status (merged `printer/objects/query` result) -> BFF snapshot.
+
+    error: the best reason the link already worked out (print_stats.message, webhooks.state_message,
+    or the newest gcode_store '!!' line). An idle error shows here too, so the app can show it.
+    """
     stats = raw.get("print_stats") or {}
     ext, bed = raw.get("extruder") or {}, raw.get("heater_bed") or {}
     sd, display = raw.get("virtual_sdcard") or {}, raw.get("display_status") or {}
@@ -61,6 +91,10 @@ def to_snapshot(raw, klippy="ready", light=None, strips=None, direct=None):
     elif klippy == "startup":
         state = "PREPARE"
     printing = state in ("RUNNING", "PAUSE")
+    # The link already picked the best reason (print_stats.message, state_message, gcode_store).
+    # A failure belongs in hms_errors; an error seen while idle is an alert only, not an active fault.
+    failed_reason = error_text(error) if error and state == "FAILED" else None
+    idle_error = error_text(error) if error and state != "FAILED" else None
     # M73 progress (slicer/Orca) when the print sets it, otherwise bytes read from the file.
     fraction = display.get("progress") if display.get("progress") else sd.get("progress")
     progress = pct(fraction) if printing or state == "FINISH" else None
@@ -89,8 +123,8 @@ def to_snapshot(raw, klippy="ready", light=None, strips=None, direct=None):
         "home_flag": None,
         "speed_level": speed_level(speed),
         "chamber_light": led_on(raw, light, strips, direct),
-        "hms_errors": [{"module": 0, "code": "klipper", "attr": 0, "severity": None, "description": stats["message"]}]
-        if stats.get("message") and state == "FAILED" else [],
+        "hms_errors": [klipper_fault(failed_reason)] if failed_reason else [],
+        "idle_error": idle_error,  # an error line seen while idle: the app banner and notifications show it
         "print_error": 1 if state == "FAILED" else 0,
         "axes": None if not head else {
             "homed": head.get("homed_axes") or "",  # "" until G28, then e.g. "xyz"
@@ -276,6 +310,12 @@ class MoonrakerLink:
         self.cam_flip = (False, False, 0)  # Moonraker's flip_horizontal, flip_vertical, rotation of the webcam used
         self._connected = None
         self._stop = False
+        self.error = None  # best reason: a print failure, or a new error line seen while idle
+        self._errors = []  # gcode_store error lines, newest first
+        self._error_seen = None  # newest error timestamp already handled: older lines are history
+        self._error_checked = None  # clock() of the last gcode_store read
+        self._new_error = None  # an error line that appeared after the baseline, not yet reported
+        self._dismissed = None  # the reason the user dismissed; it stays quiet until it changes
         self._paused_since = None  # clock() when the print entered "paused"; None otherwise
         self.idle_timeout_s = None  # printer.cfg [idle_timeout] timeout, read once (600 is Klipper's default)
 
@@ -299,6 +339,31 @@ class MoonrakerLink:
             return True
         except (urllib.error.URLError, OSError, ValueError):
             return False
+
+    def _get_bytes(self, path):
+        """Raw bytes of a Moonraker file: _request parses JSON, thumbnails are images."""
+        req = urllib.request.Request(self._url(path), method="GET")
+        if self.access_code:
+            req.add_header("X-Api-Key", self.access_code)
+        with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:
+            return resp.read(2 * 1024 * 1024 + 1)  # one byte past the cap, so an oversized file is refused
+
+    def thumbnail(self, filename):
+        """Largest thumbnail Moonraker offers for a G-code file, as raw PNG bytes; None on any trouble.
+
+        Thumbnails live next to the file (relative_path is relative to its directory, e.g. `.thumbs/`).
+        """
+        try:
+            result = self._request("GET", "/server/files/metadata", filename=filename).get("result") or {}
+            thumbs = [t for t in result.get("thumbnails") or [] if isinstance(t, dict) and t.get("relative_path")]
+            if not thumbs:
+                return None
+            best = max(thumbs, key=lambda t: t.get("width") or 0)
+            parts = [s for s in f"{posixpath.dirname(filename)}/{best['relative_path']}".split("/") if s]
+            data = self._get_bytes("/server/files/gcodes/" + "/".join(urllib.parse.quote(s, safe="") for s in parts))
+        except (urllib.error.URLError, OSError, ValueError, TypeError, AttributeError):
+            return None
+        return data if data is not None and len(data) <= 2 * 1024 * 1024 else None
 
     def snapshot_url(self):
         """URL of the first enabled webcam's still image, from Moonraker's webcam list."""
@@ -347,14 +412,61 @@ class MoonrakerLink:
             return None
 
     # --- polling --------------------------------------------------------------------------------
+    def _forget_config(self):
+        """Re-read printer.cfg-derived data on the next ready poll; current values stay until then (no flicker)."""
+        self.idle_timeout_s = None
+        self._light_searched = False
+        self._wled_checked = False
+
+    def _error_lines(self, need, force=False):
+        """Moonraker's newest gcode_store error lines, at most every ERROR_CHECK_S seconds.
+
+        `!!` is Klipper's own error prefix; a line containing "Error" catches the rest.
+        The first read after a restart only records the newest timestamp: past errors are history.
+        force: a failure just happened, so do not trust the cached lines.
+        """
+        now = self.clock()
+        if not need or (not force and self._error_checked is not None
+                        and now - self._error_checked < ERROR_CHECK_S):
+            return self._errors
+        self._error_checked = now
+        try:
+            entries = (self._request("GET", "/server/gcode_store", count=50)
+                       .get("result", {}).get("gcode_store") or [])
+        except (urllib.error.URLError, OSError, ValueError):
+            return self._errors
+        lines = []
+        for entry in entries:
+            text = entry.get("message") if isinstance(entry, dict) else None
+            if not isinstance(text, str) or not (text.startswith("!! ") or "Error" in text):
+                continue
+            try:
+                stamp = float(entry.get("time") or 0)
+            except (TypeError, ValueError):
+                stamp = 0.0
+            lines.append({"time": stamp,
+                          "text": error_text(text[len("!! "):] if text.startswith("!! ") else text)})
+        lines.sort(key=lambda line: line["time"], reverse=True)
+        self._errors = lines
+        if self._error_seen is None:  # startup: what is already in the store is history, not news
+            self._error_seen = lines[0]["time"] if lines else 0.0
+        elif lines and lines[0]["time"] > self._error_seen:
+            self._new_error = lines[0]
+            self._error_seen = lines[0]["time"]
+        return lines
+
     def poll(self):
         """One round trip; the result feeds snapshot(). Returns whether Moonraker answered."""
         try:
             info = self._request("GET", "/printer/info").get("result", {})
-            if self.idle_timeout_s is None:  # once: printer.cfg does not change for the life of the connection
+            # printer.cfg can change across a Klipper restart: forget what came from it and read it again once ready.
+            ready = info.get("state") == "ready"
+            if not ready:
+                self._forget_config()
+            if ready and self.idle_timeout_s is None:
                 timeout = (self._config().get("idle_timeout") or {}).get("timeout")
                 self.idle_timeout_s = float(timeout) if timeout is not None else 600
-            if not self._light_searched or self.sensors is None:
+            if ready and (not self._light_searched or self.sensors is None):
                 objects = self._request("GET", "/printer/objects/list").get("result", {}).get("objects", [])
                 if not self._light_searched:
                     self.light = find_light(objects, self._config(), self._wled_strips())
@@ -362,18 +474,26 @@ class MoonrakerLink:
                 self.sensors = [o for o in objects if o.split(" ")[0] in SENSOR_KINDS and " " in o]
                 self.fans = [o.split(" ", 1)[1] for o in objects if o.startswith("fan_generic ")]
                 self.lights = standard_lights(objects)
-            if not self._wled_checked:  # once: the light does not change for the life of the connection
+            if ready and not self._wled_checked:
                 self._wled_checked = True
                 self.wled_address = self._wled_address()
             strips = self._wled_strips() if self.light and self.light.get("wled") else None
             led = f"&led%20{urllib.parse.quote(self.light['led'])}" if self.light and self.light.get("led") else ""
-            led += "".join(f"&{urllib.parse.quote(s)}" for s in self.sensors + self.lights)
+            led += "".join(f"&{urllib.parse.quote(s)}" for s in (self.sensors or []) + self.lights)
             status = self._request("GET", "/printer/objects/query?" + OBJECTS + led).get("result", {}).get("status", {})
         except (urllib.error.URLError, OSError, ValueError):
             self.online = False
+            self._forget_config()  # Moonraker gone: the host may come back with a different printer.cfg
             return False
         direct = self._wled_state()
+        klippy = info.get("state", "ready")
+        print_state = (status.get("print_stats") or {}).get("state")
+        failed = klippy in ("shutdown", "error") or print_state == "error"
+        idle = klippy == "ready" and print_state not in ("printing", "paused")
+        lines = self._error_lines(failed or idle, force=failed)
         with self.lock:
+            previous_state = (self.raw.get("print_stats") or {}).get("state")
+            previous_klippy = self.klippy
             merge(self.raw, status)
             paused = (self.raw.get("print_stats") or {}).get("state") == "paused"
             if paused and self._paused_since is None:
@@ -383,16 +503,29 @@ class MoonrakerLink:
             if strips is not None:
                 self.wled = strips
             self.wled_direct = direct
-            self.klippy = info.get("state", "ready")
+            self.klippy = klippy
             self.firmware_version = info.get("software_version")
             self.last_report = self.clock()
+            # A new print or a recovered Klipper makes the previous error stale.
+            if (print_state == "printing" and previous_state not in ("printing", "paused")) \
+                    or (klippy == "ready" and previous_klippy in ("shutdown", "error")):
+                self.error = self._dismissed = None
+            new, self._new_error = self._new_error, None
+            if failed:
+                reason = ((status.get("print_stats") or {}).get("message")
+                          or (status.get("webhooks") or {}).get("state_message")
+                          or (lines[0]["text"] if lines else ""))
+                if reason and error_text(reason) != self._dismissed:
+                    self.error = error_text(reason)
+            elif new:
+                self.error, self._dismissed = new["text"], None
         self.online = True
         return True
 
     def snapshot(self):
         with self.lock:
             snapshot = to_snapshot(json.loads(json.dumps(self.raw)), self.klippy, self.light, self.wled,
-                                   self.wled_direct)
+                                   self.wled_direct, self.error)
             # Runout sensors pass through untouched: status_dict turns them into Options switches
             snapshot.update({k: dict(v) for k, v in self.raw.items() if k.split(" ")[0] in SENSOR_KINDS and isinstance(v, dict)})
             snapshot["firmware_version"] = self.firmware_version
@@ -434,6 +567,10 @@ class MoonrakerLink:
 
     def stop(self):
         self._stop = True
+
+    def clear_error(self):
+        """Dismiss the error shown in the app; gcode_store still holds the line, already marked as seen."""
+        self._dismissed, self.error = self.error, None
 
     # --- commands -------------------------------------------------------------------------------
     def publish(self, payload):

@@ -57,6 +57,8 @@ COMMAND_LOCK = threading.Lock()
 SLICE_WAKE = threading.Event()
 # Photo id -> (expiry, jpeg). In memory on purpose: a photo must not outlive its confirm token.
 PHOTOS = {}
+# (printer, job) -> {"png": base64|None, "name": job}: the app polls this on the Status tab, one fetch per job.
+PREVIEWS = {}
 MAX_BODY = 1 << 20
 MAX_UPLOAD = 100 << 20
 MAX_METADATA = 8 << 20
@@ -301,7 +303,9 @@ def hms_handling(item):
 
 
 def attention(raw):
-    return [{"handling": hms_handling(e), "description": e.get("description")} for e in raw.get("hms_errors") or []]
+    found = [{"handling": hms_handling(e), "description": e.get("description")} for e in raw.get("hms_errors") or []]
+    # A Klipper error seen while idle (e.g. a probe miss during homing): shown and notified, not an active HMS fault.
+    return found + ([{"handling": "sicurezza", "description": raw["idle_error"]}] if raw.get("idle_error") else [])
 
 
 def tool_status(args):
@@ -989,6 +993,18 @@ def sliced_plate(data):
     return 1
 
 
+def plate_png(data, path, any_plate=False):
+    """Base64 PNG of the plate at `path` in a 3MF (or, with any_plate, its first plate image); None when there is none."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            names = archive.namelist()
+            name = path if path in names or not any_plate else next((n for n in names if re.fullmatch(r"Metadata/plate_\d+\.png", n)), None)
+            png = archive.read(name) if name in names else None
+    except (KeyError, zipfile.BadZipFile, zlib.error, OSError, NotImplementedError, RuntimeError):
+        return None
+    return base64.b64encode(png).decode() if png is not None and len(png) < 2_000_000 else None
+
+
 def tool_plate_preview(args):
     """Thumbnail of one plate of a draft project, for the plate picker."""
     rid, n = args.get("id"), args.get("plate")
@@ -1000,12 +1016,70 @@ def tool_plate_preview(args):
         raise ToolError("No such plate")
     info = {p.get("n"): p for p in (json.loads(row[1]) if row[1] else {}).get("plate_info") or []}
     path = (info.get(n) or {}).get("thumb") or f"Metadata/plate_{n}.png"
+    return as_text({"png": plate_png(row[0], path)})
+
+
+def tool_file_preview(args):
+    """The sliced plate image inside a stored .gcode.3mf, for the app before printing."""
+    file_id = args.get("file_id")
+    if type(file_id) is not int:
+        raise ToolError("No such file")
     try:
-        with zipfile.ZipFile(io.BytesIO(row[0])) as archive:
-            png = archive.read(path)
-    except (KeyError, zipfile.BadZipFile, OSError):
-        return as_text({"png": None})
-    return as_text({"png": base64.b64encode(png).decode() if len(png) < 2_000_000 else None})
+        data = library.read(file_id)
+    except OSError:
+        raise ToolError("No such file") from None
+    return as_text({"png": plate_png(data, f"Metadata/plate_{sliced_plate(data)}.png", any_plate=True)})
+
+
+def _job_stem(name):
+    """A job name without the extensions Moonraker and the printer add, case-insensitive."""
+    return re.sub(r"\.gcode\.3mf$|\.3mf$|\.gcode$", "", name or "", flags=re.IGNORECASE).lower()
+
+
+def bambu_preview(alias, job):
+    """The plate image Pygmy stored for this job, if Pygmy started the print that is running; else None."""
+    row = DB.execute("SELECT file_id, plates, file_name FROM print_requests "
+                     "WHERE printer=? AND status='started' ORDER BY id DESC LIMIT 1", (alias,)).fetchone()
+    if row is None or not job:
+        return None
+    file_id, plates, file_name = row
+    ids = json.loads(plates) if plates else ([file_id] if file_id is not None else [])
+    for fid in ids:
+        up = DB.execute("SELECT name FROM uploads WHERE file_id=?", (fid,)).fetchone()
+        if _job_stem(up[0] if up else file_name) != _job_stem(job):
+            continue
+        try:
+            return plate_png(library.read(fid), "", any_plate=True)
+        except OSError:
+            return None
+    return None
+
+
+def tool_print_preview(args):
+    """Image of the job printing now, for the Status tab's second page; None when nothing is printing."""
+    printer_id(args)
+    alias = args["printer"]
+    link = link_of(alias)
+    snapshot = link.snapshot()
+    job = snapshot.get("subtask_name")
+    if snapshot.get("state") not in ("RUNNING", "PAUSE") or not job:
+        return as_text({"png": None, "name": None})
+    cached = PREVIEWS.get((alias, job))
+    if cached:
+        return as_text(cached)
+    if isinstance(link, MoonrakerLink):
+        with link.lock:
+            filename = (link.raw.get("print_stats") or {}).get("filename")
+        thumb = link.thumbnail(filename) if filename else None
+        png = base64.b64encode(thumb).decode() if thumb else None
+    else:
+        png = bambu_preview(alias, job)
+    result = {"png": png, "name": job}
+    if png:
+        if len(PREVIEWS) > 200:  # ponytail: one entry per job, cleared wholesale; a real cache if it ever matters
+            PREVIEWS.clear()
+        PREVIEWS[(alias, job)] = result
+    return as_text(result)
 
 
 def upload_file(name, data):
@@ -1998,6 +2072,9 @@ def tool_set_print_option(args):
 def tool_clear_errors(args):
     def send(_):
         link = link_of(args["printer"])
+        if isinstance(link, MoonrakerLink):  # Klipper has no printer-side list to clean: forget the stored reason
+            link.clear_error()
+            return True, "clear_errors"
         sent = link.publish(with_sequence({"print": {"command": "clean_print_error"}}))
         if sent:
             link.publish(PUSHALL)
@@ -2614,13 +2691,14 @@ def tool_reply_request(args):
 
 
 def tool_slice_request(args):
-    """The app's step 4: a draft gets its printer, one spool per model colour and settings, then slices."""
+    """The app's step 4: a draft gets its printer, one spool per model colour and settings, then slices.
+    A sliced job not started yet (ready) can be sliced again with other files, copies or settings."""
     printer_id(args)
     printer, rid = args["printer"], args.get("id")
     slots, choices, copies = args.get("slots"), args.get("choices") or {}, args.get("copies", 1)
     if type(rid) is not int:
         raise ToolError("This job is not waiting for slicing")
-    row = DB.execute("SELECT facts FROM print_requests WHERE id=? AND status='draft'", (rid,)).fetchone()
+    row = DB.execute("SELECT facts FROM print_requests WHERE id=? AND status IN ('draft', 'ready')", (rid,)).fetchone()
     if row is None:
         raise ToolError("This job is not waiting for slicing")
     facts = json.loads(row[0]) if row[0] else {}
@@ -2660,7 +2738,7 @@ def tool_slice_request(args):
         choices["plate_no"] = plate_no
     with DB:
         n = DB.execute("UPDATE print_requests SET status='pending', stage='slice', printer=?, slots=?, choices=?, "
-                       "copies=? WHERE id=? AND status='draft'",
+                       "copies=?, file_id=NULL, plates=NULL WHERE id=? AND status IN ('draft', 'ready')",
                        (printer, json.dumps(slots), json.dumps(choices), copies, rid)).rowcount
     if not n:
         raise ToolError("This job is not waiting for slicing")
@@ -3838,6 +3916,10 @@ APP_TOOLS = {
     "plate_preview": (tool_plate_preview, "Miniatura di un piatto di un progetto multi-piatto.",
                       {"type": "object", "properties": {"id": {"type": "integer"}, "plate": {"type": "integer"}},
                        "required": ["id", "plate"]}, True),
+    "file_preview": (tool_file_preview, "Anteprima della piastra affettata di un file.",
+                     {"type": "object", "properties": {"file_id": {"type": "integer"}},
+                      "required": ["file_id"]}, True),
+    "print_preview": (tool_print_preview, "Immagine del lavoro in stampa.", {}, True),
     "add_printer": (tool_add_printer, "", {}, True),
     "identify_printer": (tool_identify_printer, "", {}, True),
     "rename_printer": (tool_rename_printer, "", {}, True),

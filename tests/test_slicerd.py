@@ -192,6 +192,13 @@ class SliceJob(Base):
         self.assertEqual(["model_0.stl", "model_1.step"], models[:2])
         self.assertEqual(models, ["model_0.stl", "model_1.step"] * 2)
 
+    def test_zip_bundle_carries_a_3mf_member(self):
+        data = self.bundle(("a.stl", b"solid a"), ("b.3mf", b"PK\x03\x04"))
+        slicerd.slice_job(data, "page.bundle.zip", MACHINE, "normal", FILAMENT, {}, False, 1)
+        argv = self.argv()
+        models = [Path(p).name for p in argv[argv.index("--export-3mf") + 2:]]
+        self.assertEqual(models, ["model_0.stl", "model_1.3mf"])
+
     def test_zip_bundle_with_a_non_mesh_is_refused(self):
         data = self.bundle(("a.stl", b"solid a"), ("evil.exe", b"MZ"))
         with self.assertRaisesRegex(ValueError, "every file in the zip"):
@@ -312,6 +319,14 @@ class Server:
         except urllib.error.HTTPError as err:
             return err.code, json.loads(err.read())
 
+    def get(self, headers, path="/orca-user"):
+        req = urllib.request.Request(self.url + path, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return resp.status, resp.read()
+        except urllib.error.HTTPError as err:
+            return err.code, err.read()
+
 
 class Http(Base):
     def test_bad_secret_401(self):
@@ -343,6 +358,40 @@ class Http(Base):
         self.assertEqual(200, server.post({"Authorization": "Bearer s3cret"}, ok)[0])
         body = dict(self.request(), filaments=[{"filament_id": "GFB60"}] * 17)
         self.assertEqual(400, server.post({"Authorization": "Bearer s3cret"}, body)[0])
+
+
+class OrcaUser(Base):
+    def user_dir(self):
+        user = self.tmp / "orca-user" / "uuid"
+        for part in ("machine", "process", "filament"):
+            (user / part).mkdir(parents=True)
+        (user / "sync_state").write_text("{}")
+        return user
+
+    def test_401_without_secret(self):
+        user = self.user_dir()
+        with mock.patch.dict(os.environ, {"ORCA_USER_ROOT": str(user.parent)}):
+            self.assertEqual(401, Server(self).get({})[0])
+
+    def test_404_without_sync_state(self):
+        root = self.tmp / "no-login"
+        root.mkdir()
+        with mock.patch.dict(os.environ, {"ORCA_USER_ROOT": str(root)}):
+            code, body = Server(self).get({"Authorization": "Bearer s3cret"})
+        self.assertEqual((404, "no Orca Cloud login on the slicer"), (code, json.loads(body)["error"]))
+
+    def test_zip_of_the_three_folders(self):
+        user = self.user_dir()
+        (user / "machine" / "a.json").write_text("{}")
+        (user / "filament" / "b.json").write_text("{}")
+        (user / "process" / "c.json.bak").write_text("{}")
+        (user / "elsewhere").mkdir()
+        (user / "elsewhere" / "d.json").write_text("{}")
+        with mock.patch.dict(os.environ, {"ORCA_USER_ROOT": str(user.parent)}):
+            code, data = Server(self).get({"Authorization": "Bearer s3cret"})
+        self.assertEqual(200, code)
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            self.assertEqual(["filament/b.json", "machine/a.json"], sorted(z.namelist()))
 
 
 class ResolveFilament(unittest.TestCase):

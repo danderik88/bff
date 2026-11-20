@@ -144,8 +144,10 @@ def bundle_pick(data, keep):
 
 
 def _download_all(rows, link_of):
-    """Every mesh on the page, 100 MB in all; a 3MF there is a project: it goes alone, as before."""
-    meshes = [f for f in rows if _printable(f["name"]) and not f["name"].lower().endswith(".3mf")]
+    """Every mesh on the page, 100 MB in all. A 3MF next to meshes is usually the same model as a project,
+    so it stays aside; a page of 3MFs only (parts or variants) offers them all."""
+    printable = [f for f in rows if _printable(f["name"])]
+    meshes = [f for f in printable if not f["name"].lower().endswith(".3mf")] or printable
     if len(meshes) < 2:
         name, row, others = _pick_printable(rows)
         return name, link_of(row), others

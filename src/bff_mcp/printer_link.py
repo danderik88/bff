@@ -71,6 +71,37 @@ def as_int(value):
         return None
 
 
+def as_bits(value):
+    """Bitfield from a printer hex string like fun/cfg; None when it isn't one."""
+    try:
+        return int(value, 16)
+    except (TypeError, ValueError):
+        return None
+
+
+# ponytail: option bit numbers from BambuStudio/OrcaSlicer DeviceManager.cpp.
+# Newer printers (P2S, H2*) send fun and cfg; home_flag is the older fallback.
+def report_options(raw, hf):
+    """Switches the app may offer, and their state, as the slicer reads them."""
+    fun, cfg = as_bits(raw.get("fun")), as_bits(raw.get("cfg"))
+    sound_in, tangle_in = fun is None or bool(fun & 0x100), fun is None or bool(fun & 0x200)
+    if cfg is not None:
+        options = {"auto_recovery": bool(cfg & 0x10000)}
+        if sound_in:
+            options["sound_enable"] = bool(cfg & 0x400000)
+        if tangle_in:
+            options["filament_tangle_detect"] = bool(cfg & 0x800000)
+        return options
+    if raw.get("home_flag") is None:
+        return {}
+    options = {"auto_recovery": bool(hf & 0x10)}
+    if sound_in:
+        options["sound_enable"] = bool(hf & 0x20000)
+    if tangle_in and (fun is not None or hf & 0x80000):
+        options["filament_tangle_detect"] = bool(hf & 0x100000)
+    return options
+
+
 def fan_pct(value):
     """Bambu reports fan speed as 0-15, not a percentage."""
     speed = as_int(value)
@@ -130,10 +161,15 @@ def build_command(action, heater=None, target=None, on=None, **_unused):
     raise ValueError(action)
 
 
-def fault(module, code, attr, full_code, severity=None):
-    # ponytail: code only for now, a description catalogue comes with the notifications (plan Task 8).
+def hms_text(attr, code):
+    """The code the way the printer shows it: four groups of four hex digits, e.g. 0300-0D00-0001-0001."""
+    digits = f"{attr:08X}{code:08X}"
+    return "-".join(digits[i:i + 4] for i in range(0, 16, 4))
+
+
+def fault(module, code, attr, full_code, severity=None, description=None):
     return {"module": module, "code": f"0x{code:x}", "attr": attr, "severity": severity,
-            "description": f"HMS error {full_code}"}
+            "description": description or f"HMS error {full_code}"}
 
 
 def decode_faults(raw):
@@ -145,11 +181,13 @@ def decode_faults(raw):
         if code < FIRST_REAL_ERROR or (group, code & 0xFFFF) in USER_ACTION_CODES:
             continue
         seen.add((group, code & 0xFFFF))
-        faults.append(fault((attr >> 24) & 0xFF, code, attr, f"{attr:08X}{code:08X}", (code >> 16) & 0xFFFF))
+        faults.append(fault((attr >> 24) & 0xFF, code, attr, f"{attr:08X}{code:08X}", (code >> 16) & 0xFFFF,
+                            f"HMS error {hms_text(attr, code)}"))
     print_error = as_int(raw.get("print_error")) or 0
     group, error = (print_error >> 16) & 0xFFFF, print_error & 0xFFFF
     if error >= FIRST_REAL_ERROR and (group, error) not in USER_ACTION_CODES and (group, error) not in seen:
-        faults.append(fault(group >> 8, error, print_error, f"{print_error:08X}"))
+        faults.append(fault(group >> 8, error, print_error, f"{print_error:08X}",
+                            description=f"print_error 0x{print_error:08X}"))
     return faults
 
 
@@ -226,10 +264,7 @@ def to_snapshot(raw, firmware_version=None):
                  "chamber": fan_pct(raw.get("big_fan2_speed"))},
         "xcam": {k: v for k, v in raw["xcam"].items() if isinstance(v, (bool, str))}
         if isinstance(raw.get("xcam"), dict) else {},
-        # ponytail: home_flag bit positions from the community protocol notes; check against Bambu Handy.
-        "options": {} if raw.get("home_flag") is None else {
-            "auto_recovery": bool(hf & 0x10), "sound_enable": bool(hf & 0x20000),
-            "filament_tangle_detect": bool(hf & 0x100000)},
+        "options": report_options(raw, hf),
         "nozzles": nozzles,
         "speed_percent": as_int(raw.get("spd_mag")),
         "heatbreak_fan": fan_pct(raw.get("heatbreak_fan_speed")),

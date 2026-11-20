@@ -323,6 +323,24 @@ class SlicerBase(unittest.TestCase):
         with self.assertRaises(server.ToolError):
             server.tool_slice_request({**args, "id": did, "copies": 21})
 
+    def test_ready_job_can_be_sliced_again(self):
+        """A setting changed after the slice re-slices the ready job; a started one is still refused."""
+        did = server.upload_model("a1", "cube.stl", b"solid x", draft=True)["id"]
+        args = {"printer": "a1", "id": did, "slots": ["external"], "choices": {}, "copies": 1, "standard": True}
+        server.tool_slice_request(args)
+        while server.slice_once():
+            pass
+        self.assertEqual(self.row(did, "status")[0], "ready")
+        self.assertIsNotNone(self.row(did, "file_id")[0])
+        out = json.loads(server.tool_slice_request({**args, "copies": 2})[0]["text"])
+        self.assertEqual(out["outcome"], "queued for slicing")
+        self.assertEqual(self.row(did, "status")[0], "pending")
+        self.assertIsNone(self.row(did, "file_id")[0])
+        with server.DB:
+            server.DB.execute("UPDATE print_requests SET status='started' WHERE id=?", (did,))
+        with self.assertRaisesRegex(server.ToolError, "This job is not waiting for slicing"):
+            server.tool_slice_request(args)
+
     def test_slice_request_wrong_slot_count(self):
         did = server.upload_model("a1", "two.3mf", model_3mf(colors=["#FF0000", "#00FF00"]), draft=True)["id"]
         args = {"printer": "a1", "id": did, "choices": {}, "copies": 1, "standard": True}

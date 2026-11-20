@@ -152,6 +152,19 @@ class OverHttp(unittest.TestCase):
         self.call("device_remove", {"name": "iPad"}, "i" * 40)
         self.assertEqual(self.post("/", {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, key)[0], 401)
 
+    def test_name_of_a_server_agent_key_is_refused_with_a_clear_message(self):
+        # The live state: 3 linked devices, the caller is one of them, and the server has the "imac" agent key.
+        key = None
+        for n in ("iPhone", "iPad", "Mac Mini"):
+            code = json.loads(self.call("device_add", {"name": n, "origin": "https://bff.x.ts.net"}, "i" * 40)["content"][0]["text"])["code"]
+            key = self.post("/pair", {"code": code})[1]["key"]
+        res = self.call("device_add", {"name": "iMac", "origin": "https://bff.x.ts.net"}, key)
+        self.assertTrue(res["isError"])
+        self.assertEqual(json.loads(res["content"][0]["text"])["errore"],
+                         "iMac is already an agent key on the server: choose another name")
+        listed = json.loads(self.call("device_list", {}, key)["content"][0]["text"])["devices"]
+        self.assertEqual([d["name"] for d in listed], ["imac", "iPhone", "iPad", "Mac Mini"])
+
 
 class AppPage(unittest.TestCase):
     def test_app_pairs_and_lists_devices(self):

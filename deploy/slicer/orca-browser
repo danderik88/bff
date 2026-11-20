@@ -1,0 +1,4 @@
+#!/bin/sh
+# Browser for the Orca Cloud login (Apple/Google): outside the AppImage library path.
+unset LD_LIBRARY_PATH LD_PRELOAD
+exec firefox-esr "$@"

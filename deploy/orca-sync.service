@@ -1,0 +1,12 @@
+[Unit]
+Description=Push the Orca Cloud presets synced on the slicer server to Pygmy
+After=bff-mcp.service
+
+[Service]
+Type=oneshot
+DynamicUser=yes
+StateDirectory=pygmy-orca-sync
+# SLICER_SECRET=... and SLICER_URL=...; config.json (url, token, printers) in $HOME/.config/pygmy-orca-sync/
+EnvironmentFile=/etc/pygmy-orca-sync.env
+Environment=HOME=/var/lib/pygmy-orca-sync
+ExecStart=/opt/bff-mcp/venv/bin/python /opt/bff-mcp/orca_sync.py --from-slicer ${SLICER_URL}

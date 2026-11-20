@@ -1,0 +1,18 @@
+[Unit]
+Description=OrcaSlicer GUI kept running so Orca Cloud syncs the user presets (Pygmy reads them via slicerd GET /orca-user)
+Requires=xvfb.service
+After=xvfb.service network-online.target
+
+[Service]
+User=slicer
+Environment=DISPLAY=:99 HOME=/home/slicer SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt LANG=en_US.UTF-8 BROWSER=/usr/local/bin/orca-browser
+# Own data dir: never shares config with the CLI slicer of bff-slicer.service.
+ExecStart=/opt/orca/AppRun --datadir /home/slicer/orca-gui
+Restart=always
+RestartSec=10
+# ponytail: Orca pulls cloud presets only at start/login (GUI_App::start_sync_user_preset), so restart it hourly.
+RuntimeMaxSec=3600
+MemoryMax=2500M
+
+[Install]
+WantedBy=multi-user.target

@@ -295,8 +295,10 @@ def events(prev, cur, lang="en", minutes=None):
                                                      facts=f" · {facts}" if facts else "")))
     if was in RUNNING and now == "FAILED" and cur.get("end_reason") == "failed":
         layer = t["layer"].format(n=n, t=total) if n and total else ""
-        out.append(("failed", t["failed"].format(file=file, progress=round(prev.get("progress") or 0), layer=layer)))
-    if cur.get("alarm") and cur.get("alarm") != prev.get("alarm"):
+        why = f": {cur['alarm']}" if cur.get("alarm") else ""
+        out.append(("failed", t["failed"].format(file=file, progress=round(prev.get("progress") or 0), layer=layer) + why))
+    # One reason per failure: when it is already in the failed line, do not send it twice.
+    if not any(kind == "failed" for kind, _ in out) and cur.get("alarm") and cur.get("alarm") != prev.get("alarm"):
         out.append(("error", t["error_paused" if now == "PAUSE" else "error"].format(alarm=cur["alarm"])))
     bad = ("warning", "failure")
     # A new alarm, or one that has just paused the print (warning, then failure + pause: tell again).

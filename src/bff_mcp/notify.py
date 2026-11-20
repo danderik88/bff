@@ -25,6 +25,8 @@ except ImportError:  # ponytail: Web Push off until `pip install -r requirements
 LOW_SPOOL = 10      # % left on an RFID spool
 OFFLINE_S = 120     # unreachable this long before "offline"
 PRINTING = ("RUNNING", "PAUSE")
+# The event kind becomes the notification title's tail: "<printer>: print failed" / "<printer>: error".
+KIND_TITLE = {"failed": "print failed", "attention": "error"}
 # ponytail: one lock for all notify settings rows
 SETTINGS_LOCK = threading.RLock()
 
@@ -336,7 +338,8 @@ class Notifier:
                         photo = self.photo(alias)
                     except Exception as err:  # the frame is a bonus, never a reason to skip the alert
                         print(f"notify: foto {alias}: {type(err).__name__}", file=sys.stderr)
-                self._send(title, message, f"{self.base_url}/app?printer={alias}", photo)
+                self._send(f"{title}: {KIND_TITLE[kind]}" if kind in KIND_TITLE else title, message,
+                           f"{self.base_url}/app?printer={alias}", photo)
                 out.append((alias, kind, message))
         return out
 

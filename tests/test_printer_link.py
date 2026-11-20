@@ -143,6 +143,11 @@ class Hms(unittest.TestCase):
     def test_every_fault_has_a_description(self):
         self.assertTrue(self.errors(print_error=0x07FF8007)[0]["description"])
 
+    def test_description_is_the_code_the_printer_shows(self):
+        self.assertEqual(self.errors(hms=[{"attr": 0x03000D00, "code": 0x00010001}])[0]["description"],
+                         "HMS error 0300-0D00-0001-0001")
+        self.assertEqual(self.errors(print_error=0x0500C010)[0]["description"], "print_error 0x0500C010")
+
 
 class AmsModelFromInfo(unittest.TestCase):
     """The unit's own info hex field (type = low nibble) overrides the get_version model."""

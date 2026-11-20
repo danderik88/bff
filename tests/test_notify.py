@@ -196,6 +196,29 @@ class NotifierTest(unittest.TestCase):
         self.assertEqual(self.n.step(10), [])
         self.assertEqual([k for _, k, _ in self.n.step(131)], ["offline"])
 
+    def test_failure_title_and_body_carry_the_reason(self):
+        self.states["delta"] = {"connected": True, "state": "RUNNING", "subtask_name": "cube", "progress": 40}
+        self.n.step(0)
+        self.states["delta"] = {"connected": True, "state": "FAILED", "subtask_name": "cube", "progress": 40,
+                               "attention": [{"handling": "sicurezza",
+                                              "description": "Probe problem: Probe triggered prior to movement"}]}
+        self.n.step(5)
+        push = next(s for s in self.sent if s[0] == "push")
+        self.assertEqual(push[1], "Delta: print failed")
+        self.assertIn("Probe problem", push[2])
+        self.assertIn("Probe triggered prior to movement", push[2])
+
+    def test_idle_error_has_its_own_title(self):
+        self.states["delta"] = {"connected": True, "state": "IDLE"}
+        self.n.step(0)
+        self.states["delta"] = {"connected": True, "state": "IDLE",
+                               "attention": [{"handling": "sicurezza",
+                                              "description": "HMS error 0300-0D00-0001-0001"}]}
+        self.n.step(5)
+        push = next(s for s in self.sent if s[0] == "push")
+        self.assertEqual(push[1], "Delta: error")
+        self.assertIn("0300-0D00-0001-0001", push[2])
+
 
 APP = ROOT / "src" / "bff_mcp"
 

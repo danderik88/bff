@@ -7,6 +7,7 @@ POST /slice (Authorization: Bearer <SLICER_SECRET>), JSON
   -> 400 bad input, 401 bad secret, 422 slicer failure.
 GET /health -> {"orca": ORCA_VERSION, "profiles": n}
 GET /profiles -> {"machines": [...], "filaments": [...]}
+GET /orca-user (Authorization: Bearer <SLICER_SECRET>) -> zip of the Orca Cloud presets synced on the slicer
 
 Profiles come from flatten_profiles.py (`index.json` + one JSON per preset). Stdlib only.
 """
@@ -34,7 +35,7 @@ MAX_UPLOAD = 100 * 1024 * 1024
 TIMEOUT = 300
 MODEL_EXT = (".stl", ".step", ".stp", ".3mf")
 BUNDLE_EXT = ".zip"  # several meshes from one page, sliced together (2026-11-17)
-BUNDLE_EXTS = (".stl", ".step", ".stp", ".obj")
+BUNDLE_EXTS = (".stl", ".step", ".stp", ".obj", ".3mf")
 BUNDLE_MAX = 200 * 1024 * 1024
 PATTERNS = ("grid", "gyroid", "cubic", "honeycomb", "line")
 KLIPPER_TEXTURED_MIN_BED = 60  # the user's E3K: Generic PLA's 55 C does not stick on a textured PEI plate
@@ -110,7 +111,7 @@ def bundle_members(data, tmp):
             for i, member in enumerate(members):
                 member_ext = Path(member.filename).suffix.lower()
                 if member_ext not in BUNDLE_EXTS:
-                    raise ValueError("every file in the zip must be .stl, .step, .stp or .obj")
+                    raise ValueError("every file in the zip must be .stl, .step, .stp, .obj or .3mf")
                 path = tmp / f"model_{i}{member_ext}"
                 path.write_bytes(z.read(member))
                 paths.append(path)
@@ -577,7 +578,29 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
         return {"plates": plates}
 
 
+def orca_user_zip():
+    """Zip of the machine/, process/ and filament/ presets of the one Orca Cloud user dir, or None."""
+    root = Path(os.environ.get("ORCA_USER_ROOT", "/home/slicer/orca-gui/user"))
+    dirs = [d for d in root.iterdir() if (d / "sync_state").is_file()] if root.is_dir() else []
+    if len(dirs) != 1:
+        return None
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as archive:
+        for part in ("machine", "process", "filament"):
+            base = dirs[0] / part
+            if not base.is_dir():
+                continue
+            for f in sorted(base.rglob("*.json")):
+                if ".bak" not in f.name:
+                    archive.write(f, f.relative_to(dirs[0]).as_posix())
+    return buf.getvalue()
+
+
 class Handler(BaseHTTPRequestHandler):
+    def _authorized(self):
+        auth = self.headers.get("Authorization", "")
+        return bool(SECRET) and hmac.compare_digest(auth.encode(), f"Bearer {SECRET}".encode())
+
     def _send(self, code, body):
         data = json.dumps(body).encode()
         self.send_response(code)
@@ -593,14 +616,24 @@ class Handler(BaseHTTPRequestHandler):
             index = load_index()
             filaments = sorted({f for entry in index.values() for f in entry["filament"]})
             self._send(200, {"machines": sorted(index), "filaments": filaments})
+        elif self.path == "/orca-user":
+            if not self._authorized():
+                return self._send(401, {"error": "bad secret"})
+            data = orca_user_zip()
+            if data is None:
+                return self._send(404, {"error": "no Orca Cloud login on the slicer"})
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
         else:
             self._send(404, {"error": "not found"})
 
     def do_POST(self):
         if self.path != "/slice":
             return self._send(404, {"error": "not found"})
-        auth = self.headers.get("Authorization", "")
-        if not SECRET or not hmac.compare_digest(auth.encode(), f"Bearer {SECRET}".encode()):
+        if not self._authorized():
             return self._send(401, {"error": "bad secret"})
         try:
             length = int(self.headers.get("Content-Length") or 0)
