@@ -200,7 +200,7 @@ class OriginalOrStandard(unittest.TestCase):
             with zipfile.ZipFile(path) as z:
                 self.assertNotIn("Metadata/project_settings.config", z.namelist())
         src = (ROOT / "tools/slicer/slicerd.py").read_text()
-        self.assertIn('fresh = ext == ".3mf" and choices.get("fresh") is True', src)
+        self.assertIn('fresh = ext == ".3mf" and (choices.get("fresh") is True or _foreign_project(model, entry))', src)
 
 
 class OutOfRange(unittest.TestCase):

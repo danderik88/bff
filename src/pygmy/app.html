@@ -565,6 +565,7 @@ async function rpc(name, args, translate = true) { return rpcReal(name, args, tr
 // Pygmy speaks Italian to agents; the app shows English. Known refusals get a short English line, the rest a generic one.
 const SPOOL_MSG = /(AMS slot [A-D][1-4] (?:is empty now|now holds).*|This file does not match the spools.*)$/;
 const EN = [
+  [/3MF affettato/, "Could not prepare this file for printing"],
   [SPOOL_MSG, m => m.match(SPOOL_MSG)[1]],
   [/Nessuno slot AMS per il filamento (\d+)/, m => `No AMS slot holds colour ${m.match(/filamento (\d+)/)[1]}: pick the spools in Print now`],
   [/serve (\S+)[^:]*: caricati/, m => `No loaded spool matches ${m.match(/serve (\S+)/)[1]}: pick the spools in Print now`],

@@ -240,6 +240,26 @@ def pick_quality(processes, quality: str) -> str:
     raise ValueError(f"no {quality} process for this machine")
 
 
+PLATE_FILE = re.compile(r"Metadata/(?:plate|plate_no_light|top|pick)_(\d+)(?:_small)?\.(?:gcode|gcode\.md5|png|json)")
+
+
+def plate_only(gcode_3mf: bytes, n: int) -> bytes:
+    """The sliced project with plate n alone: Pygmy prints a file that holds exactly one plate."""
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(gcode_3mf)) as src, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as dst:
+        for info in src.infolist():
+            m = PLATE_FILE.fullmatch(info.filename)
+            if m and int(m.group(1)) != n:
+                continue
+            data = src.read(info.filename)
+            if info.filename == "Metadata/slice_info.config":
+                data = re.sub(r"<plate>.*?</plate>\s*",
+                              lambda b: b.group(0) if f'key="index" value="{n}"' in b.group(0) else "",
+                              data.decode(), flags=re.S).encode()
+            dst.writestr(info, data)
+    return out.getvalue()
+
+
 def _plates(outdir: Path):
     found = []
     for gcode in outdir.glob("plate_*.gcode"):
@@ -431,6 +451,18 @@ def resolve_user(entry, user, quality):
     return {"machine": machine, "process": process, "filaments": filaments}
 
 
+def _foreign_project(model: bytes, entry: dict) -> bool:
+    """A 3MF project made for another printer model (a Bambu project on a Klipper printer): its own
+    settings do not apply, so it is sliced like Standard. Unknown either way: keep the project."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(model)) as z:
+            theirs = json.loads(z.read("Metadata/project_settings.config")).get("printer_model")
+        ours = json.loads((PROFILES / entry["file"]).read_text()).get("printer_model")
+    except (KeyError, OSError, ValueError, zipfile.BadZipFile):
+        return False
+    return bool(theirs and ours and theirs != ours)
+
+
 def slice_job(model: bytes, filename: str, machine: str, quality: str, filament: str = None,
               choices: dict = None, reorient: bool = False, copies: int = 1,
               filament_id: str = None, filament_type: str = None,
@@ -470,7 +502,7 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
         base = user["process"]
     process = build_process(base, choices)
 
-    fresh = ext == ".3mf" and choices.get("fresh") is True
+    fresh = ext == ".3mf" and (choices.get("fresh") is True or _foreign_project(model, entry))
     with LOCK, tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         model_path = tmp / f"model{ext}"  # ponytail: user file name never reaches the shell or disk
@@ -576,9 +608,9 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
                         png = z.read(f"Metadata/plate_{n}.png")
                 except (KeyError, zipfile.BadZipFile):
                     pass
-            # ponytail: whole 3MF per plate, BFF picks the plate index. OrcaSlicer 2.5 headless writes no
+            # One file per plate (plate_only). OrcaSlicer 2.5 headless writes no
             # plate png (no OpenGL); summary keys "time" (s, prepare included) and "weight" (g) checked on CT 112.
-            plates.append({"gcode_3mf": gcode_3mf, "seconds": int(summary.get("time") or 0),
+            plates.append({"gcode_3mf": plate_only(gcode_3mf, n) if len(numbers) > 1 and gcode_3mf else gcode_3mf, "seconds": int(summary.get("time") or 0),
                            "grams": round(float(summary.get("weight") or 0), 1), "png": png})
         return {"plates": plates}
 
