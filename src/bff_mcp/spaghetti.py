@@ -4,88 +4,77 @@ The API is GET-only: /p/?img=<URL> fetches the photo itself, with a short read t
 So BFF keeps the frame under a one-shot nonce and hands Obico a URL on its LAN
 listener (/obico/<nonce>.jpg) that returns the bytes at once.
 
-The score is Obico's own decision, as ported from (obico-server lib/prediction.py,
-FD_1ST_GEN_PARAMS): per-frame sum of confidences, EWM (span 12) minus a long baseline kept
-across prints, compared with LOW/HIGH scaled by sensitivity. It only reports; it never pauses.
+The ML API only says where it sees spaghetti and how sure it is. The verdict is Pygmy's own
+(written from scratch, no Obico code): each frame counts its most confident detection, minus a
+per-printer floor that hides a steady false positive; the last minute of frames then votes.
+It only reports; it never pauses.
 """
 import json
 import secrets
+import statistics
 import threading
 import time
 import urllib.parse
 import urllib.request
 from collections import deque
 
-EWM_ALPHA = 2.0 / (12 + 1)
-ROLLING_SHORT, ROLLING_LONG, WARMUP_FRAMES = 310, 7200, 30
-SHORT_MULTIPLE, ESCALATING_FACTOR = 3.8, 1.75
-BASE_LOW, BASE_HIGH = 0.38, 0.78
-SENSITIVITY = {"low": 1.25, "medium": 1.0, "high": 0.75}
+WINDOW = 6          # frames that vote: one minute at the default 10 s interval
+WARMUP_FRAMES = 18  # first 3 minutes of a print: purge lines and the first layer look messy
+# (votes needed, height above the floor). ponytail: tuned on the A1/P2S/E3K cameras; adjust per camera if needed.
+WARN, FAIL = (3, 0.30), (4, 0.50)
+SENSITIVITY = {"low": 1.3, "medium": 1.0, "high": 0.75}
+# The floor learns a steady false positive (a cable the model likes) by creeping up slowly, and drops at once
+# to any lower reading. Real spaghetti grows far faster than FLOOR_CREEP, and the cap keeps a print that is
+# already failing when Pygmy starts from ever being learned as "normal".
+FLOOR_CREEP, FLOOR_CAP = 0.002, 0.25
 FRAME_TTL_S = 30.0
-# The baseline only hides small steady false positives (a cable Obico likes). Capped so a print that is
-# already failing when BFF starts (or one that fails slowly) is never learned as "normal" (2026-11-12, A1).
-# ponytail: fixed cap; raise it if a printer's camera has a bigger steady false positive.
-BASELINE_CAP = 0.25
 
 
-class Rolling:
-    def __init__(self, size):
-        self.buf, self.sum = deque(maxlen=size), 0.0
+class Floor:
+    """Per printer, outlives the print."""
 
-    def add(self, v):
-        if len(self.buf) == self.buf.maxlen:
-            self.sum -= self.buf[0]
-        self.buf.append(v)
-        self.sum += v
+    def __init__(self):
+        self.level = None
 
-    @property
-    def mean(self):
-        return self.sum / len(self.buf) if self.buf else 0.0
+    def update(self, p):
+        self.level = p if self.level is None or p < self.level else min(self.level + FLOOR_CREEP, p, FLOOR_CAP)
+        return min(self.level, FLOOR_CAP)
 
 
 class PrintState:
-    """Per print; the baseline belongs to the printer and outlives it."""
+    """Per print: the recent frames above the printer's floor."""
 
-    def __init__(self, baseline):
-        self.baseline, self.short, self.frames, self.ewm = baseline, Rolling(ROLLING_SHORT), 0, 0.0
+    def __init__(self, floor):
+        self.floor, self.recent, self.frames = floor, deque(maxlen=WINDOW), 0
         self.warmup = WARMUP_FRAMES
 
     def update(self, p):
         self.frames += 1
-        self.ewm = p if self.frames == 1 else EWM_ALPHA * p + (1 - EWM_ALPHA) * self.ewm
-        self.short.add(p)
-        self.baseline.add(p)
-        base = min(self.baseline.mean, BASELINE_CAP)
-        return self.ewm - base, self.short.mean - base, self.frames <= self.warmup
-
-
-def failing(score, short_rise, warmup, sensitivity, factor):
-    if warmup:
-        return False
-    mult = SENSITIVITY.get(sensitivity, 1.0)
-    score /= factor
-    if score < BASE_LOW * mult:
-        return False
-    if score > BASE_HIGH * mult:
-        return True
-    return score > short_rise * SHORT_MULTIPLE * mult
+        self.recent.append(max(0.0, p - self.floor.update(p)))
+        return tuple(self.recent), self.frames <= self.warmup
 
 
 def classify(reading, sensitivity="medium"):
-    """'safe', 'warning' (Obico would alert) or 'failure' (Obico would pause)."""
-    if failing(*reading, sensitivity, ESCALATING_FACTOR):
-        return "failure"
-    return "warning" if failing(*reading, sensitivity, 1.0) else "safe"
+    """'safe', 'warning' (tell the user) or 'failure' (pause, if the user allows it)."""
+    recent, warmup = reading
+    if warmup:
+        return "safe"
+    mult = SENSITIVITY.get(sensitivity, 1.0)
+    for verdict, (votes, height) in (("failure", FAIL), ("warning", WARN)):
+        if sum(x >= height * mult for x in recent) >= votes:
+            return verdict
+    return "safe"
 
 
 def score_of(detections):
-    total = 0.0
+    """The most confident detection in the frame (0 when there is none)."""
+    best = 0.0
     for det in detections or []:
         try:
-            total += float(det[1])
+            best = max(best, float(det[1]))
         except (TypeError, ValueError, IndexError):
             pass
-    return total
+    return best
 
 
 FRAMES = {}
@@ -130,7 +119,7 @@ class Watch:
     def __init__(self, state_of, frame, detect, sensitivity="medium", progress_of=lambda: 0):
         self.state_of, self.frame, self.detect, self.sensitivity = state_of, frame, detect, sensitivity
         self.progress_of = progress_of  # print progress in %, to tell a fresh print from one joined midway
-        self.baseline, self.print, self.verdict, self.score, self.error = Rolling(ROLLING_LONG), None, None, None, None
+        self.baseline, self.print, self.verdict, self.score, self.error = Floor(), None, None, None, None
         self.last_jpeg = None
         self.muted = False  # the user said "not spaghetti" for this print: keep scoring, stop alarming
         # None: the failure has not paused this print; True/False: it tried (and whether it worked).
@@ -158,7 +147,7 @@ class Watch:
             self.verdict, self.error = "unknown", f"obico: {type(err).__name__}"
             return
         reading = self.print.update(score_of(detections))
-        self.verdict, self.score, self.error = classify(reading, self.sensitivity), round(max(0.0, reading[0]), 3), None
+        self.verdict, self.score, self.error = classify(reading, self.sensitivity), round(statistics.median(reading[0]), 3), None
         if self.muted and self.verdict in ("warning", "failure"):
             self.verdict = "dismissed"
 

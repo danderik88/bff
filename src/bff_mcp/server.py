@@ -10,6 +10,7 @@ import base64
 import hashlib
 import hmac
 import io
+import inspect
 import json
 import math
 import os
@@ -29,7 +30,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))  # Sibling modules, on the CT and in tests.
-from printer_link import PUSHALL, PrinterLink, check_fingerprint, with_sequence  # noqa: E402
+from printer_link import PUSHALL, PrinterLink, check_fingerprint, supports_flow_cali, with_sequence  # noqa: E402
 from moonraker_link import MoonrakerLink, SPEED_PERCENT  # noqa: E402
 import camera  # noqa: E402
 import spaghetti  # noqa: E402
@@ -207,6 +208,31 @@ def spaghetti_pause_on(alias):
     return _switch_on(alias, "bff_spaghetti_pause")
 
 
+FLOW_CALI_MODES = ("auto", "on", "off")
+
+
+def flow_cali(alias):
+    """Flow Dynamics Calibration at print start; on unless the user chose otherwise in the app."""
+    try:
+        row = DB.execute("SELECT value FROM settings WHERE printer=? AND key='bff_flow_cali'", (alias,)).fetchone()
+    except (AttributeError, sqlite3.Error):  # no database (status read in tests): the default applies
+        return "on"
+    return row[0] if row and row[0] in FLOW_CALI_MODES else "on"
+
+
+def flow_cali_shown(alias, raw):
+    """The firmware flag is not enough: the P1 start gcode has no flow calibration step at all."""
+    try:
+        model = str(load_profile(alias).get("model") or "")
+    except ToolError:
+        model = ""
+    return is_bambu(alias) and supports_flow_cali(raw) and not model.startswith("P1")
+
+
+def is_bambu(alias):
+    return not isinstance(LINKS.get(alias), MoonrakerLink)  # no link yet (or in tests): not Klipper
+
+
 def note_spaghetti(alias, watch):
     """Log every verdict change; keep the frame of each alarm to look at afterwards.
     A failure pauses the print once, when the printer's Pause on spaghetti option is on."""
@@ -341,6 +367,8 @@ def status_dict(args):
         result["ams_units"] = units
     result["options"] = {**(result.get("options") or {}), "bff_spaghetti": spaghetti_watch_on(args["printer"]),
                          "bff_spaghetti_pause": spaghetti_pause_on(args["printer"])}
+    if flow_cali_shown(args["printer"], raw):
+        result["options"]["bff_flow_cali"] = flow_cali(args["printer"])
     for key, val in raw.items():  # Klipper runout sensors: a switch in Options, filament in or out beside it
         kind, _, name = key.partition(" ")
         if kind in ("filament_switch_sensor", "filament_motion_sensor") and isinstance(val, dict) and "enabled" in val:
@@ -816,8 +844,12 @@ def send_command(key, alias, action, params, raw):
     ftps.upload(link.host, link.access_code, row[0], data, check_cert=pin)
     # Not sent means not retried: the lock stays and recheck decides.
     plate = sliced_plate(data)
-    started = (link.start_print(row[0], feed or (254,), plate) if plate != 1
-               else link.start_print(row[0], feed) if feed else link.start_print(row[0]))
+    mode = flow_cali(alias) if supports_flow_cali(getattr(link, "snapshot", dict)() or {}) else "auto"
+    # Only links that know the setting get it (Moonraker's start_print has no such argument).
+    kw = {"flow_cali": mode} if "flow_cali" in inspect.signature(link.start_print).parameters else {}
+    started = (link.start_print(row[0], feed or (254,), plate, **kw) if plate != 1
+               else link.start_print(row[0], feed, **kw) if feed
+               else link.start_print(row[0], **kw))
     if not started:
         raise ToolError("Comando non partito")
 
@@ -1395,12 +1427,15 @@ def user_presets_for(printer, filaments):
     if not machine.get("inherits"):
         return None
     processes = {n: user_chain(n, procs) for n, p in procs.items() if name in (p.get("compatible_printers") or [])}
-    loaded = data.get("loaded")
-    if loaded in fils:  # one extruder: the spool on the printer prints every colour
-        flat = user_chain(loaded, fils)
-        chosen = [{**flat, "_type": filament_type_of(flat) or "PLA"}] * len(filaments)
-    else:
-        chosen = [{"_type": f.get("filament_type") or "PLA"} for f in filaments]
+    loaded, chosen = data.get("loaded"), []
+    for f in filaments:  # the spool set in Filaments: one of the user's presets, or a system one by id
+        fid = f.get("filament_id") or ""
+        own = fid[len(USER_SPOOL):] if fid.startswith(USER_SPOOL) else (loaded if not fid else None)  # loaded: before Filaments
+        if own in fils:
+            flat = user_chain(own, fils)
+            chosen.append({**flat, "_type": filament_type_of(flat) or f.get("filament_type") or "PLA"})
+        else:
+            chosen.append({"_type": f.get("filament_type") or "PLA", "_id": fid or None, "_name": f.get("filament_name")})
     return {"parent": machine["inherits"], "machine": machine, "processes": processes, "filaments": chosen}
 
 
@@ -1489,6 +1524,9 @@ def tool_printer_info(args):
     # ponytail: external spool only, like check_compatible; add AMS trays once one is connected and its data can be seen.
     filaments = printer_filaments(alias, raw)
     names, models = app_names_models()
+    options = {}
+    if flow_cali_shown(alias, raw):
+        options["bff_flow_cali"] = flow_cali(alias)
     return as_text({
         "printer": alias,
         "available_printers": sorted(CFG["printers"]),
@@ -1515,6 +1553,7 @@ def tool_printer_info(args):
         "plate_type": plate_type(alias) if DB is not None else None,
         "choices": {"nozzle_diameters": NOZZLE_DIAMETERS, "nozzle_types": NOZZLE_TYPES, "plate_types": PLATE_TYPES,
                     "spool_profiles": spool_profiles(alias)},
+        **({"options": options} if options else {}),
     })
 
 
@@ -2052,6 +2091,14 @@ def tool_set_print_option(args):
         if not link.gcode(f"SET_FILAMENT_SENSOR SENSOR={name} ENABLE={1 if enabled else 0}"):
             raise ToolError("The printer did not take the command")
         return as_text({"printer": args["printer"], "option": option, "enabled": enabled, "outcome": "sent"})
+    if option == "bff_flow_cali":  # BFF's own print-start setting
+        printer_id(args)
+        mode = args.get("mode")
+        if mode not in FLOW_CALI_MODES:
+            raise ToolError("mode deve essere auto, on o off")
+        with DB:
+            DB.execute("INSERT OR REPLACE INTO settings VALUES (?, ?, ?)", (args["printer"], option, mode))
+        return as_text({"printer": args["printer"], "option": option, "mode": mode, "outcome": "saved"})
     if option in ("bff_spaghetti", "bff_spaghetti_pause") and type(enabled) is bool:  # BFF's own switches
         printer_id(args)
         with DB:
@@ -2243,6 +2290,42 @@ def spool_catalog():
     return _CATALOG[path]
 
 
+USER_SPOOL, USER_VENDOR = "user:", "My Orca profiles"
+
+
+def user_spool_entries(alias):
+    """The user's own Orca filament presets for a Klipper printer, shaped like spool_catalog() entries."""
+    try:
+        fils = json.loads(orca_file(alias).read_text()).get("filaments") or {}
+    except (KeyError, OSError, ValueError, AttributeError):
+        return []
+    out = []
+    for name in sorted(fils):
+        flat = user_chain(name, fils)
+
+        def temp(key, default):
+            v = flat.get(key)
+            try:
+                return int(float(v[0] if isinstance(v, list) else v))
+            except (TypeError, ValueError, IndexError):
+                return default
+        out.append({"id": USER_SPOOL + name, "name": name, "vendor": USER_VENDOR, "type": filament_type_of(flat) or "PLA",
+                    "min": temp("nozzle_temperature_range_low", 190), "max": temp("nozzle_temperature_range_high", 230),
+                    "models": "all"})
+    return out
+
+
+def spool_entries(alias):
+    """Catalog entries a spool of this printer can be set to: on Klipper the user's Orca filaments come first."""
+    own = user_spool_entries(alias) if isinstance(LINKS.get(alias), MoonrakerLink) else []
+    return own + spool_catalog()
+
+
+def catalog_name(profile_id):
+    """The catalog name of a spool id (GFL04 -> Overture PLA): the slicer matches by name when its ids differ."""
+    return next((e["name"] for e in spool_catalog() if e["id"] == profile_id), None) if profile_id else None
+
+
 def spool_profiles(alias):
     """The filaments this printer can run: the ones for its slicer model plus the universal ("all") ones."""
     try:
@@ -2250,7 +2333,7 @@ def spool_profiles(alias):
     except ToolError:
         model = None
     return [{"id": e["id"], "name": e["name"], "material": e["type"], "vendor": e["vendor"], "min": e["min"], "max": e["max"]}
-            for e in spool_catalog() if e.get("models") == "all" or model in (e.get("models") or [])]
+            for e in spool_entries(alias) if e.get("models") == "all" or model in (e.get("models") or [])]
 
 
 # Orca's curr_bed_type names, so Orca-Cad slices for the plate on the bed. The A1 does not store it: BFF does.
@@ -2284,7 +2367,7 @@ def tool_set_nozzle(args):
 
 def tool_set_spool(args):
     profile, color, slot = args.get("profile_id"), args.get("color"), args.get("slot")
-    entry = next((e for e in spool_catalog() if e["id"] == profile), None) if isinstance(profile, str) else None
+    entry = next((e for e in spool_entries(args.get("printer")) if e["id"] == profile), None) if isinstance(profile, str) else None
     if entry is None:
         raise ToolError("profile_id non valido: usa uno di quelli offerti da printer_info")
     if not (isinstance(color, str) and re.fullmatch(r"[0-9A-F]{8}", color)):
@@ -2818,7 +2901,8 @@ def klipper_filaments(alias, raw, slots):
     for slot in slots:
         ace = (trays.get(slot) or {}).get("material")
         filaments.append({"filament_id": None if ace else stored.get("profile_id"),
-                          "filament_type": ace or stored.get("material") or "PLA"})
+                          "filament_type": ace or stored.get("material") or "PLA",
+                          "filament_name": None if ace else catalog_name(stored.get("profile_id"))})
     return filaments
 
 
@@ -2834,7 +2918,8 @@ def _slice_request(rid, printer, source, file_name, choices_json, slots, copies,
             spools = [slot_filament(printer, raw, slot) for slot in slots]
         else:
             spools = [slot_filament(printer, raw, slots[0])] * len(slots)
-        filaments = [{"filament_id": s.get("profile_id"), "filament_type": s.get("material")} for s in spools]
+        filaments = [{"filament_id": s.get("profile_id"), "filament_type": s.get("material"),
+                      "filament_name": catalog_name(s.get("profile_id"))} for s in spools]
         feed = [slot_index(s) for s in slots] if raw.get("ams") else [254] * len(slots)
     if source == "upload" or stage == "slice":  # a draft already holds its model
         m = DB.execute("SELECT data FROM models WHERE request_id=?", (rid,)).fetchone()
@@ -3088,7 +3173,7 @@ TOOLS = {
     "set_print_speed": (tool_set_print_speed, "Imposta la velocita' di stampa da 1 a 4. Solo durante una stampa o in pausa.", schema(level={"type": "integer", "description": "Velocita' 1-4"}, **KEY), True),
     "set_fan": (tool_set_fan, "Imposta la velocita' di una ventola da 0 a 100%.", schema(fan={"type": "string", "enum": ["part", "aux", "chamber"]}, percent={"type": "integer", "description": "0-100"}, **KEY), True),
     "set_detector": (tool_set_detector, "Attiva o disattiva un sensore xcam. Sensibilita' opzionale per l'arresto.", schema(module={"type": "string", "enum": list(DETECTOR_MODULES)}, enabled={"type": "boolean"}, sensitivity={"type": "string", "enum": list(SENSITIVITIES)}, **KEY), True),
-    "set_print_option": (tool_set_print_option, "Attiva o disattiva un'opzione di stampa.", schema(option={"type": "string", "description": f"{', '.join([*PRINT_OPTIONS, 'bff_spaghetti', 'bff_spaghetti_pause'])}, or filament_sensor:<name> on Klipper"}, enabled={"type": "boolean"}, **KEY), True),
+    "set_print_option": (tool_set_print_option, "Attiva o disattiva un'opzione di stampa. Per bff_flow_cali indica mode: auto, on o off (calibrazione del flusso all'avvio).", optional_props(("option", "idempotency_key"), option={"type": "string", "description": f"{', '.join([*PRINT_OPTIONS, 'bff_spaghetti', 'bff_spaghetti_pause', 'bff_flow_cali'])}, or filament_sensor:<name> on Klipper"}, enabled={"type": "boolean"}, mode={"type": "string", "enum": list(FLOW_CALI_MODES), "description": "Solo per bff_flow_cali"}, **KEY), True),
     "clear_errors": (tool_clear_errors, "Pulisce gli errori mostrati dalla stampante.", schema(**KEY), True),
     "dismiss_spaghetti": (tool_dismiss_spaghetti, "Falso allarme spaghetti: niente avvisi fino alla fine di questa stampa. Solo su richiesta dell'utente.", schema(), True),
     "prepare_skip_objects": (tool_prepare_skip_objects, "Prepara il salto di oggetti in stampa, irreversibile. Solo durante stampa o pausa." + CONFIRM_RULE, schema(obj_ids={"type": "array", "items": {"type": "integer"}, "description": "Id degli oggetti da saltare"}), True),

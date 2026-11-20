@@ -167,7 +167,7 @@ def _load_filament(preset_file):
     return _LOADED[key]
 
 
-def resolve_filament(entry, filament=None, filament_id=None, filament_type=None):
+def resolve_filament(entry, filament=None, filament_id=None, filament_type=None, filament_name=None):
     """Name of the filament preset for this spool.
 
     An explicit `filament` preset name must be compatible with the machine. Otherwise pick the
@@ -183,6 +183,10 @@ def resolve_filament(entry, filament=None, filament_id=None, filament_type=None)
                  if _load_filament(entry["filament"][name]).get("filament_id") == filament_id]
         if len(match) > 1:
             match = [name for name in match if "Generic" not in name] or match
+        if match:
+            return match[0]
+    if filament_name:  # Pygmy's catalog keeps Bambu ids (GFL04), this Orca has its own (OFc3xdm9): same name
+        match = sorted(name for name in entry["filament"] if name.split(" @")[0] == filament_name)
         if match:
             return match[0]
     if filament_type is not None:
@@ -419,7 +423,8 @@ def resolve_user(entry, user, quality):
         if not isinstance(f, dict):
             raise ValueError("user_presets filaments must be objects")
         parent = f.get("inherits") if f.get("inherits") in entry["filament"] else \
-            resolve_filament(entry, filament_type=f.get("_type") or "PLA")  # base Orca does not ship: same type
+            resolve_filament(entry, None, f.get("_id"), f.get("_type") or "PLA", f.get("_name"))  # a system spool by id, else same type
+        f = {k: v for k, v in f.items() if k not in ("_id", "_type", "_name")}
         flat = _merged(entry["filament"][parent], f, str(f.get("name") or parent))
         flat["compatible_printers"] = []
         filaments.append(flat)
@@ -456,7 +461,7 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
         filament = resolve_filament(entry, filament, filament_id, filament_type)
         presets = [filament]
     else:
-        presets = [resolve_filament(entry, None, f.get("filament_id"), f.get("filament_type"))
+        presets = [resolve_filament(entry, None, f.get("filament_id"), f.get("filament_type"), f.get("filament_name"))
                    for f in filaments]
     process_name = pick_quality(entry["process"], quality)
     base = json.loads((PROFILES / entry["process"][process_name]).read_text())

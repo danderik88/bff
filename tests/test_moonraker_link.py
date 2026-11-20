@@ -482,8 +482,8 @@ class MoonrakerLinkTest(unittest.TestCase):
     def test_klipper_filament_comes_from_the_ace_slot(self):
         raw = ml.to_snapshot(STATUS)
         with mock.patch.object(server, "stored_spool", return_value={}):
-            self.assertEqual(server.klipper_filaments("sv08", raw, ["A3"]), [{"filament_id": None, "filament_type": "PETG"}])
-            self.assertEqual(server.klipper_filaments("sv08", raw, [None]), [{"filament_id": None, "filament_type": "PLA"}])
+            self.assertEqual(server.klipper_filaments("sv08", raw, ["A3"]), [{"filament_id": None, "filament_type": "PETG", "filament_name": None}])
+            self.assertEqual(server.klipper_filaments("sv08", raw, [None]), [{"filament_id": None, "filament_type": "PLA", "filament_name": None}])
 
     def test_set_spool_on_klipper_is_stored_and_shown(self):
         """No AMS: set_spool keeps the spool in BFF and printer_info shows it as the external one."""
@@ -512,9 +512,9 @@ class MoonrakerLinkTest(unittest.TestCase):
             server.DB.execute("INSERT OR REPLACE INTO settings VALUES ('sv08', 'spool', ?)",
                               (json.dumps({"profile_id": "GFG99", "color": "FF0000FF", "material": "PETG"}),))
             self.assertEqual(server.klipper_filaments("sv08", raw, ["external"]),
-                             [{"filament_id": "GFG99", "filament_type": "PETG"}])
+                             [{"filament_id": "GFG99", "filament_type": "PETG", "filament_name": "Generic PETG"}])
             self.assertEqual(server.klipper_filaments("sv08", raw, ["A3"]),  # the ACE slot still wins
-                             [{"filament_id": None, "filament_type": "PETG"}])
+                             [{"filament_id": None, "filament_type": "PETG", "filament_name": None}])
 
 
 class KlipperErrors(unittest.TestCase):

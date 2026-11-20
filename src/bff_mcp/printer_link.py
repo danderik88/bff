@@ -102,6 +102,14 @@ def report_options(raw, hf):
     return options
 
 
+def supports_flow_cali(raw):
+    """Whether this printer can run Flow Dynamics Calibration at print start (P1 series cannot)."""
+    fun = as_bits(raw.get("fun"))
+    if fun is not None:
+        return bool(fun & 0x80)
+    return bool((as_int(raw.get("home_flag")) or 0) & 0x10000)
+
+
 def fan_pct(value):
     """Bambu reports fan speed as 0-15, not a percentage."""
     speed = as_int(value)
@@ -286,14 +294,18 @@ def to_snapshot(raw, firmware_version=None):
     }
 
 
-def project_file(filename, ams_mapping=(254,), plate=1):
+FLOW_CALI = {"on": (True, 1), "auto": (False, 2), "off": (False, 0)}
+
+
+def project_file(filename, ams_mapping=(254,), plate=1, flow_cali="on"):
     # One entry per filament id of the 3mf: a tray 0-15, 254 the spool holder, None unused.
+    flow, extrude = FLOW_CALI.get(flow_cali, FLOW_CALI["on"])
     task = str(int(time.time() * 1000) % 2_147_483_647 or 1)
     return {"print": {
         "sequence_id": "20000", "command": "project_file",
         "param": f"Metadata/plate_{plate}.gcode", "url": f"ftp://{filename}", "file": filename, "md5": "",
         "bed_type": "auto", "timelapse": False,
-        "bed_leveling": False, "auto_bed_leveling": 2, "flow_cali": False, "extrude_cali_flag": 2,
+        "bed_leveling": False, "auto_bed_leveling": 2, "flow_cali": flow, "extrude_cali_flag": extrude,
         "extrude_cali_manual_mode": 0, "vibration_cali": False, "layer_inspect": False, "nozzle_offset_cali": 0,
         "use_ams": any(t is not None and t < 254 for t in ams_mapping),
         # The firmware refuses raw 254/255 in the flat list: -1 there, the spool holder (255) in ams_mapping2.
@@ -429,9 +441,9 @@ class PrinterLink:
     def command(self, action, **params):
         return self.publish(build_command(action, **params))
 
-    def start_print(self, filename, ams_mapping=(254,), plate=1):
+    def start_print(self, filename, ams_mapping=(254,), plate=1, flow_cali="on"):
         """project_file as Bambu Studio sends it for a file already in the FTP root."""
-        return self.publish(project_file(filename, ams_mapping, plate))
+        return self.publish(project_file(filename, ams_mapping, plate, flow_cali))
 
     def gcode(self, text):
         """Send G-code lines once, through publish (QoS 0, never resent)."""

@@ -18,7 +18,7 @@ pveam list local | grep -q "$TEMPLATE" || pveam download local "$TEMPLATE"
 echo "Creating container $CTID (Debian 13, 2 cores, 4 GB, 16 GB on $STORAGE)..."
 pct create "$CTID" "local:vztmpl/$TEMPLATE" --hostname pygmy --cores 2 --memory 4096 --swap 1024 \
   --rootfs "$STORAGE:16" --net0 "name=eth0,bridge=$BRIDGE,ip=dhcp" --unprivileged 1 \
-  --features nesting=1,keyctl=1 --onboot 1 --description "Pygmy: https://github.com/danderik88/pygmy"
+  --features nesting=1,keyctl=1 --dev0 /dev/net/tun --onboot 1 --description "Pygmy: https://github.com/danderik88/pygmy"
 pct start "$CTID"
 
 for _ in $(seq 30); do  # wait for DHCP

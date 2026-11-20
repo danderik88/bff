@@ -417,7 +417,7 @@ class SlicerBase(unittest.TestCase):
             did = server.upload_model("a1", "cube.stl", b"solid x", draft=True)["id"]
             server.tool_slice_request({"printer": "sv08", "id": did, "slots": ["external"], "choices": {}, "copies": 1})
             self.assertTrue(server.slice_once())
-        self.assertEqual(self.state.requests[-1]["filaments"], [{"filament_id": "GFG99", "filament_type": "PETG"}])
+        self.assertEqual(self.state.requests[-1]["filaments"], [{"filament_id": "GFG99", "filament_type": "PETG", "filament_name": "Generic PETG"}])
 
     def test_standard_sends_printer_plate(self):
         """Orca defaults to Cool Plate and refuses PLA: the printer's plate always goes along."""
@@ -466,7 +466,7 @@ class SlicerBase(unittest.TestCase):
                                        "choices": {}, "copies": 1})
             self.assertTrue(server.slice_once())
         body = self.state.requests[-1]
-        self.assertEqual([{"filament_id": "GFA01", "filament_type": "PLA"}] * 3, body["filaments"])
+        self.assertEqual([{"filament_id": "GFA01", "filament_type": "PLA", "filament_name": "Bambu PLA Matte"}] * 3, body["filaments"])
         self.assertNotIn("filament_id", body)  # legacy fields only for a single colour
 
     def test_reset_stuck_slices(self):

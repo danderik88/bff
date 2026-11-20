@@ -910,7 +910,7 @@ function holdSpool(info) {
   return info;
 }
 // Vendor first (the maker's own profiles on top, Generic at the end), then sorted by material then name.
-const vrank = v => v[0] === "B" ? 0 : v === "Generic" ? 2 : 1;
+const vrank = v => v === "My Orca profiles" ? -1 : v[0] === "B" ? 0 : v === "Generic" ? 2 : 1;
 function paintProfiles(cur) {
   const prof = info.choices.spool_profiles, byVendor = {};
   for (const p of prof) (byVendor[p.vendor] ||= []).push(p);
@@ -1883,8 +1883,8 @@ $("printers").onclick = async e => {
     const show = s => {
       $("pcode").innerHTML = `<p class="note">${s.machine ? `Slicing with your profile ${esc(s.machine)}` : "Use your own OrcaSlicer profiles: in OrcaSlicer, File → Export → Export Preset Bundle, then pick the file here."}</p>`
         + `<input type="file" id="orcafile" accept=".orca_printer,.zip">`
-        + (s.machine ? `<select id="orcaload"><option value="">Loaded filament: generic of its type</option>${s.filaments.map(f => `<option${f === s.loaded ? " selected" : ""}>${esc(f)}</option>`).join("")}</select>`
-          + '<button class="btn primary" data-act="orcasave">Save</button><button class="btn stop" data-act="orcadrop">Stop using them</button>' : "");
+        + (s.machine ? `<p class="note">Pick the loaded filament in the printer's Filament tab: your Orca filaments are listed first.</p>`
+          + '<button class="btn stop" data-act="orcadrop">Stop using them</button>' : "");
       $("orcafile").onchange = async () => {
         const f = $("orcafile").files[0];
         if (!f) return;
@@ -2146,7 +2146,7 @@ function optLabel(k) {  // Klipper runout sensors carry their own name and say w
 function optList() {
   const x = extra.xcam || {}, o = extra.options || {};
   return [...Object.keys(x).filter(k => OPT_NAMES[k] && typeof x[k] === "boolean").map(k => [k, held("opt:" + k, x[k]), "set_detector", "module"]),
-          ...Object.keys(o).map(k => [k, held("opt:" + k, o[k]), "set_print_option", "option"])];
+          ...Object.keys(o).filter(k => typeof o[k] === "boolean").map(k => [k, held("opt:" + k, o[k]), "set_print_option", "option"])];
 }
 function paintExtra(s) {
   extra = s || {};
@@ -2292,15 +2292,19 @@ const sec = (id, title, summary, body) => `<details class="sec" data-sec="${id}"
   + `<summary><b>${title}</b><span class="note">${summary}</span></summary><div class="secbody">${body}</div></details>`;
 const OPT_BOXES = ["optrows", "setrows", "mwrows"];
 const optAll = sel => OPT_BOXES.flatMap(b => [...$(b).querySelectorAll(sel)]);
-const typingInOpts = () => document.activeElement.tagName === "INPUT" && OPT_BOXES.some(b => $(b).contains(document.activeElement));
+const typingInOpts = () => ["INPUT", "SELECT"].includes(document.activeElement.tagName) && OPT_BOXES.some(b => $(b).contains(document.activeElement));
 function paintOpts() {
   const opts = optList(), ch = (notif || {}).channels || {};
+  const flow = (extra.options || {}).bff_flow_cali;
   // The 2 s repaint must not wipe what the user typed (iOS blurs the field before the tap on Add).
   const keep = {}; for (const i of optAll("input[id]")) keep[i.id] = i.value;
   $("optrows").innerHTML = sec("printer", "Printer", opts.length ? `${opts.filter(o => o[1]).length} of ${opts.length} on` : "",
-      opts.map(([k, v, tool, arg]) =>
+      (opts.map(([k, v, tool, arg]) =>
         `<div class="row"><span>${optLabel(k)}</span><button class="sw ${v ? "on" : ""}" data-k="${k}" data-tool="${tool}" data-arg="${arg}" data-v="${v}"></button></div>`).join("")
       || "<p>The printer has not reported its options yet.</p>")
+      + (flow ? `<div class="row"><span>Flow calibration</span><select data-flow>`
+          + ["auto", "on", "off"].map(m => `<option value="${m}"${m === flow ? " selected" : ""}>${m[0].toUpperCase() + m.slice(1)}</option>`).join("")
+          + `</select></div><p class="note">Flow Dynamics Calibration before each print (On: always, Auto: the printer decides).</p>` : ""))
     + (camUrls ? sec("ha", "Home Assistant", "", camOptions()) : "")
     // jog-capable (Klipper) printers don't need Expert mode; hide the whole Advanced section there
     + (jogFree ? "" : sec("adv", "Advanced", expert ? "Expert mode on" : "",
@@ -2317,6 +2321,10 @@ function paintOpts() {
   for (const b of optAll("[data-n]")) b.onclick = () => notifClick(b);
   for (const b of optAll("[data-d]")) b.onclick = () => devClick(b);
   for (const b of optAll("[data-mw]")) b.onclick = () => mwClick(b);
+  for (const s of optAll("[data-flow]")) s.onchange = () => {
+    const mode = s.value;
+    act(() => rpc("set_print_option", { option: "bff_flow_cali", mode, idempotency_key: key() }), `Flow calibration ${mode}`);
+  };
   for (const b of optAll(".sw")) b.onclick = () => {
     if (b.dataset.k === "__expert") return toggleExpert();
     if (b.dataset.k.startsWith("__n_")) return notifToggle(b);

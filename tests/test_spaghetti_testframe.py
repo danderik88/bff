@@ -22,13 +22,14 @@ if __name__ == "__main__":
 
 
 class JoinedMidPrint(unittest.TestCase):
-    """Pygmy restarted during a print: no 5-minute warmup, a bad frame alarms at once."""
+    """Pygmy restarted during a print: no warmup, bad frames alarm within the one-minute vote."""
 
     def first_verdict(self, progress):
         from bff_mcp import spaghetti
         bad = [["failure", 0.9, [0, 0, 1, 1]]] * 3
         w = spaghetti.Watch(lambda: "RUNNING", lambda: b"j", lambda j: bad, progress_of=lambda: progress)
-        w.tick()
+        for _ in range(spaghetti.WINDOW):
+            w.tick()
         return w.verdict
 
     def test_midway_skips_warmup(self):
