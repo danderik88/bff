@@ -627,8 +627,25 @@ _GUI_LOCK = threading.Lock()
 
 
 def orca_logged_in():
+    """Orca makes a folder named after the user at sign-in ("default" is the signed-out one)."""
     root = ORCA_DATA / "user"
-    return root.is_dir() and any((d / "sync_state").is_file() for d in root.iterdir())
+    return root.is_dir() and any(d.is_dir() and d.name != "default" for d in root.iterdir())
+
+
+def logout():
+    """Forget the Orca Cloud sign-in: stop Orca, delete its token and the user's folder."""
+    import shutil
+    with _GUI_LOCK:
+        _stop_login()
+        _end(_GUI["proc"])
+        _GUI["proc"] = None
+        (ORCA_DATA / "orca_refresh_token.sec").unlink(missing_ok=True)
+        root = ORCA_DATA / "user"
+        for d in root.iterdir() if root.is_dir() else ():
+            if d.is_dir() and d.name != "default":
+                shutil.rmtree(d, ignore_errors=True)
+        _LINK.update(state="idle", url=None, port=None, error=None)
+    return {}
 
 
 def _orca_conf():
@@ -642,8 +659,14 @@ def _orca_conf():
         conf = {}
     if not isinstance(conf, dict):
         conf = {}
-    if conf.setdefault("app", {}).get("use_encrypted_token_file") != "true":
-        conf["app"]["use_encrypted_token_file"] = "true"
+    # Orca treats an unfinished setup wizard as Stealth Mode (AppConfig::get_stealth_mode): no cloud connection, no preset
+    # download. Nobody answers the wizard here, so mark it finished, and turn on the "sync my presets" box from its last page.
+    wanted = {"use_encrypted_token_file": "true", "sync_user_preset": True, "stealth_mode": False}
+    app = conf.setdefault("app", {})
+    guide = conf.setdefault("firstguide", {})
+    if guide.get("finish") is not True or any(app.get(k) != v for k, v in wanted.items()):
+        app.update(wanted)
+        guide["finish"] = True
         ORCA_DATA.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(conf, indent=4) + "\n")
 
@@ -690,19 +713,139 @@ def gui_tick(now=None):
             _GUI["proc"], _GUI["started"] = _spawn([ORCA_BIN, "--datadir", str(ORCA_DATA)]), now
 
 
-def start_login():
-    """Show the OrcaSlicer window in a browser (noVNC) for the sign-in. The password is new every time."""
+# Sign-in without a screen share. Pygmy drives OrcaSlicer's own window (xdotool) up to the Google/Apple/GitHub
+# button; Orca then asks for a browser, and /opt/slicer/orca-browser writes that address to LOGIN_URL_FILE instead.
+# The user opens it in their own browser and, at the end, pastes the address of the page that fails to load
+# (http://localhost:PORT/callback?...): finish_login hands it to the small server Orca keeps open on that port.
+# Coordinates are for OrcaSlicer 2.5.0 (pinned in the Dockerfile) on the 1280x1024 Xvfb screen (start.sh).
+LOGIN_URL_FILE = ORCA_DATA / ".login-url"
+LOGIN_BUTTON = (223, 237)  # "Login" in the home page of the main window
+PROVIDER_Y = 809           # the round buttons of the Login window
+PROVIDERS = {"google": 452, "apple": 640, "github": 828}
+_LINK = {"state": "idle", "url": None, "port": None, "error": None}  # idle | starting | link | done | failed
+
+
+def _x(*cmd):
+    return subprocess.run(cmd, env=_gui_env(), capture_output=True, timeout=15)
+
+
+def _titles():
+    lines = _x("wmctrl", "-l").stdout.decode(errors="replace").splitlines()
+    return [parts[3] for parts in (line.split(None, 3) for line in lines) if len(parts) == 4]
+
+
+def _click(x, y):
+    _x("xdotool", "mousemove", str(x), str(y))
+    time.sleep(0.3)
+    _x("xdotool", "click", "1")
+
+
+EMAIL_FIELD, PASSWORD_FIELD, SIGN_IN_BUTTON = (640, 418), (640, 518), (640, 586)
+
+
+def _type_login(email, password):
+    """Fill OrcaSlicer's own email and password form. Nothing is kept or logged; errors never carry the text."""
+    try:
+        for field, text in ((EMAIL_FIELD, email), (PASSWORD_FIELD, password)):
+            _click(*field)
+            _x("xdotool", "key", "ctrl+a")
+            _x("xdotool", "type", "--delay", "30", "--", text)
+        _click(*SIGN_IN_BUTTON)
+    except subprocess.SubprocessError:
+        raise RuntimeError("could not type into OrcaSlicer") from None
+
+
+def _drive_login(provider, email="", password=""):
+    """Background thread: from a fresh OrcaSlicer to the sign-in address for this provider (or the typed form)."""
+    try:
+        LOGIN_URL_FILE.unlink(missing_ok=True)
+        for _ in range(120):
+            if any(t.endswith("OrcaSlicer") for t in _titles()):
+                break
+            time.sleep(1)
+        else:
+            raise RuntimeError("OrcaSlicer did not start")
+        time.sleep(3)
+        for _ in range(5):  # first start: a setup wizard and an update notice sit in front of the main window
+            for title in ("Setup Wizard", "New version"):
+                _x("wmctrl", "-c", title)
+            time.sleep(1)
+        if "Login" not in _titles():
+            _x("wmctrl", "-a", "OrcaSlicer")
+            _click(*LOGIN_BUTTON)
+            for _ in range(20):
+                titles = _titles()
+                if "Login" in titles:
+                    break
+                if "Stealth Mode" in titles:  # Orca asks to leave it first; "Quit Stealth Mode" is the default button
+                    _x("wmctrl", "-a", "Stealth Mode")
+                    _x("xdotool", "key", "Return")
+                time.sleep(1)
+            else:
+                raise RuntimeError("the sign-in window did not open")
+        time.sleep(2)  # the page inside the window is still loading
+        if provider == "email":
+            _type_login(email, password)
+            for _ in range(60):
+                if orca_logged_in():
+                    _LINK["state"] = "done"
+                    return
+                time.sleep(1)
+            raise RuntimeError("The sign-in did not complete. Check the email and password.")
+        _click(PROVIDERS[provider], PROVIDER_Y)
+        for _ in range(30):
+            try:
+                url = LOGIN_URL_FILE.read_text().strip()
+            except OSError:
+                url = ""
+            if url.startswith("https://"):
+                import urllib.parse
+                back = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query).get("redirect_to", [""])[0]
+                _LINK.update(state="link", url=url, port=urllib.parse.urlsplit(back).port, error=None)
+                return
+            time.sleep(1)
+        raise RuntimeError("OrcaSlicer gave no sign-in address")
+    except Exception as err:
+        _LINK.update(state="failed", error=str(err)[:200])
+
+
+def start_login(provider="google", email="", password=""):
+    """Open OrcaSlicer's Login window and return at once; GET /orca-status says when the sign-in address is ready
+    (google, apple, github) or when the typed sign-in is done (email: the password is typed into Orca, never kept)."""
+    if provider not in PROVIDERS and provider != "email":
+        raise ValueError("provider must be google, apple, github or email")
+    if provider == "email" and not (isinstance(email, str) and isinstance(password, str) and email and password):
+        raise ValueError("enter your email and password")
     with _GUI_LOCK:
         if not _GUI["login"]:
-            password = secrets.token_hex(4)  # VNC passwords stop at 8 characters
-            procs = (_spawn(["openbox"]),  # without a window manager the window gets no keyboard focus
-                     _spawn(["x11vnc", "-display", os.environ.get("DISPLAY", ":99"), "-rfbport", "5900", "-localhost",
-                             "-passwd", password, "-forever", "-shared", "-quiet"]),
-                     _spawn(["websockify", "--web", "/usr/share/novnc", str(NOVNC_PORT), "localhost:5900"]))
-            _GUI["login"] = (procs, password, time.monotonic() + LOGIN_TTL, orca_logged_in())
-        password = _GUI["login"][1]
+            # without a window manager the windows get no keyboard focus
+            _GUI["login"] = ((_spawn(["openbox"]),), None, time.monotonic() + LOGIN_TTL, orca_logged_in())
+        _LINK.update(state="starting", url=None, port=None, error=None)
     gui_tick()
-    return {"port": NOVNC_PORT, "password": password}
+    threading.Thread(target=_drive_login, args=(provider, email, password), daemon=True).start()
+    return {}
+
+
+def finish_login(address):
+    """The pasted address of the page that did not load: give it to the server OrcaSlicer keeps open on that port."""
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+    parts = urllib.parse.urlsplit((address or "").strip())
+    try:
+        port = parts.port
+    except ValueError:
+        port = None
+    if (parts.scheme != "http" or parts.hostname not in ("localhost", "127.0.0.1") or parts.path != "/callback"
+            or not port or port != _LINK["port"]):
+        raise ValueError("That is not the address Orca expects. Copy it again from the page that did not load.")
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/callback?{parts.query}", timeout=20) as resp:
+            resp.read(4096)
+    except (urllib.error.URLError, OSError) as err:
+        raise ValueError(f"OrcaSlicer did not accept it ({err}). Start the sign-in again.") from None
+    _LINK["state"] = "done"
+    return {}
 
 
 def stop_login():
@@ -762,7 +905,8 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/orca-status":
             if not self._authorized():
                 return self._send(401, {"error": "bad secret"})
-            self._send(200, {"logged_in": orca_logged_in(), "login_open": _GUI["login"] is not None})
+            self._send(200, {"logged_in": orca_logged_in(), "login_open": _GUI["login"] is not None,
+                             "state": _LINK["state"], "url": _LINK["url"], "error": _LINK["error"]})
         elif self.path == "/orca-user":
             if not self._authorized():
                 return self._send(401, {"error": "bad secret"})
@@ -782,15 +926,25 @@ class Handler(BaseHTTPRequestHandler):
             if not self._authorized():
                 return self._send(401, {"error": "bad secret"})
             try:
-                action = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 1024)) or b"{}").get("action")
+                body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 4096)) or b"{}")
+                action = body.get("action")
             except (ValueError, AttributeError):
-                action = None
-            if action not in ("start", "stop"):
-                return self._send(400, {"error": "action must be start or stop"})
+                body, action = {}, None
+            if action not in ("start", "stop", "finish", "logout"):
+                return self._send(400, {"error": "action must be start, finish, stop or logout"})
             try:
-                return self._send(200, start_login() if action == "start" else stop_login())
-            except OSError as err:  # x11vnc / websockify missing (LXC install without them)
-                return self._send(503, {"error": f"sign-in window not available: {err}"})
+                if action == "logout":
+                    return self._send(200, logout())
+                if action == "start":
+                    return self._send(200, start_login(body.get("provider") or "google",
+                                                       body.get("email") or "", body.get("password") or ""))
+                if action == "finish":
+                    return self._send(200, finish_login(body.get("url")))
+                return self._send(200, stop_login())
+            except ValueError as err:
+                return self._send(400, {"error": str(err)})
+            except OSError as err:  # xdotool / wmctrl missing (a slicer without the sign-in tools)
+                return self._send(503, {"error": f"sign-in not available: {err}"})
         if self.path != "/slice":
             return self._send(404, {"error": "not found"})
         if not self._authorized():

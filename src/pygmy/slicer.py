@@ -70,10 +70,15 @@ def orca_status():
     return json.loads(data) if status == 200 else {"logged_in": False, "login_open": False}
 
 
-def orca_login(action):
-    status, data = _orca_call("POST", "/orca-login", {"action": action})
+def orca_login(action, **extra):
+    """action: start (provider=), finish (url=: the pasted address) or stop. SliceError carries the slicer's reason."""
+    status, data = _orca_call("POST", "/orca-login", {"action": action, **extra})
     if status != 200:
-        raise SliceError("The Orca Cloud sign-in is not available on this slicer")
+        try:
+            reason = json.loads(data).get("error")
+        except ValueError:
+            reason = None
+        raise SliceError(reason or "The Orca Cloud sign-in is not available on this slicer")
     return json.loads(data)
 
 

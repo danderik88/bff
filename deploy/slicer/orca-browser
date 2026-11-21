@@ -1,4 +1,3 @@
 #!/bin/sh
-# Browser for the Orca Cloud login (Apple/Google): outside the AppImage library path.
-unset LD_LIBRARY_PATH LD_PRELOAD
-exec firefox-esr "$@"
+# OrcaSlicer opens a browser to sign in with Google, Apple or GitHub: hand the address to Pygmy instead, which shows it to the user.
+printf '%s' "$1" > /home/slicer/orca-gui/.login-url

@@ -19,7 +19,6 @@ services:
       - orca-data:/home/slicer/orca-gui  # the Orca Cloud sign-in and the presets it syncs
     ports:
       - "127.0.0.1:8770:8765"  # only Pygmy on this machine can reach it
-      - "6080:6080"            # the Orca Cloud sign-in window, only while it is open (random password)
     restart: unless-stopped
 
   ml_api:  # spaghetti detection: Obico's ML API, built unmodified from their repository (AGPL-3.0, its own container)

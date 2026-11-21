@@ -95,12 +95,18 @@ button.tile { cursor: pointer; } button.tile:active { box-shadow: inset 0 0 0 1p
 .toggle.on { background: var(--accent); } .toggle.on::after { transform: translateX(20px); }
 .alert { background: color-mix(in srgb, var(--warn) 15%, var(--panel)); border: 1px solid var(--warn); border-radius: 14px; padding: 12px; font-size: 14px; }
 .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* Orca profiles: the explanation, the sign-in steps and the file field use the full width, not half a column. */
+#pcode > #orcacloud, #pcode > .note, #pcode > input[type="file"] { grid-column: 1 / -1; }
+#orcacloud { display: grid; gap: 10px; }
+#orcacloud .note { margin: 0; line-height: 1.45; }
+#orcacloud input[type="url"] { width: 100%; box-sizing: border-box; font-size: 16px; padding: 12px; }
 .btn { border-radius: 14px; padding: 14px; font-size: 15px; font-weight: 500; border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--line)); background: var(--panel); cursor: pointer; }
 .btn:disabled { opacity: .4; cursor: default; }
 .btn.stop { color: var(--bad); } .btn.primary { background: var(--accent-deep); border-color: var(--accent-deep); color: #fff; }
 .sheet { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: grid; align-items: end; z-index: 20; }
 .sheet > div { background: var(--panel); border-radius: 20px 20px 0 0; padding: 20px max(16px, env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
-  display: flex; flex-direction: column; gap: 14px; max-width: 480px; width: 100%; margin: 0 auto; }
+  display: flex; flex-direction: column; gap: 14px; max-width: 480px; width: 100%; margin: 0 auto;
+  max-height: 100dvh; box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; } /* a tall sheet scrolls, it is not cut */
 .tile .ico { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; }
 .tile .val small { font-size: 13px; color: var(--muted); font-weight: 500; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -913,17 +919,45 @@ function holdSpool(info) {
 // Vendor first (the maker's own profiles on top, Generic at the end), then sorted by material then name.
 // Orca Cloud (Klipper printers): the slicer runs OrcaSlicer, the user signs in once in its own window,
 // then Pygmy keeps the chosen printer profile and the filaments up to date by itself.
+let cloudEmail = false;
 async function paintCloud(a) {
   const box = $("orcacloud");
   if (!box) return;
   let c;
   try { c = await rpc("orca_cloud", { printer: a }); } catch (e) { box.innerHTML = ""; return; }
   box.innerHTML = c.logged_in
-    ? `<p class="note">Orca Cloud: signed in. Pick the printer profile this printer follows; it updates by itself.</p>`
+    ? (c.machines.length
+      ? `<p class="note">Orca Cloud: signed in. Pick the printer profile this printer follows; it updates by itself.</p>`
+      : `<p class="note"><b>Signed in, but no printer profiles have arrived.</b> They can take a few minutes. If nothing shows up, this Orca account has none: you probably signed in with a different method than in OrcaSlicer on your computer. Sign out below and try another one.</p>`)
       + `<select id="orcacloudsel"><option value="">Do not follow Orca Cloud</option>${c.machines.map(m => `<option${m === c.machine ? " selected" : ""}>${esc(m)}</option>`).join("")}</select>`
       + `<button class="btn primary" data-act="orcacloudsave">Save</button>`
-    : `<p class="note">Sign in to Orca Cloud once and your OrcaSlicer profiles stay up to date here by themselves (from your home network).</p>`
-      + `<button class="btn" data-act="orcacloudlogin">Sign in to Orca Cloud</button>`;
+      + `<button class="btn" data-act="orcacloudlogout">Sign out of Orca Cloud</button>`
+    : c.login_state === "link" && c.login_link
+      ? `<p class="note"><b>1.</b> Open the sign-in page and sign in.</p>`
+        + `<a class="btn primary" href="${esc(c.login_link)}" target="_blank" rel="noopener">Open sign-in page</a>`
+        + `<p class="note"><b>2.</b> At the end your browser says it cannot connect to "localhost". That is expected: copy the whole address from the address bar (on an iPhone tap the bar first to see all of it) and paste it here.</p>`
+        + `<input id="orcacloudurl" type="url" placeholder="http://localhost:…/callback?…" autocapitalize="off" autocorrect="off" spellcheck="false">`
+        + `<button class="btn primary" data-act="orcacloudpaste">Finish</button><button class="btn" data-act="orcaclouddone">Cancel</button>`
+      : c.login_state === "starting"
+        ? `<p class="note">Preparing the sign-in, this takes up to a minute…</p>`
+        : cloudEmail
+          ? `<p class="note">Sign in with your Orca Cloud email. Your password goes to your own Pygmy, which types it into OrcaSlicer and does not store it.</p>`
+            + `<input id="orcaemail" type="email" placeholder="Email" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">`
+            + `<input id="orcapass" type="password" placeholder="Password" autocomplete="off">`
+            + `<button class="btn primary" data-act="orcacloudemail">Sign in</button>`
+            + `<button class="btn" data-act="orcacloudemailback">Back</button>`
+          : `<p class="note">Sign in to Orca Cloud once and your OrcaSlicer profiles stay up to date here by themselves. Best done on a computer.</p>`
+            + (c.login_state === "failed" ? `<p class="note">${esc(c.login_error || "The sign-in did not start")}. Try again.</p>` : "")
+            + ["google", "apple", "github"].map(p => `<button class="btn" data-act="orcacloudlogin:${p}">Continue with ${p[0].toUpperCase() + p.slice(1)}</button>`).join("")
+            + `<button class="btn" data-act="orcacloudemailform">Continue with email</button>`;
+}
+async function cloudWait(done, secs) {
+  for (let i = 0; i < secs / 2; i++) {
+    const c = await rpc("orca_cloud", {}, false);
+    if (done(c)) return c;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  return null;
 }
 const vrank = v => v === "My Orca profiles" ? -1 : v[0] === "B" ? 0 : v === "Generic" ? 2 : 1;
 function paintProfiles(cur) {
@@ -1910,20 +1944,48 @@ $("printers").onclick = async e => {
     rpc("orca_profiles", { printer: a }).then(s => { show(s); paintCloud(a); }).catch(e => toast(e.message));
     return;
   }
-  if (act === "orcacloudlogin") {
-    // Open the tab inside the tap (Safari blocks a window opened after an await), then point it at the sign-in.
-    const w = window.open("about:blank", "_blank");
+  if (act.startsWith("orcacloudlogin")) {
+    const a = [...picked][0];
+    $("orcacloud").innerHTML = `<p class="note">Preparing the sign-in, this takes up to a minute…</p>`;
     try {
-      const r = await rpc("orca_cloud", { action: "login" }, false);
-      const url = `http://${location.hostname}:${r.login_port}/vnc.html?autoconnect=1&resize=scale&password=${encodeURIComponent(r.password)}`;
-      if (w) w.location = url; else location.href = url;
-      $("orcacloud").innerHTML = `<p class="note">Sign in to Orca Cloud in the OrcaSlicer window that just opened, then come back here.</p>`
-        + `<button class="btn primary" data-act="orcaclouddone">I'm signed in</button>`;
-    } catch (e) { if (w) w.close(); toast(e.message); }
-    return;
+      await rpc("orca_cloud", { action: "login", provider: act.split(":")[1] }, false);
+      const c = await cloudWait(s => s.login_state === "link" || s.login_state === "failed", 150);
+      if (!c || c.login_state === "failed") toast((c && c.login_error) || "The sign-in did not start");
+    } catch (e) { toast(e.message); }
+    return paintCloud(a);
+  }
+  if (act === "orcacloudpaste") {
+    const a = [...picked][0];
+    try {
+      await rpc("orca_cloud", { action: "login_paste", url: $("orcacloudurl").value }, false);
+      const c = await cloudWait(s => s.logged_in, 60);
+      if (!c) toast("Signed in, but Orca has not saved your profiles yet. Open this screen again in a minute.");
+    } catch (e) { toast(e.message); }
+    return paintCloud(a);
   }
   if (act === "orcaclouddone") {
     try { await rpc("orca_cloud", { action: "login_done" }, false); } catch (e) { toast(e.message); }
+    return paintCloud([...picked][0]);
+  }
+  if (act === "orcacloudemailform") { cloudEmail = true; return paintCloud([...picked][0]); }
+  if (act === "orcacloudemailback") { cloudEmail = false; return paintCloud([...picked][0]); }
+  if (act === "orcacloudemail") {
+    const a = [...picked][0];
+    const email = $("orcaemail").value.trim(), password = $("orcapass").value;
+    if (!email || !password) { toast("Enter your email and password"); return; }
+    $("orcacloud").innerHTML = `<p class="note">Signing in, this takes up to a minute…</p>`;
+    try {
+      await rpc("orca_cloud", { action: "login", provider: "email", email, password }, false);
+      const c = await cloudWait(s => s.logged_in || s.login_state === "failed", 120);
+      if (!c || c.login_state === "failed") toast((c && c.login_error) || "The sign-in did not complete");
+    } catch (e) { toast(e.message); }
+    cloudEmail = false;
+    return paintCloud(a);
+  }
+  if (act === "orcacloudlogout") {
+    if (!confirm("Sign out of Orca Cloud? Your printers stop following your profiles.")) return;
+    try { await rpc("orca_cloud", { action: "logout" }, false); toast("Signed out of Orca Cloud"); }
+    catch (e) { toast(e.message); }
     return paintCloud([...picked][0]);
   }
   if (act === "orcacloudsave") {
@@ -2344,6 +2406,9 @@ function paintOpts() {
       + (flow ? `<div class="row"><span>Flow calibration</span><select data-flow>`
           + ["auto", "on", "off"].map(m => `<option value="${m}"${m === flow ? " selected" : ""}>${m[0].toUpperCase() + m.slice(1)}</option>`).join("")
           + `</select></div><p class="note">Flow Dynamics Calibration before each print (On: always, Auto: the printer decides).</p>` : ""))
+    + (KLIPPERS.has(PRINTER) ? sec("orca", "OrcaSlicer profiles", "",
+        `<p class="note">Slice with your own OrcaSlicer printer, filament and process profiles, kept up to date from Orca Cloud.</p>`
+        + `<div class="row"><span>Your profiles</span><button class="btn" data-orca-open>Open</button></div>`) : "")
     + (camUrls ? sec("ha", "Home Assistant", "", camOptions()) : "")
     // jog-capable (Klipper) printers don't need Expert mode; hide the whole Advanced section there
     + (jogFree ? "" : sec("adv", "Advanced", expert ? "Expert mode on" : "",
@@ -2360,6 +2425,11 @@ function paintOpts() {
   for (const b of optAll("[data-n]")) b.onclick = () => notifClick(b);
   for (const b of optAll("[data-d]")) b.onclick = () => devClick(b);
   for (const b of optAll("[data-mw]")) b.onclick = () => mwClick(b);
+  for (const b of optAll("[data-orca-open]")) b.onclick = () => {  // the Orca profiles panel of the Printers sheet, for this printer
+    $("opts").hidden = true;
+    picked = new Set([PRINTER]); selecting = true; showPrinters();
+    $("printers").onclick({ target: { dataset: { act: "orca" }, classList: { contains: () => false } } });
+  };
   for (const s of optAll("[data-flow]")) s.onchange = () => {
     const mode = s.value;
     act(() => rpc("set_print_option", { option: "bff_flow_cali", mode, idempotency_key: key() }), `Flow calibration ${mode}`);

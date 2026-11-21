@@ -1573,8 +1573,15 @@ def tool_orca_cloud(args):
     action, alias = args.get("action") or "status", args.get("printer")
     try:
         if action == "login":
-            got = slicer.orca_login("start")
-            return as_text({"login_port": got.get("port"), "password": got.get("password")})
+            slicer.orca_login("start", provider=args.get("provider") or "google",
+                              email=args.get("email") or "", password=args.get("password") or "")
+        if action == "logout":
+            slicer.orca_login("logout")
+            with DB:  # the profiles it followed belong to the account that just left
+                DB.execute("DELETE FROM settings WHERE key='orca_cloud'")
+            _ORCA_CLOUD_DIGEST.clear()
+        if action == "login_paste":
+            slicer.orca_login("finish", url=args.get("url") or "")
         if action == "login_done":
             slicer.orca_login("stop")
         if action == "use":
@@ -1596,8 +1603,13 @@ def tool_orca_cloud(args):
                 pass
     except slicer.SliceError as err:
         raise ToolError(str(err)) from None
-    machines = sorted(slicer.user_bundle(data)["machines"]) if data else []
+    try:
+        machines = sorted(slicer.user_bundle(data)["machines"]) if data else []
+    except slicer.SliceError:  # signed in, but the account holds no printer profile (yet): not an error for the screen
+        machines = []
     return as_text({"logged_in": bool(status.get("logged_in")), "login_open": bool(status.get("login_open")),
+                    "login_state": status.get("state"), "login_link": status.get("url"),
+                    "login_error": status.get("error"),
                     "machines": machines, "machine": orca_cloud_follows(alias).get(alias) if alias else None})
 
 
