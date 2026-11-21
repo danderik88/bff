@@ -51,6 +51,38 @@ def available():
     return ok
 
 
+def _orca_call(method, path, body=None, timeout=30.0):
+    """(status, bytes) from slicerd's Orca Cloud routes. SliceError when the slicer is not reachable."""
+    req = urllib.request.Request(URL + path, method=method,
+                                 data=None if body is None else json.dumps(body).encode(),
+                                 headers={"Authorization": "Bearer " + SECRET, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status, resp.read()
+    except urllib.error.HTTPError as err:
+        return err.code, b""
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+        raise SliceError("Slicer not reachable") from None
+
+
+def orca_status():
+    status, data = _orca_call("GET", "/orca-status")
+    return json.loads(data) if status == 200 else {"logged_in": False, "login_open": False}
+
+
+def orca_login(action):
+    status, data = _orca_call("POST", "/orca-login", {"action": action})
+    if status != 200:
+        raise SliceError("The Orca Cloud sign-in is not available on this slicer")
+    return json.loads(data)
+
+
+def orca_user():
+    """Zip of the Orca Cloud presets the slicer holds, or None when nobody is signed in."""
+    status, data = _orca_call("GET", "/orca-user", timeout=60.0)
+    return data if status == 200 else None
+
+
 def model_facts(name, data):
     """{"plates", "colors"} of a model. STL/STEP: one plate, no colours. A broken 3MF reads as one plate."""
     if not name.lower().endswith(".3mf"):

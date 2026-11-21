@@ -1495,6 +1495,112 @@ def tool_orca_profiles(args):
     return as_text({"machine": data["machine"], "filaments": sorted(data["filaments"]), "loaded": data.get("loaded")})
 
 
+ORCA_CLOUD_EVERY_S = 600
+_ORCA_CLOUD_DIGEST = {}
+
+
+def orca_cloud_follows(alias=None):
+    """{alias: Orca machine preset} of the Klipper printers that follow the user's Orca Cloud presets."""
+    rows = DB.execute("SELECT printer, value FROM settings WHERE key='orca_cloud'").fetchall()
+    return {a: m for a, m in rows if m and (alias is None or a == alias)}
+
+
+def auto_machine(machines, names, nozzle=None):
+    """The user's Orca machine preset for a printer: the one named after it (and its nozzle), or the only one."""
+    def hit(m, want_nozzle):
+        low = m.lower()
+        return any(n and n.lower() in low for n in names) and (not want_nozzle or f"{nozzle:g}" in low)
+    for want_nozzle in (bool(nozzle), False):
+        found = [m for m in machines if hit(m, want_nozzle)]
+        if len(found) == 1:
+            return found[0]
+    return machines[0] if len(machines) == 1 else None
+
+
+def _orca_cloud_autopick(data):
+    """Klipper printers never set up for Orca Cloud follow the preset that matches them."""
+    machines = sorted(slicer.user_bundle(data)["machines"])
+    if not machines:
+        return
+    known = {a for (a,) in DB.execute("SELECT printer FROM settings WHERE key='orca_cloud'").fetchall()}
+    for a, entry in onboard.load_store(store_path()).items():
+        if a in known or not onboard.is_klipper(entry.get("model")):
+            continue
+        machine = auto_machine(machines, [a, entry.get("name")], cfg_nozzle(a))
+        if machine:
+            with DB:
+                DB.execute("INSERT OR REPLACE INTO settings VALUES (?, 'orca_cloud', ?)", (a, machine))
+            print(f"orca cloud: {a} follows {machine}", flush=True)
+
+
+def orca_cloud_sync(alias=None):
+    """Push the slicer's Orca Cloud presets into each following printer (only when they changed)."""
+    import base64
+    data = slicer.orca_user()
+    if not data:
+        return
+    try:
+        _orca_cloud_autopick(data)
+    except (KeyError, OSError, slicer.SliceError):
+        pass
+    follows = orca_cloud_follows(alias)
+    if not follows:
+        return
+    bundle_b64 = base64.b64encode(data).decode()
+    for printer, machine in follows.items():
+        digest = hashlib.sha256(data + machine.encode()).hexdigest()
+        if _ORCA_CLOUD_DIGEST.get(printer) == digest:
+            continue
+        try:
+            tool_orca_profiles({"printer": printer, "bundle_b64": bundle_b64, "machine": machine})
+            _ORCA_CLOUD_DIGEST[printer] = digest
+            print(f"orca cloud: {printer} profiles updated", flush=True)
+        except ToolError as err:
+            print(f"orca cloud: {printer}: {err}", flush=True)
+
+
+def watch_orca_cloud():
+    while True:
+        time.sleep(ORCA_CLOUD_EVERY_S)
+        try:
+            orca_cloud_sync()
+        except Exception as err:  # the slicer may be down: try again next round
+            print(f"orca cloud: {type(err).__name__}", flush=True)
+
+
+def tool_orca_cloud(args):
+    """Orca Cloud through the slicer: status, the sign-in window, and which preset a Klipper printer follows."""
+    action, alias = args.get("action") or "status", args.get("printer")
+    try:
+        if action == "login":
+            got = slicer.orca_login("start")
+            return as_text({"login_port": got.get("port"), "password": got.get("password")})
+        if action == "login_done":
+            slicer.orca_login("stop")
+        if action == "use":
+            store = app_added(alias)
+            if not onboard.is_klipper(store[alias].get("model")):
+                raise ToolError("Your own Orca profiles are for Klipper printers")
+            machine = args.get("machine") or ""
+            with DB:
+                DB.execute("INSERT OR REPLACE INTO settings VALUES (?, 'orca_cloud', ?)", (alias, machine))
+            _ORCA_CLOUD_DIGEST.pop(alias, None)
+            if machine:
+                orca_cloud_sync(alias)
+        status = slicer.orca_status()
+        data = slicer.orca_user() if status.get("logged_in") else None
+        if data and action != "use":
+            try:
+                _orca_cloud_autopick(data)
+            except (KeyError, OSError, slicer.SliceError):
+                pass
+    except slicer.SliceError as err:
+        raise ToolError(str(err)) from None
+    machines = sorted(slicer.user_bundle(data)["machines"]) if data else []
+    return as_text({"logged_in": bool(status.get("logged_in")), "login_open": bool(status.get("login_open")),
+                    "machines": machines, "machine": orca_cloud_follows(alias).get(alias) if alias else None})
+
+
 def cfg_nozzle(printer):
     nozzle = (cfg_machine_of(printer) or {}).get("nozzle_diameter") or [None]
     return float(nozzle[0]) if nozzle[0] else None
@@ -3375,7 +3481,7 @@ class Handler(BaseHTTPRequestHandler):
     def stream(self, alias, rest):
         """Camera for Obico and Home Assistant: /stream/<printer>/<token> is MJPEG, .../<token>.jpg one frame.
 
-        Those clients cannot send the bearer, so a separate long token (BFF_STREAM_TOKEN) is the credential.
+        Those clients cannot send the bearer, so a separate long token (PYGMY_STREAM_TOKEN) is the credential.
         """
         self.close_connection = True
         token, still = rest.removesuffix(".jpg"), rest.endswith(".jpg")
@@ -3663,7 +3769,7 @@ def cam_orientation(alias):
 def register_stream(alias, entry):
     """Tell go2rtc about the printer in the background: BFF starts at once even when go2rtc is down."""
     src = go2rtc.source_for(alias, entry, bff_base(), CFG.get("stream_token"), cam_orientation(alias))
-    if src is None:  # jpeg printers need BFF_STREAM_TOKEN: nothing to register without it
+    if src is None:  # jpeg printers need PYGMY_STREAM_TOKEN: nothing to register without it
         return
     threading.Thread(target=go2rtc.add_stream, args=(alias, src), daemon=True).start()
 
@@ -4014,6 +4120,7 @@ APP_TOOLS = {
     "identify_printer": (tool_identify_printer, "", {}, True),
     "rename_printer": (tool_rename_printer, "", {}, True),
     "orca_profiles": (tool_orca_profiles, "", {}, True),
+    "orca_cloud": (tool_orca_cloud, "", {}, True),
     "set_access_code": (tool_set_access_code, "", {}, True),
     "remove_printer": (tool_remove_printer, "", {}, True),
     "set_expert": (tool_set_expert, "", {}, True),
@@ -4089,6 +4196,7 @@ def main():
     threading.Thread(target=onboard.keep_listening, daemon=True).start()
     threading.Thread(target=keep_scanning_klipper, daemon=True).start()
     threading.Thread(target=watch_profiles, daemon=True).start()
+    threading.Thread(target=watch_orca_cloud, daemon=True).start()
     slicer.setup(env.get("BFF_SLICER_URL"), env.get("BFF_SLICER_SECRET"))
     fetch.setup_thingiverse(env.get("BFF_THINGIVERSE_TOKEN"))
     if slicer.configured():

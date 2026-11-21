@@ -115,30 +115,50 @@ Install [Tailscale](https://tailscale.com) on the computer, set `PYGMY_MCP_BIND`
 </details>
 
 <details>
-<summary><b>Spaghetti detection setup</b> (Obico ML API)</summary>
+<summary><b>Spaghetti detection</b></summary>
 
-Run only the `ml_api` container from [obico-server](https://github.com/TheSpaghettiDetective/obico-server) (not the
-Obico web server, and not `moonraker-obico` next to Pygmy). Then add to `.env` and run `./install.sh`:
+Built in on x86_64: the `ml_api` container (Obico's open-source detector, built unmodified from their repository)
+looks at a camera frame every 10 s during each print. A warning sends a notification; a failure pauses the print
+once if **Pause on spaghetti** is on for that printer (Options on the printer page, on by default). Pygmy never
+resumes a print by itself. Not on ARM.
 
-```sh
-PYGMY_OBICO_URL=http://<ml_api host>:3333
-PYGMY_OBICO_TOKEN=<ML_API_TOKEN, if set>
-PYGMY_OBICO_SENSITIVITY=medium   # low | medium | high
-```
-
-The `ml_api` host must reach Pygmy on port 8766. Pause on spaghetti is per printer (Options on the printer page, on by
-default). Pygmy never resumes a print by itself.
-
-To test without a real failure: put a spaghetti photo at `<state dir>/spaghetti/test-<printer alias>.jpg` during a
-print; Pygmy uses it instead of the camera until you delete it.
+`PYGMY_OBICO_SENSITIVITY=low|medium|high` in `.env` (default medium). To test without a real failure: put a spaghetti
+photo at `<state dir>/spaghetti/test-<printer alias>.jpg` during a print; Pygmy uses it until you delete it.
 
 </details>
 
 <details>
-<summary><b>Klipper details</b></summary>
+<summary><b>Klipper details and your OrcaSlicer profiles</b></summary>
 
-Pygmy uses Moonraker's documented API. Print now slices from the printer's own `printer.cfg`, or from your OrcaSlicer
-profiles (upload the preset bundle in the app). An ACE Pro shows up as a spool unit. One filament per print.
+Pygmy uses Moonraker's documented API. Print now slices from the printer's own `printer.cfg`, or from your own
+OrcaSlicer profiles (see the next section). Pick the loaded filament in the printer's Filament tab. An ACE Pro shows
+up as a spool unit.
+
+</details>
+
+<details>
+<summary><b>Your OrcaSlicer profiles (Orca Cloud)</b></summary>
+
+If you keep your own printer, filament and process profiles in OrcaSlicer, a Klipper printer can slice with them.
+
+**Sign in once:**
+
+1. Be on your home network (the sign-in window is not reachable through Tailscale).
+2. On the printer list: **Select**, the printer, **Orca profiles**, **Sign in to Orca Cloud**.
+3. A new tab shows the real OrcaSlicer window, running inside Pygmy. Sign in there as you do in OrcaSlicer on your
+   computer (Google, Apple or GitHub).
+4. That's it. The window closes by itself, and Pygmy picks the printer profile whose name matches your printer (and
+   its nozzle). If it picks the wrong one, or finds none, choose it in **Orca profiles**.
+
+After that your profiles stay up to date on their own: a profile you change in OrcaSlicer reaches Pygmy within about
+an hour. The sign-in is kept across updates; you only do it again after a reinstall.
+
+**Why a window and not a password field:** Orca Cloud only allows signing in through its own login page, and only in
+OrcaSlicer itself. So Pygmy runs OrcaSlicer and shows you its window. Your password and the sign-in token stay inside
+OrcaSlicer; Pygmy never sees them.
+
+**Without an Orca account:** in OrcaSlicer on your computer, **File**, **Export**, **Export Preset Bundle**, then
+upload that file in **Orca profiles**. You redo the upload when you change a profile.
 
 </details>
 
@@ -172,9 +192,36 @@ the head hits the filament cutter.
 </details>
 
 <details>
-<summary><b>Not included: MakerWorld</b></summary>
+<summary><b>MakerWorld (limited)</b></summary>
 
-MakerWorld downloads need a non-public account API. Download the model yourself and use Upload.
+MakerWorld downloads need a sign-in through a non-public account API, which Pygmy does not use. Download the model on
+MakerWorld in your own browser and pick it with **Upload** in Print now.
+
+</details>
+
+<details>
+<summary><b>Uninstall and clean up</b></summary>
+
+Your printers are not changed by Pygmy: they keep working with their own app, Bambu Handy or Mainsail as before.
+
+**Proxmox** (the container is called `pygmy`): in the Proxmox shell, find its number with `pct list`, then
+`pct stop <number> && pct destroy <number> --purge`. That removes everything, including the saved data.
+
+**Any Linux:**
+
+```sh
+cd /opt/pygmy            # or wherever you cloned it
+docker compose down -v --rmi all
+cd .. && rm -rf pygmy
+```
+
+`-v` deletes the saved data (printers, devices, your Orca sign-in); leave it out to keep it for a reinstall.
+
+**Leftovers on other devices:**
+- Tailscale: remove the `pygmy` machine in the admin console. If you used remote access, also run `tailscale serve reset` first.
+- Phones: delete the Pygmy icon from the home screen. Notifications stop once the server is gone.
+- Home Assistant: remove the MQTT entities starting with `pygmy_` (the MQTT integration, Devices).
+- Orca Cloud: nothing to do, Pygmy only reads your profiles. To also sign out, use OrcaSlicer on your computer.
 
 </details>
 

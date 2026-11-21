@@ -911,6 +911,20 @@ function holdSpool(info) {
   return info;
 }
 // Vendor first (the maker's own profiles on top, Generic at the end), then sorted by material then name.
+// Orca Cloud (Klipper printers): the slicer runs OrcaSlicer, the user signs in once in its own window,
+// then Pygmy keeps the chosen printer profile and the filaments up to date by itself.
+async function paintCloud(a) {
+  const box = $("orcacloud");
+  if (!box) return;
+  let c;
+  try { c = await rpc("orca_cloud", { printer: a }); } catch (e) { box.innerHTML = ""; return; }
+  box.innerHTML = c.logged_in
+    ? `<p class="note">Orca Cloud: signed in. Pick the printer profile this printer follows; it updates by itself.</p>`
+      + `<select id="orcacloudsel"><option value="">Do not follow Orca Cloud</option>${c.machines.map(m => `<option${m === c.machine ? " selected" : ""}>${esc(m)}</option>`).join("")}</select>`
+      + `<button class="btn primary" data-act="orcacloudsave">Save</button>`
+    : `<p class="note">Sign in to Orca Cloud once and your OrcaSlicer profiles stay up to date here by themselves (from your home network).</p>`
+      + `<button class="btn" data-act="orcacloudlogin">Sign in to Orca Cloud</button>`;
+}
 const vrank = v => v === "My Orca profiles" ? -1 : v[0] === "B" ? 0 : v === "Generic" ? 2 : 1;
 function paintProfiles(cur) {
   const prof = info.choices.spool_profiles, byVendor = {};
@@ -1882,7 +1896,7 @@ $("printers").onclick = async e => {
     const a = [...picked][0];
     const b64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = no; r.readAsDataURL(f); });
     const show = s => {
-      $("pcode").innerHTML = `<p class="note">${s.machine ? `Slicing with your profile ${esc(s.machine)}` : "Use your own OrcaSlicer profiles: in OrcaSlicer, File → Export → Export Preset Bundle, then pick the file here."}</p>`
+      $("pcode").innerHTML = `<div id="orcacloud"></div><p class="note">${s.machine ? `Slicing with your profile ${esc(s.machine)}` : "Use your own OrcaSlicer profiles: in OrcaSlicer, File → Export → Export Preset Bundle, then pick the file here."}</p>`
         + `<input type="file" id="orcafile" accept=".orca_printer,.zip">`
         + (s.machine ? `<p class="note">Pick the loaded filament in the printer's Filament tab: your Orca filaments are listed first.</p>`
           + '<button class="btn stop" data-act="orcadrop">Stop using them</button>' : "");
@@ -1893,8 +1907,32 @@ $("printers").onclick = async e => {
         catch (e) { toast(e.message); }
       };
     };
-    rpc("orca_profiles", { printer: a }).then(show).catch(e => toast(e.message));
+    rpc("orca_profiles", { printer: a }).then(s => { show(s); paintCloud(a); }).catch(e => toast(e.message));
     return;
+  }
+  if (act === "orcacloudlogin") {
+    // Open the tab inside the tap (Safari blocks a window opened after an await), then point it at the sign-in.
+    const w = window.open("about:blank", "_blank");
+    try {
+      const r = await rpc("orca_cloud", { action: "login" }, false);
+      const url = `http://${location.hostname}:${r.login_port}/vnc.html?autoconnect=1&resize=scale&password=${encodeURIComponent(r.password)}`;
+      if (w) w.location = url; else location.href = url;
+      $("orcacloud").innerHTML = `<p class="note">Sign in to Orca Cloud in the OrcaSlicer window that just opened, then come back here.</p>`
+        + `<button class="btn primary" data-act="orcaclouddone">I'm signed in</button>`;
+    } catch (e) { if (w) w.close(); toast(e.message); }
+    return;
+  }
+  if (act === "orcaclouddone") {
+    try { await rpc("orca_cloud", { action: "login_done" }, false); } catch (e) { toast(e.message); }
+    return paintCloud([...picked][0]);
+  }
+  if (act === "orcacloudsave") {
+    const a = [...picked][0];
+    try {
+      await rpc("orca_cloud", { printer: a, action: "use", machine: $("orcacloudsel").value }, false);
+      toast($("orcacloudsel").value ? "Following your Orca Cloud profiles" : "Not following Orca Cloud");
+    } catch (e) { toast(e.message); }
+    return paintCloud(a);
   }
   if (act === "orcasave" || act === "orcadrop") {
     const a = [...picked][0], args = act === "orcadrop" ? { printer: a, remove: true } : { printer: a, loaded: $("orcaload").value };

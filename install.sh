@@ -35,18 +35,23 @@ if [ ! -f .env ]; then
   for k in TOKEN SLICER RTSP; do
     sed -i.bak "s/CHANGE_ME_$k/$(rand_hex)/" .env && rm -f .env.bak
   done
+  printf 'PYGMY_STREAM_TOKEN=%s\n' "$(rand_hex)" >> .env
   echo "Wrote .env with this machine's address ($ip)."
 else
   echo "Using the existing .env."
+  grep -q '^PYGMY_STREAM_TOKEN=' .env || printf 'PYGMY_STREAM_TOKEN=%s\n' "$(rand_hex)" >> .env
 fi
 
 # OrcaSlicer has no Linux ARM build: no Print now there, everything else works.
 case "$(uname -m)" in
   x86_64)
+    # Spaghetti detection runs here: turn it on for a .env written before it existed.
+    grep -q '^PYGMY_OBICO_URL=' .env || printf '\nPYGMY_OBICO_URL=http://127.0.0.1:3333\n' >> .env
     echo "Building Pygmy (about 5 minutes the first time)..."
     docker compose --progress quiet up -d --build
     ;;
   *)
+    sed -i.bak '/^PYGMY_OBICO_URL=http:\/\/127.0.0.1:3333$/d' .env && rm -f .env.bak  # no ml_api on ARM
     echo "Building Pygmy (a few minutes the first time)..."
     docker compose --progress quiet up -d --build app go2rtc
     echo "Print now is off on ARM: OrcaSlicer has no Linux ARM build. Everything else works."

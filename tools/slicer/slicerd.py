@@ -17,9 +17,11 @@ import io
 import json
 import os
 import re
+import secrets
 import subprocess
 import tempfile
 import threading
+import time
 import uuid
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -615,9 +617,113 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
         return {"plates": plates}
 
 
+# --- Orca Cloud: the OrcaSlicer GUI keeps the user's cloud presets synced; GET /orca-user serves them. ---
+ORCA_DATA = Path(os.environ.get("ORCA_DATA", "/home/slicer/orca-gui"))
+NOVNC_PORT = int(os.environ.get("NOVNC_PORT", "6080"))
+LOGIN_TTL = 900        # s the sign-in window stays reachable
+GUI_RESTART_S = 3600   # Orca pulls cloud presets only at start and login (GUI_App::start_sync_user_preset)
+_GUI = {"proc": None, "started": 0.0, "login": None}  # login: (processes, password, deadline)
+_GUI_LOCK = threading.Lock()
+
+
+def orca_logged_in():
+    root = ORCA_DATA / "user"
+    return root.is_dir() and any((d / "sync_state").is_file() for d in root.iterdir())
+
+
+def _orca_conf():
+    """A container has no keyring: Orca keeps the login in an encrypted file (keyed to /etc/machine-id).
+    Orca rewrites its config on exit, so this only runs while it is stopped."""
+    path = ORCA_DATA / "OrcaSlicer.conf"
+    try:
+        text = path.read_text()
+        conf = json.loads(text[:text.rfind("}") + 1])  # drop Orca's trailing "# MD5 checksum" line
+    except (OSError, ValueError):
+        conf = {}
+    if not isinstance(conf, dict):
+        conf = {}
+    if conf.setdefault("app", {}).get("use_encrypted_token_file") != "true":
+        conf["app"]["use_encrypted_token_file"] = "true"
+        ORCA_DATA.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(conf, indent=4) + "\n")
+
+
+def _gui_env():
+    return {**os.environ, "DISPLAY": os.environ.get("DISPLAY", ":99"), "LANG": "en_US.UTF-8",
+            "BROWSER": "/opt/slicer/orca-browser", "SSL_CERT_FILE": "/etc/ssl/certs/ca-certificates.crt"}
+
+
+def _spawn(cmd):
+    return subprocess.Popen(cmd, env=_gui_env(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def _end(proc):
+    if proc is not None and proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(30)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
+def _stop_login():
+    login, _GUI["login"] = _GUI["login"], None
+    for proc in (login or ((),))[0]:
+        _end(proc)
+
+
+def gui_tick(now=None):
+    """The GUI runs while the user is signed in or signing in; restarted hourly to pull new presets."""
+    now = time.monotonic() if now is None else now
+    with _GUI_LOCK:
+        if _GUI["login"] and (now > _GUI["login"][2] or (not _GUI["login"][3] and orca_logged_in())):
+            _stop_login()  # timed out, or the sign-in just went through: close the window
+        login = _GUI["login"]
+        want = bool(login) or orca_logged_in()
+        proc = _GUI["proc"]
+        alive = proc is not None and proc.poll() is None
+        if alive and not login and (not want or now - _GUI["started"] > GUI_RESTART_S):
+            _end(proc)
+            alive = False
+        if want and not alive:
+            _orca_conf()
+            _GUI["proc"], _GUI["started"] = _spawn([ORCA_BIN, "--datadir", str(ORCA_DATA)]), now
+
+
+def start_login():
+    """Show the OrcaSlicer window in a browser (noVNC) for the sign-in. The password is new every time."""
+    with _GUI_LOCK:
+        if not _GUI["login"]:
+            password = secrets.token_hex(4)  # VNC passwords stop at 8 characters
+            procs = (_spawn(["openbox"]),  # without a window manager the window gets no keyboard focus
+                     _spawn(["x11vnc", "-display", os.environ.get("DISPLAY", ":99"), "-rfbport", "5900", "-localhost",
+                             "-passwd", password, "-forever", "-shared", "-quiet"]),
+                     _spawn(["websockify", "--web", "/usr/share/novnc", str(NOVNC_PORT), "localhost:5900"]))
+            _GUI["login"] = (procs, password, time.monotonic() + LOGIN_TTL, orca_logged_in())
+        password = _GUI["login"][1]
+    gui_tick()
+    return {"port": NOVNC_PORT, "password": password}
+
+
+def stop_login():
+    with _GUI_LOCK:
+        _stop_login()
+    gui_tick()
+    return {}
+
+
+def _gui_loop():
+    while True:
+        try:
+            gui_tick()
+        except Exception as err:  # never let the slicer die for the GUI
+            print(f"orca gui: {err}", flush=True)
+        time.sleep(30)
+
+
 def orca_user_zip():
     """Zip of the machine/, process/ and filament/ presets of the one Orca Cloud user dir, or None."""
-    root = Path(os.environ.get("ORCA_USER_ROOT", "/home/slicer/orca-gui/user"))
+    root = Path(os.environ.get("ORCA_USER_ROOT", str(ORCA_DATA / "user")))
     dirs = [d for d in root.iterdir() if (d / "sync_state").is_file()] if root.is_dir() else []
     if len(dirs) != 1:
         return None
@@ -653,6 +759,10 @@ class Handler(BaseHTTPRequestHandler):
             index = load_index()
             filaments = sorted({f for entry in index.values() for f in entry["filament"]})
             self._send(200, {"machines": sorted(index), "filaments": filaments})
+        elif self.path == "/orca-status":
+            if not self._authorized():
+                return self._send(401, {"error": "bad secret"})
+            self._send(200, {"logged_in": orca_logged_in(), "login_open": _GUI["login"] is not None})
         elif self.path == "/orca-user":
             if not self._authorized():
                 return self._send(401, {"error": "bad secret"})
@@ -668,6 +778,19 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, {"error": "not found"})
 
     def do_POST(self):
+        if self.path == "/orca-login":
+            if not self._authorized():
+                return self._send(401, {"error": "bad secret"})
+            try:
+                action = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 1024)) or b"{}").get("action")
+            except (ValueError, AttributeError):
+                action = None
+            if action not in ("start", "stop"):
+                return self._send(400, {"error": "action must be start or stop"})
+            try:
+                return self._send(200, start_login() if action == "start" else stop_login())
+            except OSError as err:  # x11vnc / websockify missing (LXC install without them)
+                return self._send(503, {"error": f"sign-in window not available: {err}"})
         if self.path != "/slice":
             return self._send(404, {"error": "not found"})
         if not self._authorized():
@@ -703,6 +826,8 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     if not SECRET:
         raise SystemExit("SLICER_SECRET mancante")
+    if os.environ.get("ORCA_GUI", "1") == "1":
+        threading.Thread(target=_gui_loop, daemon=True).start()
     ThreadingHTTPServer((BIND, PORT), Handler).serve_forever()
 
 
