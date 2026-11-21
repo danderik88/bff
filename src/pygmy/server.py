@@ -42,6 +42,7 @@ import spaghetti  # noqa: E402
 import devices  # noqa: E402
 import ftps  # noqa: E402
 import go2rtc  # noqa: E402
+import ha_mqtt  # noqa: E402
 import notify  # noqa: E402
 import onboard  # noqa: E402
 import slicer  # noqa: E402
@@ -53,6 +54,14 @@ except ImportError:  # public build: MakerWorld sign-in needs a non-public accou
 import library  # noqa: E402
 
 CFG = {}
+
+
+def env_public_url(env=None):
+    """The secure https address tailscale.sh publishes, or empty: the app offers a one-tap switch to it."""
+    env = os.environ if env is None else env
+    return (env.get("BFF_PUBLIC_URL") or env.get("PYGMY_PUBLIC_URL") or "").strip().rstrip("/")
+
+
 LINKS = {}
 DB = None
 DB_PATH = None  # state.db, for threads that open their own connection
@@ -84,7 +93,7 @@ TYPICAL_DENSITY = {"PLA": 1.24, "PETG": 1.27, "ABS": 1.04, "ASA": 1.07, "TPU": 1
 
 STATUS_FIELDS = (
     "connected", "state", "subtask_name", "progress", "remaining_time", "layer_num",
-    "total_layers", "temperatures", "door_open", "speed_level", "chamber_light", "print_error",
+    "total_layers", "temperatures", "door_open", "speed_level", "chamber_light", "lights", "print_error",
     "stage", "prepare_percent", "fans", "xcam", "options",
     "speed_percent", "heatbreak_fan", "print_source", "pressure_advance", "nozzle_diameter",
     "nozzle_type", "wifi_signal", "sd_card", "filament_sensor", "tray_now", "ams_status",
@@ -316,8 +325,13 @@ def plate_clear_pending(alias):
     return bool(row and row[0] == "1")
 
 
-def set_light(pid, on):
-    if not link_of(alias_of(pid)).command("light", on=on):
+def set_light(pid, on, light=None):
+    link = link_of(alias_of(pid))
+    if light is not None:
+        names = [l.get("name") for l in link.snapshot().get("lights") or [] if l.get("name")]
+        if light not in names:
+            raise ToolError(f"Unknown light '{light}'. Available: {', '.join(names) or 'none'}")
+    if not link.command("light", on=on, light=light):
         raise ToolError("Comando luce non partito")
 
 
@@ -325,8 +339,11 @@ def tool_set_light(args):
     on = args.get("on")
     if type(on) is not bool:
         raise ToolError("on deve essere true o false")
-    set_light(printer_id(args), on)
-    return as_text({"printer": args["printer"], "light": "on" if on else "off"})
+    light = args.get("light")
+    if light is not None and not isinstance(light, str):
+        raise ToolError("light deve essere una stringa")
+    set_light(printer_id(args), on, light)
+    return as_text({"printer": args["printer"], "light": light or "all", "on": on})
 
 
 def hms_handling(item):
@@ -1362,7 +1379,7 @@ def tool_list_printers(_args):
     custom = sorted(a for a, e in store.items() if model_from_cfg(e.get("model")))
     klipper = sorted(a for a, e in store.items() if onboard.is_klipper(e.get("model")))
     return as_text({"printers": sorted(CFG["printers"]), "names": names, "models": models, "custom": custom,
-                    "klipper": klipper})
+                    "klipper": klipper, "public_url": CFG.get("public_url", "")})
 
 
 def tool_rename_printer(args):
@@ -1680,7 +1697,7 @@ def store_photo(jpeg, base=None):
         del PHOTOS[photo_id]
     photo_id = secrets.token_urlsafe(24)
     PHOTOS[photo_id] = (now + TOKEN_TTL_S, jpeg)
-    return f"{base or CFG['public_url']}/photo/{photo_id}"
+    return f"{base or CFG.get('public_url') or CFG.get('local_url', '')}/photo/{photo_id}"
 
 
 def tool_prepare_print_start(args):
@@ -3239,6 +3256,11 @@ def schema(**extra):
 
 
 KEY = {"idempotency_key": {"type": "string", "description": "Chiave nuova per ogni comando (8-128 caratteri); stessa chiave, stesso esito senza reinvio"}}
+LIGHT_SWITCH = {"type": "object", "properties": {
+    "printer": {"type": "string", "description": "Alias della stampante, per esempio a1"},
+    "on": {"type": "boolean", "description": "true accende, false spegne"},
+    "light": {"type": "string", "description": "Nome della luce da status.lights; ometti per tutte"}},
+    "required": ["printer", "on"], "additionalProperties": False}
 TOKEN = {"token": {"type": "string", "description": "confirm_token restituito dal prepare"}}
 TEMP = {"heater": {"type": "string", "enum": ["nozzle", "bed"]}, "target": {"type": "integer", "description": "Gradi Celsius, 0 spegne"}}
 FILE_ID = {"file_id": {"type": "integer", "description": "file_id restituito dallo script bff-upload.sh"}}
@@ -3269,7 +3291,7 @@ TOOLS = {
     "plate_photo": (tool_plate_photo, "Foto del piatto per decidere se e' libero. Segui le regole nella risposta.", schema(), False),
     "hms_diagnose": (tool_hms_diagnose, "Errori HMS attivi con codice, modulo, gravita', descrizione, azioni possibili e handling (persona o sicurezza).", schema(), False),
     "plate_cleared": (tool_plate_cleared, "Segna il piatto come liberato dopo una stampa finita: solo quando the user lo dice o lo vede dalla foto.", schema(), True),
-    "set_light": (tool_set_light, "Accende o spegne la luce della camera.", schema(on={"type": "boolean", "description": "true accende, false spegne"}), True),
+    "set_light": (tool_set_light, "Accende o spegne la luce della camera.", LIGHT_SWITCH, True),
     "pause": (simple_command("pause"), "Mette in pausa la stampa e verifica lo stato.", schema(**KEY), True),
     "resume": (simple_command("resume"), "Riprende una stampa in pausa e verifica lo stato.", schema(**KEY), True),
     "prepare_stop": (tool_prepare_stop, "Prepara lo stop, irreversibile." + CONFIRM_RULE, schema(), True),
@@ -3462,6 +3484,14 @@ class Handler(BaseHTTPRequestHandler):
             self.close_connection = True
             ctype, name = STATIC[self.path]
             return self.send_bytes(ctype, APP_PAGE.with_name(name).read_bytes())
+        if self.path.split("?")[0] == "/":
+            # The bare address typed in a browser opens the app (a browser keeps the #k=... part through a redirect).
+            self.close_connection = True
+            self.send_response(302)
+            self.send_header("Location", "/app")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if self.path.split("?")[0] == "/app":
             # Static page, no data in it: everything it shows needs the bearer token.
             self.close_connection = True
@@ -3615,6 +3645,13 @@ def ha_action(alias, action, value, key):
     """The only commands Home Assistant may send (spec 8.6): never a print start."""
     if action == "light":
         return set_light(CFG["printers"][alias], value)
+    if action.startswith("light_"):
+        slug = action[len("light_"):]
+        light = next((l for l in read_status(alias).get("lights") or []
+                      if ha_mqtt.light_slug(l.get("name")) == slug), None)
+        if light is None:
+            raise ToolError(f"Unknown light '{slug}'")
+        return set_light(CFG["printers"][alias], value, light["name"])
     if action == "plate_cleared":
         return set_plate_pending(alias, False)
     if action in ("pause", "resume", "stop"):
@@ -4173,7 +4210,8 @@ def main():
         tokens=tokens,
         control=env.get("BFF_MCP_CONTROL") == "1",
         port=port,
-        public_url=f"http://{bind}:{port}",
+        public_url=env_public_url(env),
+        local_url=f"http://{bind}:{port}",
         orca_wake_url=env.get("BFF_ORCA_WAKE_URL"),
         orca_wake_token=env.get("BFF_ORCA_WAKE_TOKEN", ""),
         stream_token=env.get("BFF_STREAM_TOKEN", ""),

@@ -61,7 +61,7 @@ It prints the link at the end. Update: `cd pygmy && git pull && sudo ./install.s
 > **Raspberry Pi and other ARM computers: no Print now.** OrcaSlicer has no Linux ARM build, so Pygmy cannot slice
 > there. Everything else works. To print from the app, use an x86 computer (an Intel N100 mini PC costs about the same).
 
-The first install takes about 5 minutes. Tested from scratch on Proxmox VE 9, Debian 13, Ubuntu 25.04 and Debian 13
+The first install takes about 5 minutes: it also downloads OrcaSlicer, which Print now uses to slice, so there is nothing else to install. Tested from scratch on Proxmox VE 9, Debian 13, Ubuntu 25.04 and Debian 13
 arm64. Docker Desktop (Mac, Windows) is not tested: use a Linux VM there.
 
 **3. Open the link on your phone**, tap **+ Add printer** and pick your printer. Bambu Lab asks for the access code.
@@ -112,9 +112,9 @@ Run these in the `pygmy` folder (on Proxmox: `pct enter <id>`, then `cd /opt/pyg
 Pygmy from anywhere, with no router settings, and notifications work (they need an `https` address).
 
 1. **Run one command** where Pygmy is installed.
-   - Proxmox, in the Proxmox shell (`pct list` shows the number):
+   - Proxmox, in the Proxmox shell (copy it as it is: it finds the container called `pygmy` by itself):
      ```sh
-     pct exec <number> -- /opt/pygmy/tailscale.sh
+     pct exec $(pct list | awk '/pygmy/ {print $1}') -- /opt/pygmy/tailscale.sh
      ```
    - Any Linux, in the Pygmy folder: `sudo ./tailscale.sh`
 2. **Sign in** when it shows a link: open it on any device and use your Tailscale account (create one for free if
@@ -125,6 +125,9 @@ Pygmy from anywhere, with no router settings, and notifications work (they need 
 That `https` address never changes and works the same at home and away, so use it everywhere (keep Tailscale on).
 Your home link (`http://<home address>:8765`) keeps working too, as a backup, and so do the devices you paired
 with it. A device is paired once per link.
+
+On a phone already paired at home: Settings, Secure address, Switch pairs it with the `https` address in one tap.
+No link to copy, and the home link keeps working.
 
 </details>
 
@@ -234,8 +237,14 @@ MakerWorld in your own browser and pick it with **Upload** in Print now.
 
 Your printers are not changed by Pygmy: they keep working with their own app, Bambu Handy or Mainsail as before.
 
-**Proxmox** (the container is called `pygmy`): in the Proxmox shell, find its number with `pct list`, then
-`pct stop <number> && pct destroy <number> --purge`. That removes everything, including the saved data.
+**Proxmox** (the container is called `pygmy`): check with `pct list` that only one container has that name, then in
+the Proxmox shell:
+
+```sh
+N=$(pct list | awk '/pygmy/ {print $1}'); pct stop $N && pct destroy $N --purge
+```
+
+That removes everything, including the saved data.
 
 **Any Linux:**
 

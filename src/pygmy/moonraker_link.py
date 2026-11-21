@@ -123,6 +123,7 @@ def to_snapshot(raw, klippy="ready", light=None, strips=None, direct=None, error
         "home_flag": None,
         "speed_level": speed_level(speed),
         "chamber_light": led_on(raw, light, strips, direct),
+        "lights": [],  # filled by MoonrakerLink.snapshot from the standard lights
         "hms_errors": [klipper_fault(failed_reason)] if failed_reason else [],
         "idle_error": idle_error,  # an error line seen while idle: the app banner and notifications show it
         "print_error": 1 if state == "FAILED" else 0,
@@ -209,8 +210,13 @@ def standard_lights(objects):
     return found
 
 
+def light_label(name):
+    """Readable name: caselight, chamber_led -> Caselight, Chamber led."""
+    return name.replace("_", " ").replace("-", " ").strip().capitalize()
+
+
 def light_states(raw, lights):
-    """[{"id": object, "name", "on": bool|None}] for the standard lights."""
+    """[{"name": object, "label", "on": bool|None}] for the standard lights."""
     out = []
     for obj in lights or []:
         status = raw.get(obj) or {}
@@ -220,7 +226,8 @@ def light_states(raw, lights):
             on = any(c > 0 for px in status["color_data"] for c in px)
         else:
             on = None
-        out.append({"id": obj, "name": obj.split(" ", 1)[1], "on": on})
+        name = obj.split(" ", 1)[1]
+        out.append({"name": obj, "label": light_label(name), "on": on})
     return out
 
 
@@ -541,7 +548,7 @@ class MoonrakerLink:
                 wled = snapshot["chamber_light"] if self.light and self.light.get("wled") else None
                 snapshot["chamber_light"] = any(known) if known else None
                 if self.light and self.light.get("wled"):
-                    lights.append({"id": "wled", "name": "WLED", "on": wled, "extra": True})
+                    lights.append({"name": "wled", "label": "WLED", "on": wled})
             snapshot["lights"] = lights
             fresh = self.last_report is not None and self.clock() - self.last_report <= STALE_S
         snapshot["connected"] = fresh

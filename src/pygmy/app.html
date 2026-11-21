@@ -271,6 +271,11 @@ select { font: 16px var(--sans); color: var(--fg); background: var(--panel2); bo
     <div id="fanrows"></div>
     <button class="btn" onclick="document.getElementById('fans').hidden = true">Done</button>
   </div></div>
+  <div class="sheet" id="lights" hidden><div style="max-height: 92vh; overflow: auto">
+    <h3>Lights</h3>
+    <div id="lightrows" style="display: flex; flex-direction: column; gap: 14px"></div>
+    <button class="btn" onclick="document.getElementById('lights').hidden = true">Done</button>
+  </div></div>
   <div class="sheet" id="opts" hidden><div style="max-height: 92vh; overflow: auto">
     <h3>Options</h3>
     <div id="optrows" style="display: flex; flex-direction: column; gap: 14px"></div>
@@ -546,7 +551,7 @@ select { font: 16px var(--sans); color: var(--fg); background: var(--panel2); bo
 // Display names come from Pygmy (printer_info.names); this map holds them after the first sync.
 const NAMES = {};
 const nameOf = a => NAMES[a] || a.toUpperCase();
-let PRINTER = "", PRINTERS = [];
+let PRINTER = "", PRINTERS = [], PUBLIC_URL = "";
 const STATE = { RUNNING: "printing", PAUSE: "paused", PREPARE: "preparing", FINISH: "finished", FAILED: "stopped", IDLE: "idle", SLICING: "preparing" };
 const SPEED = { 1: "Silent", 2: "Standard", 3: "Sport", 4: "Ludicrous" };
 const $ = id => document.getElementById(id);
@@ -689,7 +694,9 @@ function render(s) {
   // Heater on: value turns orange.
   $("noz").style.color = t.nozzle_target > 0 ? "#ff9f0a" : ""; $("bed").style.color = t.bed_target > 0 ? "#ff9f0a" : "";
   if (lightHold && Date.now() < lightHold.until && !!s.chamber_light !== lightHold.on) s.chamber_light = lightHold.on; else lightHold = null;
-  $("lightv").textContent = s.chamber_light ? "On" : "Off"; $("tog").classList.toggle("on", !!s.chamber_light);
+  const lights = s.lights || [];
+  const lightOn = lights.length > 1 ? lights.some(l => l.on) : !!s.chamber_light;
+  $("lightv").textContent = lightOn ? "On" : "Off"; $("tog").classList.toggle("on", !!lightOn);
   const lvl = held("speed", s.speed_level);
   $("speed").textContent = SPEED[lvl] || "–";
   // The printer takes a speed only while printing or paused (set_print_speed refuses otherwise).
@@ -881,7 +888,20 @@ async function act(fn, ok) {
 
 // ponytail: optimistic flip held 10 s, because the printer's report lags and stale polls would flip it back
 var lightHold = null; // var: render() may run before this line
+function paintLights() {
+  const lights = (last || {}).lights || [];
+  $("lightrows").innerHTML = lights.map(l =>
+    `<div class="row"><span>${esc(l.label || l.name)}</span><button class="sw ${l.on ? "on" : ""}" data-light="${esc(l.name)}" data-v="${!!l.on}"></button></div>`).join("");
+  for (const b of $("lightrows").querySelectorAll("[data-light]")) b.onclick = async () => {
+    const on = b.dataset.v !== "true"; b.classList.toggle("on", on); b.dataset.v = String(on);
+    try { await rpc("set_light", { on, light: b.dataset.light }); } catch (e) {
+      b.classList.toggle("on", !on); b.dataset.v = String(!on); toast(e.message);
+    }
+  };
+}
 $("light").onclick = async () => {
+  const lights = (last || {}).lights || [];
+  if (lights.length > 1) { paintLights(); $("lights").hidden = false; return; }
   const on = !last.chamber_light; lightHold = { on, until: Date.now() + 10000 }; render(last);
   try { await rpc("set_light", { on }); } catch (e) { lightHold = null; last.chamber_light = !on; render(last); toast(e.message); }
 };
@@ -1908,6 +1928,7 @@ async function syncPrinters() {
   const info = await rpcReal("list_printers").catch(() => null);
   if (!info) return;
   PRINTERS = [...(info.printers || [])];
+  PUBLIC_URL = info.public_url || "";
   if (info.names) Object.assign(NAMES, info.names);  // "Alpha", not "ALPHA"
   CUSTOM = new Set(info.custom || []); KLIPPERS = new Set(info.klipper || []); Object.assign(MODELS_OF, info.models || {});
   if (!PRINTERS.includes(PRINTER)) selectPrinter(PRINTERS[0] || "");
@@ -2378,6 +2399,17 @@ function devClick(b) {
     if (devAdded) rpc("device_cancel", { name: devAdded.name }).catch(() => {});
     devAdded = null; return paintOpts();
   }
+  if (d === "secure") return act(async () => {
+    // Pair this device with the https address in one tap: new key, then open the app there with it.
+    const name = deviceLabel() + " (secure)", add = () => rpc("device_add", { name, origin: PUBLIC_URL });
+    let added;
+    try { added = await add(); }
+    catch (e) { await rpc("device_remove", { name }).catch(() => {}); added = await add(); }
+    const r = await fetch("/pair", { method: "POST", body: JSON.stringify({ code: added.code }) });
+    const { key } = await r.json();
+    if (!key) throw new Error("Pairing with the secure address failed, try again");
+    location.href = PUBLIC_URL + "/app#k=" + key;
+  });
   if (d === "add") return act(async () => { devAdded = await rpc("device_add", { name: $("devname").value.trim(), origin: location.origin }); devs = devAdded.devices; paintOpts(); }, "Device added");
   const me = devs.some(x => x.me && x.name === b.dataset.name);
   if (d === "rm" && confirm(`Remove ${b.dataset.name}? Its key stops working at once.${me ? " This is the device you are using: Pygmy will ask for a key again." : ""}`))
@@ -2423,6 +2455,10 @@ function paintOpts() {
       `<div class="row"><span>Expert mode</span>${info && info.tested === false ? `<span class="note">Not tested on this model yet</span>` : ""}`
       + `<button class="sw ${expert && !(info && info.tested === false) ? "on" : ""}" data-k="__expert" data-v="${expert}"${info && info.tested === false ? " disabled" : ""}></button></div>`));
   $("setrows").innerHTML = sec("notif", "Notifications", notif ? [ch.push && "Web Push on", ch.telegram && "Telegram on"].filter(Boolean).join(" · ") || "off" : "", notifOptions())
+    + (PUBLIC_URL && location.origin !== PUBLIC_URL
+      ? sec("secure", "Secure address", "", `<p class="note">Use the secure https address on this device: it works at home and away (keep Tailscale on).</p>`
+          + `<div class="row"><button class="btn primary" data-d="secure">Switch</button></div>`)
+      : "")
     + sec("devs", "Devices", devs ? String(devs.filter(d => !d.builtin).length) : "", devOptions())
     + sec("orca", "Orca Cloud", cloudStatus ? (cloudStatus.logged_in ? "signed in" : "not signed in") : "",
         `<div class="row"><span>OrcaSlicer filaments and print profiles</span><button class="btn" data-orca-sheet>Open</button></div>`);

@@ -1,5 +1,6 @@
 """Publish printer state to Home Assistant through MQTT Discovery and take HA's few commands."""
 import json
+import re
 import sys
 import threading
 import time
@@ -19,6 +20,15 @@ DRY_CONTROLS = (("number", "dry_temp"), ("number", "dry_hours"), ("button", "dry
 # Spec §8.6: HA may control the printer, never start a print.
 HA_ACTIONS = ("pause", "resume", "stop", "light", "plate_cleared", "speed", *FANS,
               *(f"opt_{key}" for key in OPTIONS), "clear_errors", "dismiss_spaghetti", "plate_detection")
+
+
+def light_slug(name):
+    """A light name as an MQTT/entity suffix: chamber_light, output_pin caselight -> output_pin_caselight."""
+    return re.sub(r"[^a-z0-9]+", "_", str(name or "").lower()).strip("_")
+
+
+def light_config_topic(alias, slug=None):
+    return f"{DISCOVERY}/light/pygmy_{alias}/light{'_' + slug if slug else ''}/config"
 
 # Bambu stg_cur codes (the same map the app uses, src/pygmy/app.html).
 STAGE = {1: "Auto bed leveling", 2: "Heating bed", 3: "Sweeping XY mech mode", 4: "Changing filament",
@@ -168,6 +178,8 @@ def flat_state(status):
     flat = {key: status.get(key) for key in keys}
     flat.update({key: temps.get(key) for key in ("nozzle", "nozzle_target", "bed", "bed_target")})
     flat["light"] = "ON" if status.get("chamber_light") else "OFF"
+    flat["lights"] = {l.get("name"): "ON" if l.get("on") else "OFF"
+                      for l in status.get("lights") or [] if l.get("name")}
     fans = status.get("fans") or {}
     flat["fan"] = fans.get("part")
     flat["fan_aux"], flat["fan_chamber"] = fans.get("aux"), fans.get("chamber")
@@ -308,11 +320,12 @@ def events(prev, cur, lang="en", minutes=None):
     return out
 
 
-def discovery(alias, name=None, slots=(), units=(), profile=None):
+def discovery(alias, name=None, slots=(), units=(), profile=None, lights=()):
     """(topic, config) pairs, published retained so HA rebuilds the entities after a restart.
 
     slots/units come from the AMS this printer reports right now (e.g. "A1", "A").
     profile is what this printer really has ({"fans": [...], "options": [...]}); None means try everything.
+    lights: one entity per light when there is more than one, else the single Light entity.
     Entity ids are pygmy_<alias>_*.
     """
     printer_name = name or alias.upper()
@@ -340,8 +353,17 @@ def discovery(alias, name=None, slots=(), units=(), profile=None):
         out.append(("button", action, {"name": name, "command_topic": f"pygmy/{alias}/cmd/{action}", "payload_press": "PRESS"}))
     out.append(("event", "event", {"name": "Alert", "state_topic": f"pygmy/{alias}/event",
                                     "event_types": list(EVENT_TYPES)}))
-    out.append(("light", "light", {"name": "Light", "state_topic": state, "state_value_template": "{{ value_json.light }}",
-                                    "command_topic": f"pygmy/{alias}/cmd/light"}))
+    if len(lights) > 1:
+        for l in lights:
+            slug = light_slug(l.get("name"))
+            out.append(("light", f"light_{slug}", {
+                "name": l.get("label") or l["name"], "state_topic": state,
+                "value_template": f"{{{{ value_json.lights[{json.dumps(l['name'])}] }}}}",
+                "command_topic": f"pygmy/{alias}/cmd/light_{slug}"}))
+    else:
+        out.append(("light", "light", {"name": "Light", "state_topic": state,
+                                        "state_value_template": "{{ value_json.light }}",
+                                        "command_topic": f"pygmy/{alias}/cmd/light"}))
     for slot in slots:
         low = slot.lower()
         out.append(("sensor", f"ams_{low}", {
@@ -539,7 +561,7 @@ def parse_command(topic, payload, aliases):
         return None
     alias, action = parts[1], parts[3]
     text = payload.decode("utf-8", "replace") if isinstance(payload, bytes) else str(payload)
-    if action == "light":
+    if action == "light" or action.startswith("light_"):
         return (alias, action, text == "ON") if text in ("ON", "OFF") else None
     if action == "plate_detection":
         return (alias, action, text == "ON") if text in ("ON", "OFF") else None
@@ -574,6 +596,7 @@ class HaBridge:
         self.client = None
         self.last = {}
         self.layout = {}  # alias -> (slots, units, fans, options) deciding its discovery
+        self.lights = {}  # alias -> tuple of (name, label) the printer reports
         self.lang = lang
         self.started = {}  # alias -> monotonic time the bridge saw the print start
         self.ams_location = {}  # serial lower -> {"alias", "letter", "model"} where the unit is now
@@ -637,8 +660,12 @@ class HaBridge:
 
     def _publish_discovery(self, client, alias):
         slots, units, _, _ = self.layout.setdefault(alias, ((), (), (), ()))
-        for topic, config in discovery(alias, self.names.get(alias), slots, units, profile=self._profile(alias)):
+        lights = self.lights.get(alias, ())
+        for topic, config in discovery(alias, self.names.get(alias), slots, units, profile=self._profile(alias),
+                                       lights=lights):
             client.publish(topic, json.dumps(config), retain=True)
+        if len(lights) > 1:  # per-light entities replace the single Light one
+            client.publish(light_config_topic(alias), "", retain=True)
         for unit in units:  # a BMCU has no humidity/RFID entities: retire any retained from before.
             for topic in bmcu_dropped_topics(alias, unit):
                 client.publish(topic, "", retain=True)
@@ -665,9 +692,13 @@ class HaBridge:
         self.aliases = tuple(a for a in self.aliases if a != alias)
         self.last.pop(alias, None)
         slots, units, _, _ = self.layout.pop(alias, ((), (), (), ()))
+        lights = self.lights.pop(alias, ())
         if self.client is not None:
             for topic, _ in discovery(alias, self.names.get(alias), slots, units, profile=self._profile(alias)):
                 self.client.publish(topic, "", retain=True)
+            self.client.publish(light_config_topic(alias), "", retain=True)
+            for l in lights:
+                self.client.publish(light_config_topic(alias, light_slug(l[0])), "", retain=True)
         self.names.pop(alias, None)
 
     def _on_message(self, _client, _userdata, msg):
@@ -811,17 +842,23 @@ class HaBridge:
         layout = (tuple(slot["slot"] for unit in plain for slot in unit.get("slots") or () if slot.get("slot")),
                   tuple(unit["unit"] for unit in plain if unit.get("unit")),
                   tuple(learned.get("fans") or ()), tuple(learned.get("options") or ()))
-        if self.layout.get(alias) == layout:
+        lights = tuple((l.get("name"), l.get("label")) for l in status.get("lights") or () if l.get("name"))
+        if self.layout.get(alias) == layout and self.lights.get(alias) == lights:
             return
         # _on_connect/_add_alias publish with the layout they know (empty at first), so an alias already
         # in self.layout has entities out there that now need the AMS ones too.
         announced = alias in self.layout
         prev_units = set(self.layout.get(alias, ((), (), (), ()))[1])
+        prev_lights = self.lights.get(alias, ())
         self.layout[alias] = layout
+        self.lights[alias] = lights
         if announced and self.client is not None:
             self._publish_discovery(self.client, alias)
             for gone in prev_units - set(layout[1]):
                 self._clear_old_scheme(alias, gone)  # a no-serial unit left: drop its old-scheme device
+            for gone in prev_lights:
+                if gone not in lights:  # a light went away: drop its retained entity
+                    self.client.publish(light_config_topic(alias, light_slug(gone[0])), "", retain=True)
 
     def _publish_photo(self, alias):
         """The print's last frame with the finished/failed notification; a missing photo never stops it."""

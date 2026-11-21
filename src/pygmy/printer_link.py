@@ -116,6 +116,17 @@ def fan_pct(value):
     return None if speed is None else round(speed * 100 / 15)
 
 
+LIGHT_LABELS = {"chamber_light": "Chamber light", "work_light": "Work light"}
+
+
+def light_entries(raw):
+    """The printer's lights from lights_report: chamber_light always, work_light when the model reports it."""
+    modes = {x.get("node"): x.get("mode") for x in raw.get("lights_report") or [] if isinstance(x, dict)}
+    nodes = ["chamber_light"] + (["work_light"] if "work_light" in modes else [])
+    return [{"name": n, "label": LIGHT_LABELS[n], "on": modes.get(n) == "on" if n in modes else None}
+            for n in nodes]
+
+
 def int_prefix(value):
     """The leading integer of a value like "-44dBm" or "5", else None."""
     m = re.match(r"-?\d+", str(value or ""))
@@ -155,7 +166,7 @@ def with_sequence(payload):
     return copy
 
 
-def build_command(action, heater=None, target=None, on=None, **_unused):
+def build_command(action, heater=None, target=None, on=None, light=None, **_unused):
     """Payloads as the A1 accepts them."""
     if action in ("pause", "resume", "stop"):
         return {"print": {"command": action, "sequence_id": "0"}}
@@ -163,7 +174,8 @@ def build_command(action, heater=None, target=None, on=None, **_unused):
         gcode = {"bed": "M140", "nozzle": "M104 T0"}[heater]
         return {"print": {"command": "gcode_line", "param": f"{gcode} S{int(target)}", "sequence_id": "0"}}
     if action == "light":
-        return {"system": {"command": "ledctrl", "led_node": "chamber_light", "led_mode": "on" if on else "off",
+        return {"system": {"command": "ledctrl", "led_node": light or "chamber_light",
+                           "led_mode": "on" if on else "off",
                            "led_on_time": 500, "led_off_time": 500, "loop_times": 0, "interval_time": 0,
                            "sequence_id": "0"}}
     raise ValueError(action)
@@ -224,7 +236,7 @@ def to_snapshot(raw, firmware_version=None):
     temps["nozzle_heating"] = 0 < (temps.get("nozzle_target") or 0) and (temps.get("nozzle") or 0) < temps["nozzle_target"]
     ams = raw.get("ams") if isinstance(raw.get("ams"), dict) else {}
     vt_tray = raw.get("vt_tray")
-    light = next((x for x in raw.get("lights_report") or [] if x.get("node") == "chamber_light"), None)
+    lights = light_entries(raw)
     progress = raw.get("mc_percent")
     hf = as_int(raw.get("home_flag")) or 0
     ipcam = raw.get("ipcam") if isinstance(raw.get("ipcam"), dict) else {}
@@ -259,7 +271,8 @@ def to_snapshot(raw, firmware_version=None):
         # bit0 X, bit1 Y, bit2 Z homed (verified on a P1): they clear on M18 or the idle timeout.
         "home_flag": as_int(raw.get("home_flag")),
         "speed_level": raw.get("spd_lvl"),
-        "chamber_light": light.get("mode") == "on" if light else None,
+        "chamber_light": lights[0]["on"],
+        "lights": lights,
         "hms_errors": decode_faults(raw),
         "print_error": as_int(raw.get("print_error")) or 0,
         "stage": as_int(raw.get("stg_cur")),  # What the printer is doing now: homing, heating bed...

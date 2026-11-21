@@ -44,8 +44,8 @@ class StandardLights(unittest.TestCase):
         link.last_report = link.clock()
         snap = link.snapshot()
         self.assertTrue(snap["chamber_light"])
-        self.assertEqual(snap["lights"], [{"id": "output_pin caselight", "name": "caselight", "on": True},
-                                          {"id": "wled", "name": "WLED", "on": False, "extra": True}])
+        self.assertEqual(snap["lights"], [{"name": "output_pin caselight", "label": "Caselight", "on": True},
+                                          {"name": "wled", "label": "WLED", "on": False}])
 
     def test_without_standard_lights_wled_stays_main(self):
         link = self.link([], light={"led": None, "on": None, "off": None, "wled": "light"})

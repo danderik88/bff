@@ -31,6 +31,15 @@ echo "(If a link appears, open it, press the button to switch on HTTPS, and wait
 tailscale serve --bg "http://$BIND:8765" >/dev/null
 URL=$(tailscale serve status | grep -m1 -o 'https://[^ ]*') || true
 [ -n "$URL" ] || { echo "Could not read the address. Run 'tailscale serve status'." >&2; exit 1; }
+# The app offers a one-tap switch from the home address to this one.
+if [ "$(sed -n 's/^PYGMY_PUBLIC_URL=//p' .env)" != "$URL" ]; then
+  if grep -q '^PYGMY_PUBLIC_URL=' .env; then
+    sed -i "s|^PYGMY_PUBLIC_URL=.*|PYGMY_PUBLIC_URL=$URL|" .env
+  else
+    printf '\nPYGMY_PUBLIC_URL=%s\n' "$URL" >> .env
+  fi
+  ./install.sh >/dev/null
+fi
 KEY=$(grep '^PYGMY_MCP_TOKENS=' .env | cut -d= -f3)
 echo
 echo "Done. This address never changes and works at home and away:"
