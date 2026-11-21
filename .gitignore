@@ -5,3 +5,4 @@ tools/sim/cam/
 
 # Docker settings with secrets
 .env
+output/

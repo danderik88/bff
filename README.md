@@ -108,9 +108,22 @@ Run these in the `pygmy` folder (on Proxmox: `pct enter <id>`, then `cd /opt/pyg
 <details>
 <summary><b>Access from outside and notifications</b> (Tailscale)</summary>
 
-Install [Tailscale](https://tailscale.com) on the computer, set `PYGMY_MCP_BIND` in `.env` to its Tailscale IP, run
-`./install.sh`, then `sudo tailscale serve --bg http://<tailscale-ip>:8765`. The app is then at
-`https://<machine>.<tailnet>.ts.net/app` from anywhere, and Web Push notifications work (they need HTTPS).
+[Tailscale](https://tailscale.com) (free) is a private network between your own devices. With it your phone reaches
+Pygmy from anywhere, with no router settings, and notifications work (they need an `https` address).
+
+1. **Run one command** where Pygmy is installed.
+   - Proxmox, in the Proxmox shell (`pct list` shows the number):
+     ```sh
+     pct exec <number> -- /opt/pygmy/tailscale.sh
+     ```
+   - Any Linux, in the Pygmy folder: `sudo ./tailscale.sh`
+2. **Sign in** when it shows a link: open it on any device and use your Tailscale account (create one for free if
+   needed). If a second link asks to switch on HTTPS, open it and press the button.
+3. **On the phone:** install the Tailscale app, sign in with the same account, and open the address the command
+   printed at the end. That's it.
+
+From now on use that `https` address everywhere, also at home: the old `http://<home address>:8765` link stops
+working, because Pygmy now answers only inside your Tailscale network.
 
 </details>
 
