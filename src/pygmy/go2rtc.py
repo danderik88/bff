@@ -10,6 +10,7 @@ import json
 import os
 import sys
 import threading
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -53,6 +54,9 @@ def _soft(method, endpoint, query):
     try:
         _request(method, endpoint, query)
     except Exception as err:
+        # The config file is mounted read-only on purpose: go2rtc keeps the stream in memory, then fails to save it.
+        if isinstance(err, urllib.error.HTTPError) and b"read-only file system" in (err.read() or b""):
+            return
         reason = str(err)
         for secret in (query.get("src", ""), urllib.parse.quote(query.get("src", ""), safe=""),
                        urllib.parse.quote_plus(query.get("src", ""))):

@@ -119,11 +119,12 @@ Pygmy from anywhere, with no router settings, and notifications work (they need 
    - Any Linux, in the Pygmy folder: `sudo ./tailscale.sh`
 2. **Sign in** when it shows a link: open it on any device and use your Tailscale account (create one for free if
    needed). If a second link asks to switch on HTTPS, open it and press the button.
-3. **On the phone:** install the Tailscale app, sign in with the same account, and open the address the command
-   printed at the end. That's it.
+3. **On each phone:** install the Tailscale app, sign in with the same account and leave it on. Then open the link the
+   command printed at the end: it pairs the phone.
 
-From now on use that `https` address everywhere, also at home: the old `http://<home address>:8765` link stops
-working, because Pygmy now answers only inside your Tailscale network.
+That `https` address never changes and works the same at home and away, so use it everywhere (keep Tailscale on).
+Your home link (`http://<home address>:8765`) keeps working too, as a backup, and so do the devices you paired
+with it. A device is paired once per link.
 
 </details>
 
