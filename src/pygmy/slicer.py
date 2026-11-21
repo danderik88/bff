@@ -323,6 +323,6 @@ def user_bundle(data, max_files=3000, max_file=2_000_000):
             for key in UNSAFE_PRESET_KEYS:
                 preset.pop(key, None)
             out[kind][preset["name"]] = preset
-    if not out["machines"]:
-        raise SliceError("No printer profile in this file: export it from OrcaSlicer with File, Export, Export Preset Bundle")
+    if not (out["machines"] or out["processes"] or out["filaments"]):
+        raise SliceError("No Orca profiles in this file: export it from OrcaSlicer with File, Export, Export Preset Bundle")
     return out

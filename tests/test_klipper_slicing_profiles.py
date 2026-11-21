@@ -1,13 +1,23 @@
+import io
 import json
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools" / "slicer"))
 import flatten_profiles as fp  # noqa: E402
 from pygmy import slicer  # noqa: E402
+
+
+def bundle(members):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for name, doc in members.items():
+            z.writestr(name, json.dumps(doc))
+    return buf.getvalue()
 
 
 def write(path, doc):
@@ -38,6 +48,19 @@ class KlipperSlicingProfilesTest(unittest.TestCase):
             self.assertEqual(machines, ["Sovol SV08 0.4 nozzle"])  # the Max is a different printer, not kept
             self.assertEqual(kept["PLA @SV08"][1]["pla"], 1)
             self.assertEqual(fp.flatten(root, machines[0], vendor="Sovol")["common"], 1)
+
+
+class UserBundleTest(unittest.TestCase):
+    def test_filaments_and_processes_without_a_machine(self):
+        got = slicer.user_bundle(bundle({"filament/a.json": {"name": "My PLA", "filament_type": ["PLA"]},
+                                         "process/p.json": {"name": "0.20mm Mine", "layer_height": 0.2}}))
+        self.assertEqual((list(got["machines"]), list(got["processes"]), list(got["filaments"])),
+                         ([], ["0.20mm Mine"], ["My PLA"]))
+
+    def test_a_bundle_with_nothing_in_it_is_refused(self):
+        with self.assertRaises(slicer.SliceError) as caught:
+            slicer.user_bundle(bundle({"readme.txt": {"hello": True}}))
+        self.assertIn("No Orca profiles in this file", str(caught.exception))
 
 
 if __name__ == "__main__":

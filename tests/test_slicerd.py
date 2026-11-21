@@ -42,6 +42,8 @@ from pathlib import Path
 Path(os.environ["FAKE_ORCA_ARGV"]).write_text(json.dumps(sys.argv[1:]))
 Path(os.environ["FAKE_ORCA_FILAMENTS"]).write_text(json.dumps(
     [json.loads(Path(p).read_text()) for p in sys.argv[sys.argv.index("--load-filaments") + 1].split(";")]))
+Path(os.environ["FAKE_ORCA_SETTINGS"]).write_text(json.dumps(
+    [json.loads(Path(p).read_text()) for p in sys.argv[sys.argv.index("--load-settings") + 1].split(";")]))
 time.sleep(float(os.environ.get("FAKE_ORCA_SLEEP", "0")))
 out = Path(sys.argv[sys.argv.index("--outputdir") + 1])
 (out / "plate_1.gcode").write_text("G28\\n")
@@ -83,12 +85,14 @@ class Base(unittest.TestCase):
         orca.chmod(0o755)
         self.argv_file = self.tmp / "argv.json"
         self.filaments_file = self.tmp / "filaments.json"
+        self.settings_file = self.tmp / "settings.json"
         for name, value in (("PROFILES", profiles), ("ORCA_BIN", str(orca)), ("SECRET", "s3cret")):
             patcher = mock.patch.object(slicerd, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)
         env = mock.patch.dict(os.environ, {"FAKE_ORCA_ARGV": str(self.argv_file),
-                                           "FAKE_ORCA_FILAMENTS": str(self.filaments_file)})
+                                           "FAKE_ORCA_FILAMENTS": str(self.filaments_file),
+                                           "FAKE_ORCA_SETTINGS": str(self.settings_file)})
         env.start()
         self.addCleanup(env.stop)
 
@@ -101,6 +105,9 @@ class Base(unittest.TestCase):
     def load_filaments(self):
         argv = self.argv()
         return [Path(p).name for p in argv[argv.index("--load-filaments") + 1].split(";")]
+
+    def settings(self):
+        return json.loads(self.settings_file.read_text())
 
     def request(self):
         return {"model_b64": base64.b64encode(b"solid x").decode(), "filename": "cube.stl",
@@ -175,6 +182,31 @@ class SliceJob(Base):
                           filaments=[{"filament_id": "GFB60", "filament_type": "PLA"},
                                      {"filament_id": "GFB61", "filament_type": "PLA"}])
         self.assertEqual([f"{FILAMENT}.json", f"{FILAMENT2}.json"], self.load_filaments())
+
+    def test_user_presets_without_a_machine_still_slice(self):
+        user = {"processes": {"0.20mm Standard @Mine": {"inherits": "0.20mm Standard @BBL A1", "wall_loops": "4"}},
+                "filaments": {"My PLA": {"inherits": FILAMENT, "nozzle_temperature": ["215"]}}}
+        result = slicerd.slice_job(b"solid x", "cube.stl", MACHINE, "normal", None, {}, False, 1,
+                                   filament_id="GFB60", user_presets=user)
+        self.assertEqual(1, len(result["plates"]))
+        argv = self.argv()
+        machine_json = argv[argv.index("--load-settings") + 1].split(";")[0]
+        self.assertEqual(f"{MACHINE}.json", Path(machine_json).name)  # the normal machine, no user one
+        process = self.settings()[1]
+        self.assertEqual(("0.20mm Standard @Mine", "4"), (process["name"], process["wall_loops"]))
+        fil = json.loads(self.filaments_file.read_text())[0]
+        self.assertEqual(("My PLA", ["215"]), (fil["name"], fil["nozzle_temperature"]))
+
+    def test_choices_process_picks_the_user_process(self):
+        user = {"processes": {"0.20mm Standard @Mine": {"inherits": "0.20mm Standard @BBL A1", "wall_loops": "3"},
+                              "0.24mm Draft @Mine": {"inherits": "0.24mm Draft @BBL A1", "wall_loops": "5"}},
+                "filaments": [{"name": "My PLA", "inherits": FILAMENT}]}
+        slicerd.slice_job(b"solid x", "cube.stl", MACHINE, "normal", None, {"process": "0.24mm Draft @Mine"},
+                          False, 1, filament_id="GFB60", user_presets=user)
+        self.assertEqual("5", self.settings()[1]["wall_loops"])  # not the quality's 0.20mm Standard
+        slicerd.slice_job(b"solid x", "cube.stl", MACHINE, "normal", None, {"process": "not mine"},
+                          False, 1, filament_id="GFB60", user_presets=user)
+        self.assertEqual("3", self.settings()[1]["wall_loops"])  # unknown name ignored: the quality rule
 
     def bundle(self, *members):
         buf = io.BytesIO()

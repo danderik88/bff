@@ -1387,6 +1387,23 @@ def orca_file(alias):
     return Path(os.environ["STATE_DIRECTORY"]) / "orca" / f"{alias}.json"
 
 
+def cloud_bundle_path():
+    """The Orca Cloud account's filaments and processes: one set for every printer."""
+    return Path(os.environ["STATE_DIRECTORY"]) / "orca" / "_cloud.json"
+
+
+def load_cloud_bundle():
+    """{"filaments", "processes"} as user_bundle leaves them; empty when the file is missing or unreadable."""
+    empty = {"filaments": {}, "processes": {}}
+    try:
+        data = json.loads(cloud_bundle_path().read_text())
+    except (KeyError, OSError, ValueError):
+        return empty
+    if not isinstance(data, dict):
+        return empty
+    return {key: (data.get(key) if isinstance(data.get(key), dict) else {}) for key in empty}
+
+
 def user_chain(name, pool, seen=()):
     """A user preset with the user presets it inherits from merged in; `inherits` ends on a system preset."""
     preset = pool[name]
@@ -1418,20 +1435,38 @@ def pick_user_machine(machines, nozzle):
     return names[0]
 
 
-def user_presets_for(printer, filaments):
-    """The user's Orca presets for this Klipper printer, or None (then the built-in profile slices)."""
+def user_preset_pools(printer):
+    """(bundle, machines, processes, filaments) for this printer: its own uploaded bundle plus the global
+    Orca Cloud one. The printer's own preset wins when both carry the same name."""
     try:
         data = json.loads(orca_file(printer).read_text())
-    except (KeyError, OSError, ValueError):
-        return None
-    machines, procs, fils = data.get("machines") or {}, data.get("processes") or {}, data.get("filaments") or {}
+    except (KeyError, OSError, ValueError, AttributeError):
+        data = {}
+    data = data if isinstance(data, dict) else {}
+    cloud = load_cloud_bundle()
+
+    def pool(key):
+        own = data.get(key)
+        return {**cloud[key], **(own if isinstance(own, dict) else {})}
+
+    machines = data.get("machines")
+    return data, machines if isinstance(machines, dict) else {}, pool("processes"), pool("filaments")
+
+
+def user_presets_for(printer, filaments):
+    """The user's Orca presets for this printer, or None (then the built-in profile slices).
+    The machine always comes from the printer; only a bundle uploaded for this printer brings a user machine."""
+    data, machines, procs, fils = user_preset_pools(printer)
     name = data.get("machine")
-    if name not in machines:
-        return None
-    machine = user_chain(name, machines)
-    if not machine.get("inherits"):
-        return None
-    processes = {n: user_chain(n, procs) for n, p in procs.items() if name in (p.get("compatible_printers") or [])}
+    machine = user_chain(name, machines) if name in machines else None
+    if machine and not machine.get("inherits"):  # nothing to hang the machine on: the printer's own preset stays
+        machine = None
+    if machine:
+        processes = {n: user_chain(n, procs) for n, p in procs.items() if name in (p.get("compatible_printers") or [])}
+    else:
+        processes = {n: user_chain(n, procs) for n in procs}
+    if not machine and not procs and not fils:
+        return None  # no user profile at all: keep the built-in path, which an older slicerd understands
     loaded, chosen = data.get("loaded"), []
     for f in filaments:  # the spool set in Filaments: one of the user's presets, or a system one by id
         fid = f.get("filament_id") or ""
@@ -1441,7 +1476,10 @@ def user_presets_for(printer, filaments):
             chosen.append({**flat, "_type": filament_type_of(flat) or f.get("filament_type") or "PLA"})
         else:
             chosen.append({"_type": f.get("filament_type") or "PLA", "_id": fid or None, "_name": f.get("filament_name")})
-    return {"parent": machine["inherits"], "machine": machine, "processes": processes, "filaments": chosen}
+    out = {"processes": processes, "filaments": chosen}
+    if machine:
+        out = {"parent": machine["inherits"], "machine": machine, **out}
+    return out
 
 
 def tool_orca_profiles(args):
@@ -1469,8 +1507,10 @@ def tool_orca_profiles(args):
                 if wanted not in bundle["machines"]:
                     raise ToolError("Unknown printer profile")
                 bundle["machine"] = wanted  # the sync tool knows which preset belongs to this printer
-            else:
+            elif bundle["machines"]:
                 bundle["machine"] = pick_user_machine(bundle["machines"], cfg_nozzle(alias))
+            else:  # filaments and processes only: they now come from the global Orca Cloud bundle
+                raise ToolError("No printer profile in this file: export it from OrcaSlicer with File, Export, Export Preset Bundle")
             try:  # a re-upload keeps the chosen filament when the new bundle still has it
                 loaded = json.loads(path.read_text()).get("loaded")
             except (OSError, ValueError):
@@ -1499,64 +1539,25 @@ ORCA_CLOUD_EVERY_S = 600
 _ORCA_CLOUD_DIGEST = {}
 
 
-def orca_cloud_follows(alias=None):
-    """{alias: Orca machine preset} of the Klipper printers that follow the user's Orca Cloud presets."""
-    rows = DB.execute("SELECT printer, value FROM settings WHERE key='orca_cloud'").fetchall()
-    return {a: m for a, m in rows if m and (alias is None or a == alias)}
-
-
-def auto_machine(machines, names, nozzle=None):
-    """The user's Orca machine preset for a printer: the one named after it (and its nozzle), or the only one."""
-    def hit(m, want_nozzle):
-        low = m.lower()
-        return any(n and n.lower() in low for n in names) and (not want_nozzle or f"{nozzle:g}" in low)
-    for want_nozzle in (bool(nozzle), False):
-        found = [m for m in machines if hit(m, want_nozzle)]
-        if len(found) == 1:
-            return found[0]
-    return machines[0] if len(machines) == 1 else None
-
-
-def _orca_cloud_autopick(data):
-    """Klipper printers never set up for Orca Cloud follow the preset that matches them."""
-    machines = sorted(slicer.user_bundle(data)["machines"])
-    if not machines:
-        return
-    known = {a for (a,) in DB.execute("SELECT printer FROM settings WHERE key='orca_cloud'").fetchall()}
-    for a, entry in onboard.load_store(store_path()).items():
-        if a in known or not onboard.is_klipper(entry.get("model")):
-            continue
-        machine = auto_machine(machines, [a, entry.get("name")], cfg_nozzle(a))
-        if machine:
-            with DB:
-                DB.execute("INSERT OR REPLACE INTO settings VALUES (?, 'orca_cloud', ?)", (a, machine))
-            print(f"orca cloud: {a} follows {machine}", flush=True)
-
-
-def orca_cloud_sync(alias=None):
-    """Push the slicer's Orca Cloud presets into each following printer (only when they changed)."""
-    import base64
+def orca_cloud_sync():
+    """Keep the account's filaments and processes in _cloud.json; the account is global, machines never come from it."""
     data = slicer.orca_user()
     if not data:
         return
-    try:
-        _orca_cloud_autopick(data)
-    except (KeyError, OSError, slicer.SliceError):
-        pass
-    follows = orca_cloud_follows(alias)
-    if not follows:
+    digest = hashlib.sha256(data).hexdigest()
+    if _ORCA_CLOUD_DIGEST.get("bundle") == digest:
         return
-    bundle_b64 = base64.b64encode(data).decode()
-    for printer, machine in follows.items():
-        digest = hashlib.sha256(data + machine.encode()).hexdigest()
-        if _ORCA_CLOUD_DIGEST.get(printer) == digest:
-            continue
-        try:
-            tool_orca_profiles({"printer": printer, "bundle_b64": bundle_b64, "machine": machine})
-            _ORCA_CLOUD_DIGEST[printer] = digest
-            print(f"orca cloud: {printer} profiles updated", flush=True)
-        except ToolError as err:
-            print(f"orca cloud: {printer}: {err}", flush=True)
+    try:
+        bundle = slicer.user_bundle(data)
+    except slicer.SliceError:
+        return
+    path = cloud_bundle_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps({"filaments": bundle["filaments"], "processes": bundle["processes"]}))
+    tmp.replace(path)  # atomic: a reader never sees half a file
+    _ORCA_CLOUD_DIGEST["bundle"] = digest
+    print(f"orca cloud: {len(bundle['filaments'])} filaments, {len(bundle['processes'])} processes", flush=True)
 
 
 def watch_orca_cloud():
@@ -1569,48 +1570,33 @@ def watch_orca_cloud():
 
 
 def tool_orca_cloud(args):
-    """Orca Cloud through the slicer: status, the sign-in window, and which preset a Klipper printer follows."""
-    action, alias = args.get("action") or "status", args.get("printer")
+    """Orca Cloud through the slicer: status and the sign-in window. Global, no printer argument."""
+    action = args.get("action") or "status"
     try:
         if action == "login":
             slicer.orca_login("start", provider=args.get("provider") or "google",
                               email=args.get("email") or "", password=args.get("password") or "")
         if action == "logout":
             slicer.orca_login("logout")
-            with DB:  # the profiles it followed belong to the account that just left
-                DB.execute("DELETE FROM settings WHERE key='orca_cloud'")
             _ORCA_CLOUD_DIGEST.clear()
+            try:
+                cloud_bundle_path().unlink()
+            except (KeyError, OSError):
+                pass
         if action == "login_paste":
             slicer.orca_login("finish", url=args.get("url") or "")
         if action == "login_done":
             slicer.orca_login("stop")
-        if action == "use":
-            store = app_added(alias)
-            if not onboard.is_klipper(store[alias].get("model")):
-                raise ToolError("Your own Orca profiles are for Klipper printers")
-            machine = args.get("machine") or ""
-            with DB:
-                DB.execute("INSERT OR REPLACE INTO settings VALUES (?, 'orca_cloud', ?)", (alias, machine))
-            _ORCA_CLOUD_DIGEST.pop(alias, None)
-            if machine:
-                orca_cloud_sync(alias)
         status = slicer.orca_status()
-        data = slicer.orca_user() if status.get("logged_in") else None
-        if data and action != "use":
-            try:
-                _orca_cloud_autopick(data)
-            except (KeyError, OSError, slicer.SliceError):
-                pass
+        if action == "status" and status.get("logged_in"):
+            orca_cloud_sync()  # cheap when nothing changed: the digest skips it
     except slicer.SliceError as err:
         raise ToolError(str(err)) from None
-    try:
-        machines = sorted(slicer.user_bundle(data)["machines"]) if data else []
-    except slicer.SliceError:  # signed in, but the account holds no printer profile (yet): not an error for the screen
-        machines = []
+    bundle = load_cloud_bundle()
     return as_text({"logged_in": bool(status.get("logged_in")), "login_open": bool(status.get("login_open")),
                     "login_state": status.get("state"), "login_link": status.get("url"),
                     "login_error": status.get("error"),
-                    "machines": machines, "machine": orca_cloud_follows(alias).get(alias) if alias else None})
+                    "filaments": len(bundle["filaments"]), "processes": len(bundle["processes"])})
 
 
 def cfg_nozzle(printer):
@@ -1675,7 +1661,8 @@ def tool_printer_info(args):
         "plate": plate_state(raw),
         "plate_type": plate_type(alias) if DB is not None else None,
         "choices": {"nozzle_diameters": NOZZLE_DIAMETERS, "nozzle_types": NOZZLE_TYPES, "plate_types": PLATE_TYPES,
-                    "spool_profiles": spool_profiles(alias)},
+                    "spool_profiles": spool_profiles(alias),
+                    "user_processes": sorted(user_preset_pools(alias)[2])},
         **({"options": options} if options else {}),
     })
 
@@ -2417,11 +2404,12 @@ USER_SPOOL, USER_VENDOR = "user:", "My Orca profiles"
 
 
 def user_spool_entries(alias):
-    """The user's own Orca filament presets for a Klipper printer, shaped like spool_catalog() entries."""
+    """The user's own Orca filament presets for a printer: its uploaded bundle plus the global Orca Cloud one."""
     try:
-        fils = json.loads(orca_file(alias).read_text()).get("filaments") or {}
+        own = json.loads(orca_file(alias).read_text()).get("filaments") or {}
     except (KeyError, OSError, ValueError, AttributeError):
-        return []
+        own = {}
+    fils = {**load_cloud_bundle()["filaments"], **(own if isinstance(own, dict) else {})}  # the printer's own wins
     out = []
     for name in sorted(fils):
         flat = user_chain(name, fils)
@@ -2439,9 +2427,8 @@ def user_spool_entries(alias):
 
 
 def spool_entries(alias):
-    """Catalog entries a spool of this printer can be set to: on Klipper the user's Orca filaments come first."""
-    own = user_spool_entries(alias) if isinstance(LINKS.get(alias), MoonrakerLink) else []
-    return own + spool_catalog()
+    """Catalog entries a spool of this printer can be set to: the user's Orca filaments come first, on any printer."""
+    return user_spool_entries(alias) + spool_catalog()
 
 
 def catalog_name(profile_id):
@@ -3053,10 +3040,16 @@ def _slice_request(rid, printer, source, file_name, choices_json, slots, copies,
         name, data, others, _ = _fetch_link(rid, source)
     profile = load_profile(printer)
     machine = slicer.machine_preset(profile.get("model"), cfg_nozzle(printer) or _nozzle_diameter(raw))
-    user = user_presets_for(printer, filaments) if klipper else None
-    if user:  # the user's own Orca presets win over the built-in profile
+    user = user_presets_for(printer, filaments)  # every printer: filaments and processes, machine stays the printer's
+    if user and user.get("parent"):  # a bundle uploaded for this printer brings its own machine preset
         machine = user.pop("parent")
     choices = json.loads(choices_json) if choices_json else {}
+    process = choices.get("process")
+    if process is not None and (not isinstance(process, str) or not user or process not in user["processes"]):
+        choices.pop("process")  # a process profile that is not the user's is not a user choice
+    if user and not (user.get("machine") or choices.get("process")
+                     or any((f.get("filament_id") or "").startswith(USER_SPOOL) for f in filaments)):
+        user = None  # none of the user's presets is in play: slice with the built-in ones
     if name.endswith(fetch.BUNDLE_EXT) and choices.get("files") is not None:
         name, data = fetch.bundle_pick(data, choices["files"])  # the meshes picked in step 1
     if "plate" not in choices and (mounted := plate_type(printer)):  # Klipper too (E3K, 2026-11-17)
@@ -3065,7 +3058,8 @@ def _slice_request(rid, printer, source, file_name, choices_json, slots, copies,
     try:
         plates = slicer.slice(data, name, machine, filaments,
                               choices, bool(choices.get("reorient")), copies or 1,
-                              other_machines=list(machines), machine_overrides=None if user else cfg_machine_of(printer),
+                              other_machines=list(machines),
+                              machine_overrides=None if user and user.get("machine") else cfg_machine_of(printer),
                               user_presets=user)
     except slicer.SliceError as exc:
         exc.other_machines = machines  # preset -> alias, for the "Fits on" note
@@ -3269,6 +3263,7 @@ def optional_axes(**extra):
 TOOLS = {
     "status": (tool_status, "Stato attuale della stampante: progresso, temperature, errori HMS. attention elenca i messaggi attivi: handling persona = serve un intervento manuale da chiedere all'utente; sicurezza = non rispondere mai da solo.", schema(), False),
     "list_printers": (tool_list_printers, "Elenco delle stampanti gestite da BFF: alias, nome e modello. Nessun access code.", {"type": "object", "properties": {}, "required": []}, False),
+    "orca_cloud": (tool_orca_cloud, "Account Orca Cloud, uno solo per tutte le stampanti: stato e accesso con Google, Apple, GitHub o email. Fornisce filamenti e processi; la macchina resta quella della stampante. Azioni: status, login, login_paste, login_done, logout.", {"type": "object", "properties": {"printer": {"type": "string", "description": "Ignorato: l'account e' globale"}, "action": {"type": "string", "enum": ["status", "login", "login_paste", "login_done", "logout"]}, "provider": {"type": "string", "enum": ["google", "apple", "github", "email"]}, "email": {"type": "string"}, "password": {"type": "string"}, "url": {"type": "string", "description": "Indirizzo incollato dall'utente dopo l'accesso nel browser"}}, "required": [], "additionalProperties": False}, True),
     "printer_info": (tool_printer_info, "Dati per lo slicing: modello, ugello, filamento caricato con grammi rimasti, stampanti disponibili, se e' libera. plate = piatto visto ora dalla camera: clear, occupied o unknown con il motivo. null = dato non noto, non indovinarlo.", schema(), False),
     "camera_snapshot": (tool_camera_snapshot, "Foto della camera. Da usare solo se l'utente la chiede esplicitamente.", schema(), False),
     "plate_photo": (tool_plate_photo, "Foto del piatto per decidere se e' libero. Segui le regole nella risposta.", schema(), False),

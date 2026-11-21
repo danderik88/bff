@@ -144,46 +144,51 @@ photo at `<state dir>/spaghetti/test-<printer alias>.jpg` during a print; Pygmy 
 <details>
 <summary><b>Klipper details and your OrcaSlicer profiles</b></summary>
 
-Pygmy uses Moonraker's documented API. Print now slices from the printer's own `printer.cfg`, or from your own
-OrcaSlicer profiles (see the next section). Pick the loaded filament in the printer's Filament tab. An ACE Pro shows
-up as a spool unit.
+Pygmy uses Moonraker's documented API. Print now slices from the printer's own `printer.cfg`: the machine always
+comes from the printer, there is no printer profile to choose. Pick the loaded filament in the printer's Filament
+tab. An ACE Pro shows up as a spool unit.
 
 </details>
 
 <details>
 <summary><b>Your OrcaSlicer profiles (Orca Cloud)</b></summary>
 
-If you keep your own printer, filament and process profiles in OrcaSlicer, a Klipper printer can slice with them.
+Orca Cloud is an **account** setting, not a printer setting: it brings your own filaments and print profiles to
+every printer, Bambu included. The machine always comes from the printer itself (Klipper: its `printer.cfg`; Bambu:
+the Bambu profiles), so you never choose a printer profile.
 
 **Sign in once** (about two minutes, on a computer or a phone):
 
-1. In Pygmy: **Select**, the printer, **Orca profiles**, then **Continue with Google** (or Apple, or GitHub: use the
-   one you use for OrcaSlicer). Wait up to a minute while Pygmy gets the sign-in ready. (Signing in with an email
-   and password instead? See below.)
-2. Press **Open sign-in page**. Your browser opens the OrcaSlicer sign-in. Sign in as usual.
+1. In Pygmy: **Settings** (the gear icon, top right), **Orca Cloud**, **Open**. Wait up to a minute while Pygmy gets
+   the sign-in ready.
+2. Press **Continue with Google** (or Apple, or GitHub: use the one you use for OrcaSlicer), then **Open sign-in
+   page**. Your browser opens the OrcaSlicer sign-in. Sign in as usual.
 3. At the end your browser says it **cannot connect to "localhost"**. That is expected, it is not an error. The
    address in the address bar is the key: copy the **whole address** (it starts with `http://localhost:` and is long).
    On an iPhone the bar shows only a short name: tap it first, then select all and copy.
 4. Back in Pygmy, paste it in the box and press **Finish**.
 
-Pygmy then picks the printer profile whose name matches your printer (and its nozzle). If it picks the wrong one, or
-finds none, choose it in **Orca profiles**. Your profiles stay up to date on their own: a profile you change in
-OrcaSlicer reaches Pygmy within about an hour. The sign-in is kept across updates; you only do it again after a
-reinstall.
-
 **With an email and password:** press **Continue with email**, type them and press **Sign in**. Nothing to open or
 copy. Unlike Google, Apple and GitHub, here your password goes to your own Pygmy once, which types it into OrcaSlicer;
 it is not saved or logged.
 
-**Signed in with the wrong account, or want to leave?** In **Orca profiles**, press **Sign out of Orca Cloud**. Pygmy
-forgets the sign-in; your printers stop following your profiles until you sign in again.
+**After signing in**, your filaments show up at the top of the Filament list under **My Orca profiles**, for every
+printer, Bambu included. Pick them like any other filament. If your brand or model is not listed, use Generic (on
+Bambu, the matching Bambu profile). Your print profiles (process) are chosen in **Print now**, **Custom**, **Print
+profile**.
+
+Profiles update on their own, within about 10 minutes. If nothing arrives, in OrcaSlicer on your computer the user
+profile sync must be on, and your profiles must show the cloud icon.
+
+**Signed in with the wrong account, or want to leave?** In the same **Orca Cloud** sheet, press **Sign out of Orca
+Cloud**. Pygmy forgets the sign-in; your printers stop following your profiles until you sign in again.
 
 **Why these steps:** Orca Cloud only allows signing in through its own login page, and only from OrcaSlicer itself.
 So Pygmy runs OrcaSlicer in the background, opens its login for you and you finish it in your own browser, where you
 are already signed in. With Google, Apple or GitHub your password and the sign-in token never reach Pygmy.
 
-**Without an Orca account:** in OrcaSlicer on your computer, **File**, **Export**, **Export Preset Bundle**, then
-upload that file in **Orca profiles**. You redo the upload when you change a profile.
+**Without an Orca account** (Klipper only): in OrcaSlicer on your computer, **File**, **Export**, **Export Preset
+Bundle**, then upload that file in **Printers**, **Orca profiles**. You redo the upload when you change a profile.
 
 </details>
 
@@ -246,7 +251,7 @@ cd .. && rm -rf pygmy
 - Tailscale: remove the `pygmy` machine in the admin console. If you used remote access, also run `tailscale serve reset` first.
 - Phones: delete the Pygmy icon from the home screen. Notifications stop once the server is gone.
 - Home Assistant: remove the MQTT entities starting with `pygmy_` (the MQTT integration, Devices).
-- Orca Cloud: nothing to do, Pygmy only reads your profiles. To also sign out, use OrcaSlicer on your computer.
+- Orca Cloud: your account is not touched, and the sign-in on this server disappears with it. Without removing Pygmy, use Settings, Orca Cloud, Sign out.
 
 </details>
 

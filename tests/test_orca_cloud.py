@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -111,22 +112,33 @@ class Gui(unittest.TestCase):
 
 class CloudTool(unittest.TestCase):
     EMPTY = {"logged_in": False, "login_open": False, "login_state": None, "login_link": None,
-             "login_error": None, "machines": [], "machine": None}
+             "login_error": None, "filaments": 0, "processes": 0}
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        env = mock.patch.dict(os.environ, {"STATE_DIRECTORY": self.tmp.name})
+        env.start()
+        self.addCleanup(env.stop)
+        digest = mock.patch.dict(server._ORCA_CLOUD_DIGEST, clear=True)
+        digest.start()
+        self.addCleanup(digest.stop)
 
     def test_status_without_sign_in(self):
         with mock.patch.object(server.slicer, "orca_status", lambda: {"logged_in": False, "login_open": False}):
             got = json.loads(server.tool_orca_cloud({})[-1]["text"])
         self.assertEqual(got, self.EMPTY)
 
-    def test_account_without_printer_profiles_is_not_an_error(self):
-        def no_printer_profiles(_data):
-            raise server.slicer.SliceError("No printer profile in this file")
+    def test_status_syncs_when_signed_in_then_reports_the_counts(self):
+        server.cloud_bundle_path().parent.mkdir(parents=True, exist_ok=True)
+        server.cloud_bundle_path().write_text(json.dumps({"filaments": {"My PLA": {}},
+                                                          "processes": {"0.20mm": {}, "0.12mm": {}}}))
+        calls = []
         with mock.patch.object(server.slicer, "orca_status", lambda: {"logged_in": True}), \
-                mock.patch.object(server.slicer, "orca_user", lambda: b"zip"), \
-                mock.patch.object(server.slicer, "user_bundle", no_printer_profiles):
+                mock.patch.object(server, "orca_cloud_sync", lambda: calls.append(1)):
             got = json.loads(server.tool_orca_cloud({})[-1]["text"])
-        self.assertTrue(got["logged_in"])
-        self.assertEqual(got["machines"], [])
+        self.assertEqual(calls, [1])
+        self.assertEqual((got["filaments"], got["processes"]), (1, 2))
 
     def test_login_starts_with_the_chosen_provider_and_reports_the_link(self):
         calls = []
@@ -144,18 +156,16 @@ class CloudTool(unittest.TestCase):
             server.tool_orca_cloud({"action": "login", "provider": "email", "email": "a@b.c", "password": "pw"})
         self.assertEqual(calls, [("start", {"provider": "email", "email": "a@b.c", "password": "pw"})])
 
-    def test_logout_empties_what_was_followed(self):
-        import sqlite3
-        db = sqlite3.connect(":memory:")
-        db.execute("CREATE TABLE settings (printer TEXT, key TEXT, value TEXT)")
-        db.execute("INSERT INTO settings VALUES ('e3k', 'orca_cloud', 'Creality E3K 0.6 nozzle')")
+    def test_logout_forgets_the_cloud_bundle(self):
+        server.cloud_bundle_path().parent.mkdir(parents=True, exist_ok=True)
+        server.cloud_bundle_path().write_text("{}")
         calls = []
-        with mock.patch.object(server, "DB", db), \
-                mock.patch.object(server.slicer, "orca_login", lambda a, **k: calls.append(a) or {}), \
+        with mock.patch.object(server.slicer, "orca_login", lambda a, **k: calls.append(a) or {}), \
                 mock.patch.object(server.slicer, "orca_status", lambda: {"logged_in": False}):
             server.tool_orca_cloud({"action": "logout"})
         self.assertEqual(calls, ["logout"])
-        self.assertEqual(db.execute("SELECT count(*) FROM settings WHERE key='orca_cloud'").fetchone()[0], 0)
+        self.assertFalse(server.cloud_bundle_path().exists())
+        self.assertEqual(server._ORCA_CLOUD_DIGEST, {})
 
     def test_pasted_address_goes_to_the_slicer(self):
         calls = []
@@ -164,15 +174,41 @@ class CloudTool(unittest.TestCase):
             server.tool_orca_cloud({"action": "login_paste", "url": "http://localhost:1/callback?code=2"})
         self.assertEqual(calls, [("finish", {"url": "http://localhost:1/callback?code=2"})])
 
-    def test_sync_skips_unchanged_presets(self):
-        calls = []
-        with mock.patch.object(server, "orca_cloud_follows", lambda alias=None: {"e3k": "Creality E3K 0.6 nozzle"}), \
-                mock.patch.object(server.slicer, "orca_user", lambda: b"zip"), \
-                mock.patch.object(server, "tool_orca_profiles", lambda args: calls.append(args["machine"])), \
-                mock.patch.dict(server._ORCA_CLOUD_DIGEST, clear=True):
+    def test_sync_saves_filaments_and_processes_only_when_changed(self):
+        bundle = {"machines": {}, "processes": {"0.20mm Fine": {"name": "0.20mm Fine"}},
+                  "filaments": {"My PLA": {"name": "My PLA"}}}
+        seen = []
+
+        def user_bundle(data):
+            seen.append(data)
+            return bundle
+
+        with mock.patch.object(server.slicer, "orca_user", lambda: b"zip"), \
+                mock.patch.object(server.slicer, "user_bundle", user_bundle):
             server.orca_cloud_sync()
+            server.orca_cloud_sync()  # same bytes: the digest skips it
+        saved = json.loads(server.cloud_bundle_path().read_text())
+        self.assertEqual((list(saved["filaments"]), list(saved["processes"])), (["My PLA"], ["0.20mm Fine"]))
+        self.assertNotIn("machines", saved)
+        self.assertEqual(seen, [b"zip"])
+        changed = {**bundle, "filaments": {**bundle["filaments"], "My PETG": {}}}
+        with mock.patch.object(server.slicer, "orca_user", lambda: b"zip2"), \
+                mock.patch.object(server.slicer, "user_bundle", lambda data: changed):
             server.orca_cloud_sync()
-        self.assertEqual(calls, ["Creality E3K 0.6 nozzle"])
+        saved = json.loads(server.cloud_bundle_path().read_text())
+        self.assertIn("My PETG", saved["filaments"])
+
+
+class CloudSpools(unittest.TestCase):
+    def test_a_bambu_printer_offers_the_cloud_filaments(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"STATE_DIRECTORY": tmp}):
+            path = Path(tmp) / "orca" / "_cloud.json"
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({"filaments": {"My PLA": {"name": "My PLA", "filament_type": ["PLA"],
+                                                                "nozzle_temperature_range_low": ["200"]}},
+                                        "processes": {}}))
+            entry = next(e for e in server.spool_entries("alpha") if e["id"] == "user:My PLA")
+        self.assertEqual((entry["vendor"], entry["type"], entry["min"]), ("My Orca profiles", "PLA", 200))
 
 
 if __name__ == "__main__":

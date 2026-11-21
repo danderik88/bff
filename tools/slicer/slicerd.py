@@ -428,22 +428,36 @@ def _merged(parent_file, delta, name):
     return out
 
 
-def resolve_user(entry, user, quality):
-    """The user's machine, process and filaments on top of the system presets they inherit from."""
-    if not isinstance(user, dict) or not isinstance(user.get("machine"), dict) \
-            or not isinstance(user.get("processes"), dict) or not isinstance(user.get("filaments"), list):
-        raise ValueError("user_presets must have machine, processes and filaments")
-    machine = _merged(entry["file"], user["machine"], str(user["machine"].get("name") or "User printer"))
+def resolve_user(entry, user, quality, process_choice=None):
+    """The user's machine, process and filaments on top of the system presets they inherit from.
+
+    The machine may be absent (or empty): the caller then keeps the normal machine while processes
+    and filaments still come from the user. `process_choice` names one of the user's processes,
+    preferred over the quality rule.
+    """
+    if not isinstance(user, dict) or not isinstance(user.get("processes"), dict) \
+            or not isinstance(user.get("filaments"), (list, dict)):
+        raise ValueError("user_presets must have processes and filaments")
+    machine_delta = user.get("machine")
+    if machine_delta is not None and not isinstance(machine_delta, dict):
+        raise ValueError("user_presets machine must be an object")
+    machine = _merged(entry["file"], machine_delta, str(machine_delta.get("name") or "User printer")) \
+        if machine_delta else None
     procs = {n: p for n, p in user["processes"].items() if isinstance(p, dict) and p.get("inherits") in entry["process"]}
     if not procs:
         raise ValueError("none of your process profiles is based on this printer's presets")
-    name = pick_quality(procs, quality)
+    name = process_choice if isinstance(process_choice, str) and process_choice in procs else pick_quality(procs, quality)
     process = _merged(entry["process"][procs[name]["inherits"]], procs[name], name)
-    process["compatible_printers"] = [machine["name"]]
+    if machine:
+        process["compatible_printers"] = [machine["name"]]
     filaments = []
-    for f in user["filaments"]:
+    items = user["filaments"].items() if isinstance(user["filaments"], dict) else [(None, f) for f in user["filaments"]]
+    for key, f in items:
         if not isinstance(f, dict):
             raise ValueError("user_presets filaments must be objects")
+        f = dict(f)
+        if key and not f.get("name"):
+            f["name"] = key
         parent = f.get("inherits") if f.get("inherits") in entry["filament"] else \
             resolve_filament(entry, None, f.get("_id"), f.get("_type") or "PLA", f.get("_name"))  # a system spool by id, else same type
         f = {k: v for k, v in f.items() if k not in ("_id", "_type", "_name")}
@@ -499,7 +513,7 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
                    for f in filaments]
     process_name = pick_quality(entry["process"], quality)
     base = json.loads((PROFILES / entry["process"][process_name]).read_text())
-    user = resolve_user(entry, user_presets, quality) if user_presets else None
+    user = resolve_user(entry, user_presets, quality, choices.get("process")) if user_presets else None
     if user:
         base = user["process"]
     process = build_process(base, choices)
@@ -522,8 +536,9 @@ def slice_job(model: bytes, filename: str, machine: str, quality: str, filament:
             machine_path.write_text(json.dumps(machine))
         filament_paths = [PROFILES / entry["filament"][f] for f in presets]
         if user:  # the user's own presets, resolved
-            machine_path = tmp / "machine.json"
-            machine_path.write_text(json.dumps(user["machine"]))
+            if user["machine"]:  # no user machine: the normal machine stays (and any printer.cfg on top)
+                machine_path = tmp / "machine.json"
+                machine_path.write_text(json.dumps(user["machine"]))
             filament_paths = []
             for i, flat in enumerate(user["filaments"]):
                 filament_paths.append(tmp / f"filament_{i}.json")

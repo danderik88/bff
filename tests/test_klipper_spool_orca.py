@@ -63,6 +63,29 @@ class OrcaPresetPicks(unittest.TestCase):
              "type": "PLA", "min": 190, "max": 230, "models": "all"}])
         self.assertEqual(server.user_spool_entries("nope"), [])
 
+    def test_cloud_filaments_reach_a_bambu_printer_and_carry_no_machine(self):
+        cloud = Path(self.tmp.name) / "orca" / "_cloud.json"
+        cloud.parent.mkdir(parents=True, exist_ok=True)
+        cloud.write_text(json.dumps({
+            "filaments": {"My PLA": {"name": "My PLA", "inherits": "Generic PLA @System", "filament_type": ["PLA"]}},
+            "processes": {"0.20mm Mine": {"name": "0.20mm Mine", "inherits": "0.20mm Standard @BBL A1"}}}))
+        user = server.user_presets_for("a1", [{"filament_id": "user:My PLA", "filament_type": "PLA"}])
+        self.assertNotIn("machine", user)  # the machine stays the printer's own
+        self.assertNotIn("parent", user)
+        self.assertEqual(list(user["processes"]), ["0.20mm Mine"])
+        self.assertEqual(user["filaments"][0]["name"], "My PLA")
+        self.assertIn("user:My PLA", [e["id"] for e in server.spool_entries("a1")])
+
+    def test_the_printers_own_preset_wins_over_the_cloud_one(self):
+        self.write_orca()
+        cloud = Path(self.tmp.name) / "orca" / "_cloud.json"
+        cloud.write_text(json.dumps({"filaments": {
+            "PolyTerra PLA @E3K": {"name": "PolyTerra PLA @E3K", "inherits": "Cloud base"},
+            "Cloud PETG": {"name": "Cloud PETG", "filament_type": ["PETG"]}}, "processes": {}}))
+        self.assertEqual([e["name"] for e in server.user_spool_entries("sv08")], ["Cloud PETG", "PolyTerra PLA @E3K"])
+        chosen = server.user_presets_for("sv08", [{"filament_id": "user:PolyTerra PLA @E3K"}])["filaments"][0]
+        self.assertEqual(chosen["inherits"], "Generic PLA @System")
+
 
 class SlicerUserParent(unittest.TestCase):
     def setUp(self):

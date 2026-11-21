@@ -2,6 +2,7 @@
 import json
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -78,6 +79,14 @@ class PrinterInfoTest(unittest.TestCase):
 
     def test_ams_is_flagged_because_it_is_not_handled(self):
         self.assertTrue(Printer({"ams": [{"id": 0}]}).info()["ams_present"])
+
+    def test_user_processes_come_from_the_cloud_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"STATE_DIRECTORY": tmp}):
+            path = Path(tmp) / "orca" / "_cloud.json"
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({"filaments": {}, "processes": {"0.20mm Fine X": {}, "0.12mm Strong": {}}}))
+            reply = Printer().info()
+        self.assertEqual(reply["choices"]["user_processes"], ["0.12mm Strong", "0.20mm Fine X"])
 
 
 class PlateTest(unittest.TestCase):
